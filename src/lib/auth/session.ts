@@ -103,3 +103,26 @@ export async function getSession(): Promise<Session | null> {
   const store = await cookies();
   return decodeSession(store.get(SESSION_COOKIE)?.value);
 }
+
+/**
+ * Sesión demo para acceso libre al Club y Mi Cuenta sin login.
+ * Apunta al cliente mock `c-1` para mostrar puntos e historial de ejemplo.
+ */
+export const DEMO_SESSION: Session = {
+  sub: "c-1",
+  name: "Martín Gómez",
+  phone: "+54 379 412-3344",
+  role: "cliente",
+  exp: Math.floor(Date.now() / 1000) + MAX_AGE_SECONDS,
+};
+
+/**
+ * Devuelve la sesión real si existe; si no, una sesión demo.
+ * `isDemo` permite a la UI ocultar acciones que requieren login real
+ * (por ejemplo, cerrar sesión).
+ */
+export async function getSessionOrDemo(): Promise<{ session: Session; isDemo: boolean }> {
+  const real = await getSession();
+  if (real) return { session: real, isDemo: false };
+  return { session: DEMO_SESSION, isDemo: true };
+}

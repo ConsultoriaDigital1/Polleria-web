@@ -1,9 +1,8 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { Star, MapPin, ShoppingBag, ChevronRight, Phone } from "lucide-react";
 import { formatPoints } from "@/lib/format";
 import { getPoints, getCustomer } from "@/lib/repo";
-import { getSession } from "@/lib/auth/session";
+import { getSessionOrDemo } from "@/lib/auth/session";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 
 export const dynamic = "force-dynamic";
@@ -24,8 +23,7 @@ const menu = [
 ];
 
 export default async function CuentaPage() {
-  const session = await getSession();
-  if (!session) redirect("/ingresar?next=/cuenta");
+  const { session, isDemo } = await getSessionOrDemo();
 
   const [summary, customer] = await Promise.all([
     getPoints(session.sub),
@@ -102,7 +100,9 @@ export default async function CuentaPage() {
         </Link>
       )}
 
-      <LogoutButton className="flex w-full items-center justify-center gap-2 rounded-xl border border-black/10 py-3 text-sm font-semibold text-brand-ink/70 hover:bg-black/5" />
+      {!isDemo && (
+        <LogoutButton className="flex w-full items-center justify-center gap-2 rounded-xl border border-black/10 py-3 text-sm font-semibold text-brand-ink/70 hover:bg-black/5" />
+      )}
     </div>
   );
 }

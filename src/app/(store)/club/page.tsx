@@ -1,11 +1,10 @@
-import { redirect } from "next/navigation";
 import QRCode from "qrcode";
 import { Gift, TrendingUp, ShoppingBag, Star, Sparkles } from "lucide-react";
 import { rewards, loyaltyTiers } from "@/lib/data";
 import { formatPoints } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { getPoints, getCustomer } from "@/lib/repo";
-import { getSession } from "@/lib/auth/session";
+import { getSessionOrDemo } from "@/lib/auth/session";
 import { MemberCard } from "@/components/club/MemberCard";
 import { ClubProgress } from "@/components/club/ClubProgress";
 import { RewardsGrid } from "@/components/club/RewardsGrid";
@@ -41,8 +40,7 @@ const weeklyPerks = [
 ];
 
 export default async function ClubPage() {
-  const session = await getSession();
-  if (!session) redirect("/ingresar?next=/club");
+  const { session } = await getSessionOrDemo();
 
   const [summary, customer] = await Promise.all([
     getPoints(session.sub),
