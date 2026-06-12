@@ -32,6 +32,14 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-polleria}:${POSTGRES_PASSWORD:-polleria}@db:5432/${POSTGRES_DB:-polleria}?schema=public
       # Clave que tu bot de n8n debe enviar en Authorization: Bearer <API_KEY>
       API_KEY: ${API_KEY:?Definí API_KEY en el archivo .env}
+      # Sesiones y login por OTP (WhatsApp vía n8n)
+      SESSION_SECRET: ${SESSION_SECRET:?Definí SESSION_SECRET en el archivo .env}
+      OTP_WHATSAPP_WEBHOOK_URL: ${OTP_WHATSAPP_WEBHOOK_URL:-}
+      OTP_WEBHOOK_SECRET: ${OTP_WEBHOOK_SECRET:-}
+      # Panel /admin
+      ADMIN_USER: ${ADMIN_USER:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Definí ADMIN_PASSWORD en el archivo .env}
+      ADMIN_PHONES: ${ADMIN_PHONES:-}
     ports:
       - "${WEB_PORT:-3000}:3000"
     healthcheck:
