@@ -4,6 +4,7 @@ import { CartDrawer } from "@/components/store/CartDrawer";
 import { SideMenu } from "@/components/store/SideMenu";
 import { Footer } from "@/components/store/Footer";
 import { VisitTracker } from "@/components/store/VisitTracker";
+import { Toaster } from "@/components/store/Toaster";
 
 export default function StoreLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -21,6 +22,7 @@ export default function StoreLayout({ children }: { children: React.ReactNode })
       </div>
       <CartDrawer />
       <SideMenu />
+      <Toaster />
     </div>
   );
 }

@@ -1,18 +1,45 @@
 "use client";
 
-import { Minus, Plus, ShoppingBag, Trash2, X } from "lucide-react";
+import { useState } from "react";
+import { MapPin, Minus, Plus, ShoppingBag, Trash2, X } from "lucide-react";
+/** Número de WhatsApp del local (formato internacional, sin signos). */
+const WHATSAPP_NUMERO = "5493794525617";
 import { useCart } from "@/store/cart";
 import { useUI } from "@/store/ui";
+import { useToast } from "@/store/toast";
 import { formatARS } from "@/lib/format";
+import { sucursales } from "@/lib/sucursales";
 
 export function CartDrawer() {
   const open = useUI((s) => s.cartOpen);
   const close = useUI((s) => s.closeCart);
   const { lines, setQty, remove, total, clear } = useCart();
+  const showToast = useToast((s) => s.show);
   const subtotal = total();
-  /** Monto mínimo de compra para envío a domicilio. */
-  const MIN_ENVIO = 200000;
-  const enviaADomicilio = subtotal >= MIN_ENVIO;
+  const [sucursalId, setSucursalId] = useState("");
+  const [sucursalError, setSucursalError] = useState(false);
+
+  const enviarPedido = () => {
+    if (!sucursalId) {
+      setSucursalError(true);
+      showToast("Seleccioná una sucursal para enviar tu pedido.");
+      return;
+    }
+    setSucursalError(false);
+
+    const sucursal = sucursales.find((s) => s.id === sucursalId);
+    const items = lines
+      .map((l) => `• ${l.qty}x ${l.product.name} — ${formatARS(l.qty * l.product.price)}`)
+      .join("\n");
+    const mensaje =
+      `¡Hola! Quiero hacer un pedido 🍗\n\n` +
+      `${items}\n\n` +
+      `*Total:* ${formatARS(subtotal)}\n` +
+      `*Sucursal de retiro:* ${sucursal?.name} (${sucursal?.address})`;
+
+    const url = `https://wa.me/${WHATSAPP_NUMERO}?text=${encodeURIComponent(mensaje)}`;
+    window.open(url, "_blank");
+  };
 
   return (
     <>
@@ -96,21 +123,41 @@ export function CartDrawer() {
                 <span>Subtotal</span>
                 <span>{formatARS(subtotal)}</span>
               </div>
-              <div className="flex justify-between text-brand-ink/70">
-                <span>Entrega</span>
-                <span>{enviaADomicilio ? "Envío a domicilio" : "Retiro en sucursal"}</span>
-              </div>
               <div className="flex justify-between pt-1 text-base font-bold text-brand-ink">
                 <span>Total</span>
                 <span>{formatARS(subtotal)}</span>
               </div>
             </div>
-            {!enviaADomicilio && (
-              <p className="mt-2 rounded-lg bg-brand-gold/20 px-3 py-2 text-xs text-brand-ink/70">
-                🛵 El envío a domicilio está disponible en pedidos desde {formatARS(MIN_ENVIO)}.
-              </p>
-            )}
-            <button className="btn-primary mt-3 w-full">Finalizar pedido</button>
+            <label className="mt-3 block">
+              <span className="mb-1 flex items-center gap-1 text-xs font-semibold text-brand-ink/70">
+                <MapPin size={14} className="text-brand-red" /> Sucursal de retiro
+              </span>
+              <select
+                value={sucursalId}
+                onChange={(e) => {
+                  setSucursalId(e.target.value);
+                  setSucursalError(false);
+                }}
+                className={`w-full rounded-lg border bg-white px-3 py-2 text-sm ${
+                  sucursalError ? "border-brand-red" : "border-black/10"
+                }`}
+              >
+                <option value="">Seleccioná una sucursal…</option>
+                {sucursales.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} · {s.address}
+                  </option>
+                ))}
+              </select>
+              {sucursalError && (
+                <p className="mt-1 text-xs text-brand-red">
+                  Tenés que elegir una sucursal para finalizar el pedido.
+                </p>
+              )}
+            </label>
+            <button onClick={enviarPedido} className="btn-primary mt-3 w-full">
+              Enviar pedido por WhatsApp
+            </button>
             <button
               onClick={clear}
               className="mt-2 w-full text-center text-xs text-brand-ink/50 hover:text-brand-red"

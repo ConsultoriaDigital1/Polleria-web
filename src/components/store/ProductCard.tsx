@@ -4,9 +4,11 @@ import { Plus } from "lucide-react";
 import type { Product } from "@/lib/types";
 import { formatARS } from "@/lib/format";
 import { useCart } from "@/store/cart";
+import { useToast } from "@/store/toast";
 
 export function ProductCard({ product }: { product: Product }) {
   const add = useCart((s) => s.add);
+  const showToast = useToast((s) => s.show);
 
   return (
     <div className="flex flex-col overflow-hidden rounded-2xl bg-white shadow-soft">
@@ -39,7 +41,10 @@ export function ProductCard({ product }: { product: Product }) {
         </div>
 
         <button
-          onClick={() => add(product)}
+          onClick={() => {
+            add(product);
+            showToast(`${product.name} agregado al carrito`);
+          }}
           className="btn-primary mt-3 w-full"
           aria-label={`Agregar ${product.name}`}
         >
