@@ -1,0 +1,48 @@
+import type { NextRequest } from "next/server";
+import { z } from "zod";
+import { ok, fail, handleError } from "@/lib/api/respond";
+import { normalizePhone, hashCode } from "@/lib/auth/otp";
+import { verifyOtp, loginByPhone } from "@/lib/repo";
+import { setSessionCookie } from "@/lib/auth/session";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+const schema = z.object({
+  phone: z.string().min(5, "El teléfono es obligatorio."),
+  code: z.string().regex(/^\d{6}$/, "El código debe tener 6 dígitos."),
+  name: z.string().trim().min(1).max(80).optional(),
+});
+
+const messages: Record<string, string> = {
+  expired: "El código venció. Pedí uno nuevo.",
+  locked: "Demasiados intentos. Pedí un código nuevo.",
+  invalid: "El código no es correcto.",
+  none: "No hay un código pendiente para este número. Pedí uno nuevo.",
+};
+
+/** Verifica el OTP, crea/recupera el cliente y abre la sesión. */
+export async function POST(req: NextRequest) {
+  try {
+    const body = schema.parse(await req.json());
+    const phone = normalizePhone(body.phone);
+
+    const result = await verifyOtp(phone, hashCode(phone, body.code));
+    if (result !== "ok") {
+      const code = result === "invalid" ? "INVALID_CODE" : "OTP_" + result.toUpperCase();
+      return fail(messages[result] ?? "No se pudo verificar el código.", 401, code);
+    }
+
+    const subject = await loginByPhone({ phone, name: body.name });
+    await setSessionCookie({
+      sub: subject.id,
+      name: subject.name,
+      phone: subject.phone,
+      role: subject.role,
+    });
+
+    return ok({ id: subject.id, name: subject.name, phone: subject.phone, role: subject.role });
+  } catch (e) {
+    return handleError(e);
+  }
+}

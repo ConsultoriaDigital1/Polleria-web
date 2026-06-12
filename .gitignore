@@ -1,0 +1,29 @@
+# dependencias
+/node_modules
+/.pnp
+.pnp.js
+
+# build de next
+/.next/
+/out/
+/build
+next-env.d.ts
+
+# producción
+/dist
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# entornos locales
+.env*.local
+.env
+
+# typescript
+*.tsbuildinfo

@@ -1,0 +1,140 @@
+// Esquema de la base de datos de Pollería Entre Ríos.
+// Motor: PostgreSQL. ORM: Prisma.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Category {
+  cortes
+  cajones
+  rebozados
+}
+
+enum OrderStatus {
+  pendiente
+  en_preparacion
+  en_camino
+  entregado
+  cancelado
+}
+
+enum PaymentMethod {
+  efectivo
+  tarjeta
+  mercadopago
+  transferencia
+}
+
+enum LoyaltyTier {
+  Bronce
+  Plata
+  Oro
+  Diamante
+}
+
+enum Role {
+  cliente
+  admin
+}
+
+enum PointsType {
+  compra
+  bonus
+  canje
+}
+
+model Product {
+  id          String   @id
+  name        String
+  description String
+  price       Int
+  oldPrice    Int?
+  category    Category
+  image       String
+  badge       String?
+  available   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  orderItems OrderItem[]
+
+  @@index([category])
+}
+
+model Customer {
+  id        String      @id @default(cuid())
+  name      String
+  email     String?     @unique
+  phone     String      @unique
+  points    Int         @default(0)
+  tier      LoyaltyTier @default(Bronce)
+  role      Role        @default(cliente)
+  joinedAt  DateTime    @default(now())
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  orders       Order[]
+  pointsLog    PointsEntry[]
+}
+
+model Order {
+  id           String        @id @default(cuid())
+  seq          Int           @default(autoincrement())
+  code         String?       @unique
+  customer     Customer?     @relation(fields: [customerId], references: [id])
+  customerId   String?
+  customerName String
+  phone        String?
+  address      String?
+  total        Int
+  status       OrderStatus   @default(pendiente)
+  payment      PaymentMethod
+  notes        String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  items OrderItem[]
+
+  @@index([status])
+  @@index([customerId])
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId   String
+  product   Product @relation(fields: [productId], references: [id])
+  productId String
+  name      String
+  qty       Int
+  price     Int
+}
+
+// Código OTP de un solo uso para el login por teléfono (WhatsApp vía n8n).
+// Una sola fila activa por teléfono: se reemplaza al pedir un código nuevo
+// y se borra al verificarlo con éxito.
+model OtpCode {
+  phone     String   @id
+  codeHash  String
+  expiresAt DateTime
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
+model PointsEntry {
+  id         String     @id @default(cuid())
+  customer   Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId String
+  label      String
+  points     Int
+  type       PointsType
+  createdAt  DateTime   @default(now())
+
+  @@index([customerId])
+}

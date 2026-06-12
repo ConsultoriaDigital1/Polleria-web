@@ -1,0 +1,34 @@
+import type { Config } from "tailwindcss";
+
+const config: Config = {
+  content: ["./src/**/*.{ts,tsx,mdx}"],
+  theme: {
+    extend: {
+      colors: {
+        // Paleta de la marca "Entre Ríos"
+        brand: {
+          red: "#C8102E",
+          dark: "#9B0C22",
+          gold: "#F6B40A",
+          amber: "#F59E0B",
+          cream: "#FFF8EE",
+          ink: "#1F1A17",
+        },
+      },
+      fontFamily: {
+        sans: ["var(--font-sans)", "system-ui", "sans-serif"],
+        display: ["var(--font-display)", "Georgia", "serif"],
+      },
+      boxShadow: {
+        card: "0 8px 24px -10px rgba(31, 26, 23, 0.18)",
+        soft: "0 2px 12px -4px rgba(31, 26, 23, 0.12)",
+      },
+      borderRadius: {
+        xl2: "1.25rem",
+      },
+    },
+  },
+  plugins: [],
+};
+
+export default config;

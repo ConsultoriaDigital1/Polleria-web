@@ -1,0 +1,44 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: polleria-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-polleria}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-polleria}
+      POSTGRES_DB: ${POSTGRES_DB:-polleria}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-polleria}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # No exponemos el puerto al exterior por seguridad; solo la red interna.
+    expose:
+      - "5432"
+
+  web:
+    build: .
+    image: polleria-entre-rios:latest
+    container_name: polleria-web
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
+      DATABASE_URL: postgresql://${POSTGRES_USER:-polleria}:${POSTGRES_PASSWORD:-polleria}@db:5432/${POSTGRES_DB:-polleria}?schema=public
+      # Clave que tu bot de n8n debe enviar en Authorization: Bearer <API_KEY>
+      API_KEY: ${API_KEY:?Definí API_KEY en el archivo .env}
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:
