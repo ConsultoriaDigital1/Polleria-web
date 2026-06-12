@@ -127,6 +127,23 @@ model OtpCode {
   createdAt DateTime @default(now())
 }
 
+enum AnalyticsType {
+  visit
+  cart_add
+}
+
+// Evento de analítica de la tienda (visita de página o producto agregado al carrito).
+model AnalyticsEvent {
+  id        String        @id @default(cuid())
+  type      AnalyticsType
+  productId String?
+  path      String?
+  createdAt DateTime      @default(now())
+
+  @@index([type, createdAt])
+  @@index([productId])
+}
+
 model PointsEntry {
   id         String     @id @default(cuid())
   customer   Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade)

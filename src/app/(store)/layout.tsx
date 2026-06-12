@@ -3,10 +3,12 @@ import { BottomNav } from "@/components/store/BottomNav";
 import { CartDrawer } from "@/components/store/CartDrawer";
 import { SideMenu } from "@/components/store/SideMenu";
 import { Footer } from "@/components/store/Footer";
+import { VisitTracker } from "@/components/store/VisitTracker";
 
 export default function StoreLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col bg-brand-cream">
+      <VisitTracker />
       <StoreHeader />
       <main className="flex-1 pb-4 md:pb-12">
         {/* Ancho completo en mobile; contenido centrado y amplio en escritorio */}

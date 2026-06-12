@@ -1,12 +1,18 @@
+import Image from "next/image";
 import { cn } from "@/lib/cn";
 
-/** Logo "Pollería Entre Ríos" en SVG (gallo + texto). */
+/** Logo "Pollería Entre Ríos" (imagen en /public/logo.jpg). */
 export function Logo({ className, dark = false }: { className?: string; dark?: boolean }) {
   return (
     <div className={cn("flex items-center gap-2", className)}>
-      <span className="text-2xl leading-none" aria-hidden>
-        🐓
-      </span>
+      <Image
+        src="/logo.jpg"
+        alt="Pollería Entre Ríos"
+        width={48}
+        height={48}
+        priority
+        className="h-12 w-12 rounded-full object-cover"
+      />
       <div className="flex flex-col leading-none">
         <span
           className={cn(

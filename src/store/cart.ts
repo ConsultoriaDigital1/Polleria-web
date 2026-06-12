@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { Product } from "@/lib/types";
+import { track } from "@/lib/track";
 
 export interface CartLine {
   product: Product;
@@ -23,7 +24,8 @@ export const useCart = create<CartState>()(
   persist(
     (set, get) => ({
       lines: [],
-      add: (product, qty = 1) =>
+      add: (product, qty = 1) => {
+        track("cart_add", { productId: product.id });
         set((state) => {
           const existing = state.lines.find((l) => l.product.id === product.id);
           if (existing) {
@@ -34,7 +36,8 @@ export const useCart = create<CartState>()(
             };
           }
           return { lines: [...state.lines, { product, qty }] };
-        }),
+        });
+      },
       remove: (productId) =>
         set((state) => ({
           lines: state.lines.filter((l) => l.product.id !== productId),

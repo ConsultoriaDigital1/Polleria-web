@@ -9,6 +9,7 @@ import {
   Users,
   Tag,
   BarChart3,
+  LineChart,
   Settings,
   Store,
 } from "lucide-react";
@@ -23,6 +24,7 @@ const nav = [
   { href: "/admin/clientes", label: "Clientes", icon: Users },
   { href: "/admin/ofertas", label: "Ofertas", icon: Tag },
   { href: "/admin/reportes", label: "Reportes", icon: BarChart3 },
+  { href: "/admin/analitica", label: "Analítica", icon: LineChart },
   { href: "/admin/config", label: "Configuración", icon: Settings },
 ];
 
