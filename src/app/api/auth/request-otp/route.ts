@@ -25,9 +25,15 @@ export async function POST(req: NextRequest) {
       return fail("El número de teléfono no es válido.", 422, "INVALID_PHONE");
     }
 
-    const code = generateCode();
-    await storeOtp(phone, hashCode(phone, code), new Date(Date.now() + OTP_TTL_MS));
-    await sendOtp(phone, code);
+    // Si el envío real falla (webhook caído, sin WhatsApp), no bloqueamos el flujo:
+    // el código demo (DEMO_LOGIN_CODE) sigue funcionando en verify-otp.
+    try {
+      const code = generateCode();
+      await storeOtp(phone, hashCode(phone, code), new Date(Date.now() + OTP_TTL_MS));
+      await sendOtp(phone, code);
+    } catch (err) {
+      console.warn("[OTP] No se pudo generar/enviar el código:", err);
+    }
 
     return ok({ sent: true, phone, expiresInSec: OTP_TTL_MS / 1000 });
   } catch (e) {

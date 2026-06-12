@@ -28,6 +28,15 @@ async function main() {
     });
   }
 
+  console.log("📰 Cargando novedades…");
+  await prisma.novedad.createMany({
+    data: [
+      { title: "Día del Padre", image: "/2.jpeg", position: 0 },
+      { title: "Compartí en familia", image: "/4.jpeg", position: 1 },
+    ],
+    skipDuplicates: true,
+  });
+
   console.log("👤 Cargando clientes…");
   for (const c of customers) {
     await prisma.customer.create({

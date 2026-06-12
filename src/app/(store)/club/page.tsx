@@ -1,16 +1,57 @@
-import { Star, Gift, TrendingUp, ShoppingBag } from "lucide-react";
-import { currentUser, rewards, loyaltyTiers } from "@/lib/data";
+import { redirect } from "next/navigation";
+import QRCode from "qrcode";
+import { Gift, TrendingUp, ShoppingBag, Star, Sparkles } from "lucide-react";
+import { rewards, loyaltyTiers } from "@/lib/data";
 import { formatPoints } from "@/lib/format";
 import { cn } from "@/lib/cn";
-import { getPoints } from "@/lib/repo";
+import { getPoints, getCustomer } from "@/lib/repo";
+import { getSession } from "@/lib/auth/session";
+import { MemberCard } from "@/components/club/MemberCard";
+import { ClubProgress } from "@/components/club/ClubProgress";
+import { RewardsGrid } from "@/components/club/RewardsGrid";
 
 export const dynamic = "force-dynamic";
 
+/** Beneficios destacados de la semana (curados a mano). */
+const weeklyPerks = [
+  {
+    emoji: "🔥",
+    title: "2x1 en Medallones",
+    detail: "Todos los miércoles para socios del club",
+    accent: "from-brand-red to-brand-dark",
+  },
+  {
+    emoji: "🚚",
+    title: "Envío gratis",
+    detail: "Nivel Oro y Diamante, en compras desde $20.000",
+    accent: "from-brand-amber to-brand-gold",
+  },
+  {
+    emoji: "⭐",
+    title: "Puntos dobles",
+    detail: "Este fin de semana en cajones de 10kg y 15kg",
+    accent: "from-brand-ink to-black",
+  },
+  {
+    emoji: "🎂",
+    title: "Regalo de cumpleaños",
+    detail: "Socios Diamante: sorpresa en tu mes",
+    accent: "from-brand-red to-brand-amber",
+  },
+];
+
 export default async function ClubPage() {
-  const summary = await getPoints(currentUser.id);
-  const points = summary?.points ?? currentUser.points;
-  const tier = summary?.tier ?? currentUser.tier;
+  const session = await getSession();
+  if (!session) redirect("/ingresar?next=/club");
+
+  const [summary, customer] = await Promise.all([
+    getPoints(session.sub),
+    getCustomer(session.sub),
+  ]);
+  const points = summary?.points ?? 0;
+  const tier = summary?.tier ?? "Bronce";
   const pointsHistory = summary?.history ?? [];
+  const since = customer ? new Date(customer.joined).getFullYear() : new Date().getFullYear();
 
   // Nivel siguiente y puntos faltantes calculados a partir de los umbrales.
   const idx = loyaltyTiers.findIndex((t) => t.tier === tier);
@@ -19,6 +60,14 @@ export default async function ClubPage() {
   const pointsToNext = next ? Math.max(0, next.min - points) : 0;
   const target = next ? next.min : points;
   const progress = target > 0 ? Math.min(100, Math.round((points / target) * 100)) : 100;
+
+  // QR con el id del socio, para escanear en caja y sumar puntos.
+  const qrDataUrl = await QRCode.toDataURL(session.sub, {
+    margin: 1,
+    width: 240,
+    color: { dark: "#1F1A17", light: "#ffffff" },
+  });
+  const memberId = session.sub.replace(/[^a-zA-Z0-9]/g, "").slice(-8).toUpperCase();
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 pb-2 md:pt-4">
@@ -31,39 +80,53 @@ export default async function ClubPage() {
         <p className="text-sm text-brand-ink/60">Más compras, más beneficios</p>
       </section>
 
-      {/* Tarjeta de puntos */}
+      {/* Credencial de socio */}
       <section className="px-4">
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-red to-brand-dark p-5 text-white shadow-card">
-          <span className="absolute -right-4 -top-4 text-7xl opacity-20" aria-hidden>
-            🐓
-          </span>
-          <p className="text-xs font-semibold uppercase tracking-wide text-white/70">
-            Puntos disponibles
-          </p>
-          <p className="mt-1 text-4xl font-extrabold">{formatPoints(points)}</p>
-          <p className="text-sm text-white/70">Equivale a ${formatPoints(points)}</p>
+        <MemberCard
+          name={session.name}
+          phone={session.phone}
+          tier={tier}
+          memberId={memberId}
+          since={since}
+          qrDataUrl={qrDataUrl}
+        />
+      </section>
 
-          <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-brand-gold px-3 py-1 text-sm font-bold text-brand-ink">
-            <Star size={14} className="fill-brand-ink/80" /> Nivel {tier}
-          </div>
+      {/* Puntos y progreso */}
+      <section className="px-4">
+        <ClubProgress
+          points={points}
+          tier={tier}
+          nextTier={nextTier}
+          pointsToNext={pointsToNext}
+          target={target}
+          progress={progress}
+        />
+      </section>
 
-          {/* Progreso al siguiente nivel */}
-          <div className="mt-4">
-            <div className="mb-1 flex justify-between text-xs text-white/80">
-              <span>
-                Te faltan {formatPoints(pointsToNext)} pts para {nextTier}
+      {/* Beneficios de la semana */}
+      <section>
+        <h2 className="mb-3 flex items-center gap-2 px-4 text-base font-bold text-brand-ink">
+          <Sparkles size={18} className="text-brand-red" /> Beneficios de la semana
+        </h2>
+        <div className="no-scrollbar flex gap-3 overflow-x-auto px-4 pb-1">
+          {weeklyPerks.map((p) => (
+            <div
+              key={p.title}
+              className={cn(
+                "flex w-44 shrink-0 flex-col justify-between rounded-2xl bg-gradient-to-br p-4 text-white shadow-card",
+                p.accent
+              )}
+            >
+              <span className="text-2xl" aria-hidden>
+                {p.emoji}
               </span>
-              <span>
-                {formatPoints(points)} / {formatPoints(target)}
-              </span>
+              <div className="mt-6">
+                <p className="text-sm font-extrabold leading-tight">{p.title}</p>
+                <p className="mt-1 text-[11px] leading-snug text-white/75">{p.detail}</p>
+              </div>
             </div>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-white/25">
-              <div
-                className="h-full rounded-full bg-brand-gold"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-          </div>
+          ))}
         </div>
       </section>
 
@@ -72,42 +135,7 @@ export default async function ClubPage() {
         <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-brand-ink">
           <Gift size={18} className="text-brand-red" /> ¿Qué puedo hacer con mis puntos?
         </h2>
-        <div className="grid grid-cols-3 gap-3">
-          {rewards.map((r) => {
-            const canRedeem = points >= r.cost;
-            return (
-              <div
-                key={r.id}
-                className={cn(
-                  "flex flex-col overflow-hidden rounded-2xl bg-white shadow-soft",
-                  r.highlight && "ring-2 ring-brand-gold"
-                )}
-              >
-                <div className="aspect-square overflow-hidden bg-brand-cream">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={r.image} alt={r.name} className="h-full w-full object-cover" />
-                </div>
-                <div className="flex flex-1 flex-col p-2">
-                  <p className="text-[11px] font-semibold leading-tight text-brand-ink">{r.name}</p>
-                  <p className="mt-0.5 text-[11px] font-bold text-brand-red">
-                    {formatPoints(r.cost)} pts
-                  </p>
-                  <button
-                    disabled={!canRedeem}
-                    className={cn(
-                      "mt-2 rounded-md px-2 py-1 text-[11px] font-bold transition",
-                      canRedeem
-                        ? "bg-brand-gold text-brand-ink hover:brightness-95"
-                        : "cursor-not-allowed bg-black/5 text-brand-ink/40"
-                    )}
-                  >
-                    {canRedeem ? "Canjear" : "Faltan pts"}
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        <RewardsGrid rewards={rewards} points={points} />
       </section>
 
       {/* Niveles */}
@@ -154,6 +182,11 @@ export default async function ClubPage() {
           </h2>
         </div>
         <div className="overflow-hidden rounded-2xl bg-white shadow-soft">
+          {pointsHistory.length === 0 && (
+            <p className="px-4 py-6 text-center text-sm text-brand-ink/45">
+              Todavía no tenés movimientos. ¡Tu primera compra suma puntos!
+            </p>
+          )}
           {pointsHistory.map((h, i) => (
             <div
               key={h.id}

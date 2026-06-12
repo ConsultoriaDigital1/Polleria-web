@@ -9,6 +9,7 @@ const links = [
   { href: "/", label: "Inicio", icon: Home },
   { href: "/productos", label: "Productos", icon: UtensilsCrossed },
   { href: "/ofertas", label: "Ofertas", icon: Tag },
+  { href: "/sucursales", label: "Sucursales", icon: MapPin },
   { href: "/club", label: "Club Pollería", icon: Star },
   { href: "/cuenta", label: "Mi cuenta", icon: User },
   { href: "/admin", label: "Panel admin", icon: LayoutDashboard },

@@ -6,9 +6,15 @@ import { categories } from "@/lib/data";
 import { ProductCard } from "@/components/store/ProductCard";
 import { cn } from "@/lib/cn";
 
-export function ProductCatalog({ products }: { products: Product[] }) {
+export function ProductCatalog({ products, query }: { products: Product[]; query?: string }) {
   const [cat, setCat] = useState<string>("todos");
-  const list = cat === "todos" ? products : products.filter((p) => p.category === cat);
+  const q = query?.trim().toLowerCase();
+  const searched = q
+    ? products.filter(
+        (p) => p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q)
+      )
+    : products;
+  const list = cat === "todos" ? searched : searched.filter((p) => p.category === cat);
 
   return (
     <>
@@ -30,11 +36,17 @@ export function ProductCatalog({ products }: { products: Product[] }) {
         ))}
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:gap-5 lg:grid-cols-4">
-        {list.map((p) => (
-          <ProductCard key={p.id} product={p} />
-        ))}
-      </div>
+      {list.length === 0 ? (
+        <p className="py-10 text-center text-sm text-brand-ink/60">
+          No encontramos productos{q ? ` para “${query?.trim()}”` : ""}.
+        </p>
+      ) : (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:gap-5 lg:grid-cols-4">
+          {list.map((p) => (
+            <ProductCard key={p.id} product={p} />
+          ))}
+        </div>
+      )}
     </>
   );
 }

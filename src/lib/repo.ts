@@ -14,6 +14,7 @@ import type {
   LoyaltyTier,
   PointsEntry,
   Category,
+  Novedad,
 } from "./types";
 import {
   products as mockProducts,
@@ -223,6 +224,95 @@ export async function updateProduct(
     },
   });
   return mapProduct(p);
+}
+
+// ---------- Novedades (banners de la home) ----------
+
+/** Novedades por defecto cuando no hay base de datos (o está vacía). */
+const defaultNovedades: Novedad[] = [
+  { id: "nov-1", image: "/2.jpeg", title: "Día del Padre", active: true, position: 0 },
+  { id: "nov-2", image: "/4.jpeg", title: "Compartí en familia", active: true, position: 1 },
+];
+
+function mapNovedad(n: {
+  id: string;
+  title: string | null;
+  image: string;
+  link: string | null;
+  active: boolean;
+  position: number;
+}): Novedad {
+  return {
+    id: n.id,
+    title: n.title ?? undefined,
+    image: n.image,
+    link: n.link ?? undefined,
+    active: n.active,
+    position: n.position,
+  };
+}
+
+export async function listNovedades(onlyActive = false): Promise<Novedad[]> {
+  if (hasDatabase) {
+    const rows = await prisma.novedad.findMany({
+      where: onlyActive ? { active: true } : undefined,
+      orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+    });
+    return rows.map(mapNovedad);
+  }
+  return onlyActive ? defaultNovedades.filter((n) => n.active) : defaultNovedades;
+}
+
+export interface NovedadInput {
+  title?: string | null;
+  image: string;
+  link?: string | null;
+  active?: boolean;
+  position?: number;
+}
+
+export async function createNovedad(input: NovedadInput): Promise<Novedad> {
+  ensureDb();
+  const n = await prisma.novedad.create({
+    data: {
+      title: input.title ?? null,
+      image: input.image,
+      link: input.link ?? null,
+      active: input.active ?? true,
+      position: input.position ?? 0,
+    },
+  });
+  return mapNovedad(n);
+}
+
+export async function updateNovedad(
+  id: string,
+  input: Partial<NovedadInput>
+): Promise<Novedad | null> {
+  ensureDb();
+  const existing = await prisma.novedad.findUnique({ where: { id } });
+  if (!existing) return null;
+  const n = await prisma.novedad.update({
+    where: { id },
+    data: {
+      title: input.title === undefined ? undefined : input.title,
+      image: input.image,
+      link: input.link === undefined ? undefined : input.link,
+      active: input.active,
+      position: input.position,
+    },
+  });
+  return mapNovedad(n);
+}
+
+export async function deleteNovedad(id: string): Promise<boolean> {
+  ensureDb();
+  try {
+    await prisma.novedad.delete({ where: { id } });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // ---------- Pedidos ----------

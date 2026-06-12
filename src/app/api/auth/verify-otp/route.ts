@@ -27,7 +27,11 @@ export async function POST(req: NextRequest) {
     const body = schema.parse(await req.json());
     const phone = normalizePhone(body.phone);
 
-    const result = await verifyOtp(phone, hashCode(phone, body.code));
+    // Código demo: permite entrar sin OTP real (para muestras / entornos sin WhatsApp).
+    const demoCode = process.env.DEMO_LOGIN_CODE ?? "123456";
+    const isDemo = demoCode.length === 6 && body.code === demoCode;
+
+    const result = isDemo ? "ok" : await verifyOtp(phone, hashCode(phone, body.code));
     if (result !== "ok") {
       const code = result === "invalid" ? "INVALID_CODE" : "OTP_" + result.toUpperCase();
       return fail(messages[result] ?? "No se pudo verificar el código.", 401, code);

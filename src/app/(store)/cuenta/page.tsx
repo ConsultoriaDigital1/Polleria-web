@@ -1,14 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import {
-  Star,
-  Package,
-  MapPin,
-  CreditCard,
-  Bell,
-  HelpCircle,
-  ChevronRight,
-} from "lucide-react";
+import { Star, MapPin, ShoppingBag, ChevronRight, Phone } from "lucide-react";
 import { formatPoints } from "@/lib/format";
 import { getPoints, getCustomer } from "@/lib/repo";
 import { getSession } from "@/lib/auth/session";
@@ -17,11 +9,18 @@ import { LogoutButton } from "@/components/auth/LogoutButton";
 export const dynamic = "force-dynamic";
 
 const menu = [
-  { label: "Mis pedidos", icon: Package, href: "/cuenta" },
-  { label: "Direcciones", icon: MapPin, href: "/cuenta" },
-  { label: "Medios de pago", icon: CreditCard, href: "/cuenta" },
-  { label: "Notificaciones", icon: Bell, href: "/cuenta" },
-  { label: "Ayuda", icon: HelpCircle, href: "/cuenta" },
+  {
+    label: "Hacer un pedido",
+    description: "Mirá el catálogo y las promos del día",
+    icon: ShoppingBag,
+    href: "/productos",
+  },
+  {
+    label: "Sucursales",
+    description: "Dónde estamos y horarios de atención",
+    icon: MapPin,
+    href: "/sucursales",
+  },
 ];
 
 export default async function CuentaPage() {
@@ -35,47 +34,61 @@ export default async function CuentaPage() {
   const points = summary?.points ?? 0;
   const tier = summary?.tier ?? "Bronce";
   const since = customer ? new Date(customer.joined).getFullYear() : new Date().getFullYear();
+
   return (
     <div className="mx-auto max-w-2xl space-y-5 px-4 pt-4 md:pt-8">
       {/* Cabecera de usuario */}
-      <div className="flex items-center gap-3">
-        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-red text-xl font-bold text-white">
+      <div className="club-pop flex items-center gap-4 rounded-2xl bg-white p-4 shadow-soft">
+        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-red to-brand-dark text-2xl font-bold text-white">
           {session.name.charAt(0).toUpperCase()}
         </div>
-        <div>
-          <h1 className="text-lg font-bold text-brand-ink">{session.name}</h1>
-          <p className="text-sm text-brand-ink/55">Cliente desde {since}</p>
+        <div className="min-w-0">
+          <h1 className="truncate text-lg font-extrabold text-brand-ink">{session.name}</h1>
+          <p className="flex items-center gap-1 text-sm text-brand-ink/55">
+            <Phone size={13} /> {session.phone}
+          </p>
+          <p className="text-xs text-brand-ink/45">Cliente desde {since}</p>
         </div>
       </div>
 
       {/* Tarjeta club */}
       <Link
         href="/club"
-        className="flex items-center justify-between rounded-2xl bg-gradient-to-br from-brand-red to-brand-dark p-4 text-white shadow-card"
+        className="club-pop club-shine relative flex items-center justify-between overflow-hidden rounded-2xl bg-gradient-to-br from-brand-red to-brand-dark p-5 text-white shadow-card transition active:scale-[0.99]"
+        style={{ animationDelay: "0.08s" }}
       >
         <div>
           <p className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-white/80">
             <Star size={14} className="fill-brand-gold text-brand-gold" /> Club Pollería · Nivel{" "}
             {tier}
           </p>
-          <p className="mt-1 text-2xl font-extrabold">{formatPoints(points)} pts</p>
+          <p className="mt-1 text-3xl font-extrabold">{formatPoints(points)} pts</p>
+          <p className="mt-1 text-xs text-white/65">Ver mi credencial, beneficios y canjes</p>
         </div>
-        <ChevronRight />
+        <ChevronRight className="shrink-0" />
       </Link>
 
-      {/* Menú */}
-      <div className="overflow-hidden rounded-2xl bg-white shadow-soft">
-        {menu.map(({ label, icon: Icon, href }, i) => (
+      {/* Accesos */}
+      <div
+        className="club-pop overflow-hidden rounded-2xl bg-white shadow-soft"
+        style={{ animationDelay: "0.16s" }}
+      >
+        {menu.map(({ label, description, icon: Icon, href }, i) => (
           <Link
             key={label}
             href={href}
-            className={`flex items-center gap-3 px-4 py-3.5 text-sm font-medium text-brand-ink hover:bg-brand-cream ${
+            className={`flex items-center gap-3 px-4 py-4 hover:bg-brand-cream ${
               i !== 0 ? "border-t border-black/5" : ""
             }`}
           >
-            <Icon size={20} className="text-brand-red" />
-            <span className="flex-1">{label}</span>
-            <ChevronRight size={18} className="text-brand-ink/30" />
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-red/10">
+              <Icon size={19} className="text-brand-red" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold text-brand-ink">{label}</span>
+              <span className="block truncate text-xs text-brand-ink/50">{description}</span>
+            </span>
+            <ChevronRight size={18} className="shrink-0 text-brand-ink/30" />
           </Link>
         ))}
       </div>

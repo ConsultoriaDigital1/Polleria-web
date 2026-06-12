@@ -132,6 +132,9 @@ function IngresarForm() {
                 />
               </div>
               <SubmitButton loading={loading}>Entrar</SubmitButton>
+              <p className="text-center text-[11px] text-brand-ink/35">
+                ¿No te llegó? Probá con el código de demostración 123456.
+              </p>
               <button
                 type="button"
                 onClick={() => {

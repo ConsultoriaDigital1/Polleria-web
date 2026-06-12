@@ -1,26 +1,18 @@
 import Link from "next/link";
 import { ShieldCheck, Bird, Truck, MapPin, MessageCircle } from "lucide-react";
-import { listProducts } from "@/lib/repo";
+import { listProducts, listNovedades } from "@/lib/repo";
 import { PromoCarousel } from "@/components/store/PromoCarousel";
+import { ProductCatalog } from "@/components/store/ProductCatalog";
+import { sucursales } from "@/lib/sucursales";
 
 export const dynamic = "force-dynamic";
 
 const WHATSAPP_URL = "https://wa.me/543794525617";
 
-/** Sucursales de Pollería Entre Ríos en Corrientes. */
-const SUCURSALES: { address: string; whatsapp?: boolean }[] = [
-  { address: "Junin 2198", whatsapp: true },
-  { address: "Sarmiento y La Pampa", whatsapp: true },
-  { address: "Av. Cazadores Correntinos 3038" },
-  { address: "Av. Independencia 5328" },
-  { address: "Av. Independencia 3540" },
-  { address: "Calle Gutemberg 1670" },
-  { address: "Av. Libertad 5279" },
-  { address: "Av. Maipú 7185" },
-];
-
 export default async function HomePage() {
-  const destacados = (await listProducts()).slice(0, 8);
+  const productos = await listProducts();
+  const destacados = productos.slice(0, 8);
+  const novedades = await listNovedades(true);
 
   return (
     <div className="space-y-8 md:space-y-14">
@@ -83,23 +75,48 @@ export default async function HomePage() {
         <PromoCarousel products={destacados} />
       </section>
 
-      {/* Banner Día del Padre */}
+      {/* Novedades (editables desde /admin/novedades) */}
+      {novedades.length > 0 && (
+        <section className="px-4 md:px-6">
+          <div className="mb-3 md:mb-6">
+            <h2 className="relative pb-1 text-lg font-bold uppercase text-brand-ink md:text-2xl">
+              Novedades
+              <span className="absolute bottom-0 left-0 h-0.5 w-12 rounded bg-brand-red md:h-1 md:w-16" />
+            </h2>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 md:gap-5">
+            {novedades.map((n) => {
+              const img = (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={n.image}
+                  alt={n.title ?? "Novedad de Pollería Entre Ríos"}
+                  className="w-full rounded-2xl shadow-soft md:rounded-3xl"
+                  loading="lazy"
+                />
+              );
+              return n.link ? (
+                <Link key={n.id} href={n.link} className="block transition hover:opacity-95">
+                  {img}
+                </Link>
+              ) : (
+                <div key={n.id}>{img}</div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* Catálogo completo */}
       <section className="px-4 md:px-6">
-        <div className="grid gap-3 md:grid-cols-2 md:gap-5">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/2.jpeg"
-            alt="Este Día del Padre festejá con lo mejor de Entre Ríos Pollería"
-            className="w-full rounded-2xl shadow-soft md:rounded-3xl"
-            loading="lazy"
-          />
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/4.jpeg"
-            alt="Día del Padre: compartí en familia, comé lo mejor del pollo"
-            className="hidden w-full rounded-2xl shadow-soft md:block md:rounded-3xl"
-            loading="lazy"
-          />
+        <div className="mb-3 md:mb-6">
+          <h2 className="relative pb-1 text-lg font-bold text-brand-ink md:text-2xl">
+            Nuestro catálogo
+            <span className="absolute bottom-0 left-0 h-0.5 w-12 rounded bg-brand-red md:h-1 md:w-16" />
+          </h2>
+        </div>
+        <div className="space-y-4">
+          <ProductCatalog products={productos} />
         </div>
       </section>
 
@@ -116,23 +133,24 @@ export default async function HomePage() {
           </p>
         </div>
         <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-4">
-          {SUCURSALES.map((s) => (
-            <div
-              key={s.address}
-              className="flex items-center gap-2 rounded-2xl bg-white p-3 shadow-soft md:p-4"
+          {sucursales.map((s) => (
+            <Link
+              key={s.id}
+              href={`/sucursales?s=${s.id}`}
+              className="flex items-center gap-2 rounded-2xl bg-white p-3 shadow-soft transition hover:shadow-md hover:ring-1 hover:ring-brand-red/40 md:p-4"
             >
               <MapPin size={18} className="shrink-0 text-brand-red" />
               <div className="min-w-0">
                 <p className="text-xs font-semibold leading-tight text-brand-ink md:text-sm">
                   {s.address}
                 </p>
-                {s.whatsapp && (
+                {s.phone && (
                   <p className="mt-0.5 flex items-center gap-1 text-[11px] font-semibold text-green-600">
                     <MessageCircle size={12} /> Pedidos por WhatsApp
                   </p>
                 )}
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       </section>

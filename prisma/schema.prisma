@@ -144,6 +144,20 @@ model AnalyticsEvent {
   @@index([productId])
 }
 
+// Posteo/banner de la sección "Novedades" de la home, editable desde el admin.
+model Novedad {
+  id        String   @id @default(cuid())
+  title     String?
+  image     String
+  link      String?
+  active    Boolean  @default(true)
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([active, position])
+}
+
 model PointsEntry {
   id         String     @id @default(cuid())
   customer   Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade)

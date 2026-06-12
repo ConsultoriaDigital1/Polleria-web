@@ -1,5 +1,15 @@
 export type Category = "cortes" | "cajones" | "rebozados";
 
+/** Posteo/banner de la sección "Novedades" de la home. */
+export interface Novedad {
+  id: string;
+  title?: string;
+  image: string;
+  link?: string;
+  active: boolean;
+  position: number;
+}
+
 export interface Product {
   id: string;
   name: string;
