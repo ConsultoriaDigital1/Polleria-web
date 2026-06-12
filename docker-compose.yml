@@ -36,6 +36,7 @@ services:
       SESSION_SECRET: ${SESSION_SECRET:?Definí SESSION_SECRET en el archivo .env}
       OTP_WHATSAPP_WEBHOOK_URL: ${OTP_WHATSAPP_WEBHOOK_URL:-}
       OTP_WEBHOOK_SECRET: ${OTP_WEBHOOK_SECRET:-}
+      OTP_LOG_FALLBACK: ${OTP_LOG_FALLBACK:-}
       # Panel /admin
       ADMIN_USER: ${ADMIN_USER:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Definí ADMIN_PASSWORD en el archivo .env}

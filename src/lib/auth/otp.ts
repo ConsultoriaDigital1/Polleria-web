@@ -51,10 +51,12 @@ export async function sendOtp(phone: string, code: string): Promise<void> {
   const message = `Tu código de acceso a Pollería Entre Ríos es ${code}. Vence en 5 minutos. No lo compartas con nadie.`;
 
   if (!url) {
-    if (process.env.NODE_ENV === "production") {
+    // OTP_LOG_FALLBACK=true permite operar sin n8n: el código se imprime en
+    // los logs del contenedor (`docker compose logs web`) en vez de enviarse.
+    if (process.env.NODE_ENV === "production" && process.env.OTP_LOG_FALLBACK !== "true") {
       throw new Error("OTP_WHATSAPP_WEBHOOK_URL no está configurado.");
     }
-    console.info(`[OTP dev] Código para ${phone}: ${code}`);
+    console.info(`[OTP] Código para ${phone}: ${code}`);
     return;
   }
 
