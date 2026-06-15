@@ -43,6 +43,14 @@ enum Role {
   admin
 }
 
+enum StaffRole {
+  cajero
+  cocina
+  repartidor
+  encargado
+  admin
+}
+
 enum PointsType {
   compra
   bonus
@@ -72,6 +80,7 @@ model Customer {
   name      String
   email     String?     @unique
   phone     String      @unique
+  document  String?
   points    Int         @default(0)
   tier      LoyaltyTier @default(Bronce)
   role      Role        @default(cliente)
@@ -156,6 +165,20 @@ model Novedad {
   updatedAt DateTime @updatedAt
 
   @@index([active, position])
+}
+
+// Integrante del equipo de la pollería (empleado), gestionable desde el admin.
+model Staff {
+  id        String    @id @default(cuid())
+  name      String
+  role      StaffRole @default(cajero)
+  phone     String?
+  email     String?
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([active])
 }
 
 model PointsEntry {

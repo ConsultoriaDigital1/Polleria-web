@@ -5,6 +5,7 @@ import type {
   OrderItem as DbOrderItem,
   Customer as DbCustomer,
   PointsEntry as DbPointsEntry,
+  Staff as DbStaff,
 } from "@prisma/client";
 import type {
   Product,
@@ -15,12 +16,15 @@ import type {
   PointsEntry,
   Category,
   Novedad,
+  Staff,
+  StaffRole,
 } from "./types";
 import {
   products as mockProducts,
   customers as mockCustomers,
   orders as mockOrders,
   pointsHistory as mockPoints,
+  staff as mockStaff,
   loyaltyTiers,
   categories,
 } from "./data";
@@ -85,12 +89,37 @@ function mapCustomer(c: DbCustomer & { orders?: { total: number }[] }): Customer
     name: c.name,
     email: c.email ?? "",
     phone: c.phone,
+    document: c.document ?? undefined,
     orders: ords.length,
     spent: ords.reduce((a, o) => a + o.total, 0),
     points: c.points,
     tier: c.tier as LoyaltyTier,
     joined: c.joinedAt.toISOString(),
   };
+}
+
+function mapStaff(s: DbStaff): Staff {
+  return {
+    id: s.id,
+    name: s.name,
+    role: s.role as StaffRole,
+    phone: s.phone ?? undefined,
+    email: s.email ?? undefined,
+    active: s.active,
+    createdAt: s.createdAt.toISOString(),
+  };
+}
+
+/**
+ * Club de puntos: se acumula 1 punto por cada $10 gastados.
+ * Centralizado acá para que el cálculo sea idéntico en toda la app.
+ */
+export const PESOS_PER_POINT = 10;
+
+/** Puntos que genera un monto gastado (redondeado hacia abajo). */
+export function pointsForAmount(amount: number): number {
+  if (!Number.isFinite(amount) || amount <= 0) return 0;
+  return Math.floor(amount / PESOS_PER_POINT);
 }
 
 function mapPoint(e: DbPointsEntry): PointsEntry {
@@ -351,7 +380,7 @@ export async function getOrder(idOrCode: string): Promise<Order | null> {
 
 export interface CreateOrderInput {
   customerId?: string;
-  customer?: { name: string; phone: string; email?: string };
+  customer?: { name: string; phone: string; email?: string; document?: string };
   items: { productId: string; qty: number }[];
   payment: Order["payment"];
   address?: string;
@@ -381,11 +410,16 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
   if (!customerId && input.customer) {
     const c = await prisma.customer.upsert({
       where: { phone: input.customer.phone },
-      update: { name: input.customer.name, email: input.customer.email ?? undefined },
+      update: {
+        name: input.customer.name,
+        email: input.customer.email ?? undefined,
+        document: input.customer.document ?? undefined,
+      },
       create: {
         name: input.customer.name,
         phone: input.customer.phone,
         email: input.customer.email ?? null,
+        document: input.customer.document ?? null,
       },
     });
     customerId = c.id;
@@ -494,12 +528,42 @@ export async function createCustomer(input: {
   name: string;
   phone: string;
   email?: string;
+  document?: string;
 }): Promise<Customer> {
   ensureDb();
   const c = await prisma.customer.upsert({
     where: { phone: input.phone },
-    update: { name: input.name, email: input.email ?? undefined },
-    create: { name: input.name, phone: input.phone, email: input.email ?? null },
+    update: {
+      name: input.name,
+      email: input.email ?? undefined,
+      document: input.document ?? undefined,
+    },
+    create: {
+      name: input.name,
+      phone: input.phone,
+      email: input.email ?? null,
+      document: input.document ?? null,
+    },
+    include: { orders: { select: { total: true } } },
+  });
+  return mapCustomer(c);
+}
+
+/** Actualiza los datos de contacto de un cliente existente (incluye documento). */
+export async function updateCustomer(
+  id: string,
+  input: { name?: string; email?: string | null; document?: string | null }
+): Promise<Customer | null> {
+  ensureDb();
+  const existing = await prisma.customer.findUnique({ where: { id } });
+  if (!existing) return null;
+  const c = await prisma.customer.update({
+    where: { id },
+    data: {
+      name: input.name,
+      email: input.email === undefined ? undefined : input.email,
+      document: input.document === undefined ? undefined : input.document,
+    },
     include: { orders: { select: { total: true } } },
   });
   return mapCustomer(c);
@@ -560,6 +624,146 @@ export async function addPoints(
   ]);
 
   return getPoints(customerId);
+}
+
+/**
+ * Acredita a un cliente los puntos que corresponden a un monto gastado.
+ * Pensado para el panel admin: el encargado carga el monto (o productos) de
+ * una compra presencial y se computan los puntos canjeables.
+ */
+export async function creditPurchasePoints(
+  customerId: string,
+  amount: number,
+  label = "Compra en local"
+): Promise<{ summary: PointsSummary | null; points: number; amount: number }> {
+  ensureDb();
+  const points = pointsForAmount(amount);
+  if (points <= 0) {
+    const summary = await getPoints(customerId);
+    return { summary, points: 0, amount };
+  }
+  const summary = await addPoints(customerId, { points, label, type: "compra" });
+  return { summary, points, amount };
+}
+
+// ---------- Equipo (empleados) ----------
+export async function listStaff(): Promise<Staff[]> {
+  if (hasDatabase) {
+    const rows = await prisma.staff.findMany({
+      orderBy: [{ active: "desc" }, { createdAt: "asc" }],
+    });
+    return rows.map(mapStaff);
+  }
+  return mockStaff.slice();
+}
+
+export interface StaffInput {
+  name: string;
+  role: StaffRole;
+  phone?: string | null;
+  email?: string | null;
+  active?: boolean;
+}
+
+export async function createStaff(input: StaffInput): Promise<Staff> {
+  ensureDb();
+  const s = await prisma.staff.create({
+    data: {
+      name: input.name,
+      role: input.role,
+      phone: input.phone ?? null,
+      email: input.email ?? null,
+      active: input.active ?? true,
+    },
+  });
+  return mapStaff(s);
+}
+
+export async function updateStaff(
+  id: string,
+  input: Partial<StaffInput>
+): Promise<Staff | null> {
+  ensureDb();
+  const existing = await prisma.staff.findUnique({ where: { id } });
+  if (!existing) return null;
+  const s = await prisma.staff.update({
+    where: { id },
+    data: {
+      name: input.name,
+      role: input.role,
+      phone: input.phone === undefined ? undefined : input.phone,
+      email: input.email === undefined ? undefined : input.email,
+      active: input.active,
+    },
+  });
+  return mapStaff(s);
+}
+
+export async function deleteStaff(id: string): Promise<boolean> {
+  ensureDb();
+  try {
+    await prisma.staff.delete({ where: { id } });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// ---------- Estadísticas (reportes) ----------
+export interface NewCustomersStats {
+  total: number;
+  thisMonth: number;
+  lastMonth: number;
+  last30Days: number;
+  /** Altas por mes, de más viejo a más nuevo (últimos 6 meses). */
+  byMonth: { month: string; label: string; count: number }[];
+}
+
+/** Estadísticas de altas de clientes nuevos, calculadas sobre `joinedAt`. */
+export async function getNewCustomersStats(): Promise<NewCustomersStats> {
+  const customers = await listCustomers();
+  const now = new Date();
+  const monthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  const thisKey = monthKey(now);
+  const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const lastKey = monthKey(lastMonthDate);
+  const cutoff30 = now.getTime() - 30 * 24 * 60 * 60 * 1000;
+
+  // Esqueleto de los últimos 6 meses (incluido el actual).
+  const months: { month: string; label: string; count: number }[] = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push({
+      month: monthKey(d),
+      label: d.toLocaleDateString("es-AR", { month: "short" }),
+      count: 0,
+    });
+  }
+  const byKey = new Map(months.map((m) => [m.month, m]));
+
+  let thisMonth = 0;
+  let lastMonth = 0;
+  let last30Days = 0;
+  for (const c of customers) {
+    const d = new Date(c.joined);
+    const key = monthKey(d);
+    if (key === thisKey) thisMonth++;
+    if (key === lastKey) lastMonth++;
+    if (d.getTime() >= cutoff30) last30Days++;
+    const bucket = byKey.get(key);
+    if (bucket) bucket.count++;
+  }
+
+  return { total: customers.length, thisMonth, lastMonth, last30Days, byMonth: months };
+}
+
+/** Top de clientes por monto gastado. */
+export async function getTopBuyers(limit = 10): Promise<Customer[]> {
+  const customers = await listCustomers();
+  return customers
+    .slice()
+    .sort((a, b) => b.spent - a.spent || b.orders - a.orders)
+    .slice(0, limit);
 }
 
 // ---------- Login por teléfono (OTP WhatsApp) ----------

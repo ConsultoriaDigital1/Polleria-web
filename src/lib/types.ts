@@ -47,11 +47,25 @@ export interface Customer {
   name: string;
   email: string;
   phone: string;
+  document?: string;
   orders: number;
   spent: number;
   points: number;
   tier: LoyaltyTier;
   joined: string;
+}
+
+export type StaffRole = "cajero" | "cocina" | "repartidor" | "encargado" | "admin";
+
+/** Integrante del equipo de la pollería (empleado). */
+export interface Staff {
+  id: string;
+  name: string;
+  role: StaffRole;
+  phone?: string;
+  email?: string;
+  active: boolean;
+  createdAt: string;
 }
 
 export type LoyaltyTier = "Bronce" | "Plata" | "Oro" | "Diamante";

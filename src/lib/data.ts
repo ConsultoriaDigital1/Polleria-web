@@ -5,6 +5,7 @@ import type {
   Reward,
   PointsEntry,
   LoyaltyTier,
+  Staff,
 } from "./types";
 
 // Imágenes reales de promos (en /public).
@@ -155,6 +156,7 @@ export const customers: Customer[] = [
     name: "Martín Gómez",
     email: "martin.gomez@mail.com",
     phone: "+54 379 412-3344",
+    document: "30.123.456",
     orders: 28,
     spent: 312500,
     points: 1250,
@@ -166,6 +168,7 @@ export const customers: Customer[] = [
     name: "Lucía Fernández",
     email: "lucia.f@mail.com",
     phone: "+54 379 455-1290",
+    document: "27.998.221",
     orders: 41,
     spent: 487900,
     points: 2840,
@@ -205,6 +208,14 @@ export const customers: Customer[] = [
     tier: "Oro",
     joined: "2025-05-27",
   },
+];
+
+// ---------- Equipo (empleados) ----------
+export const staff: Staff[] = [
+  { id: "s-1", name: "Roberto Díaz", role: "encargado", phone: "+54 379 410-0001", active: true, createdAt: "2024-09-01" },
+  { id: "s-2", name: "Marcela Ojeda", role: "cajero", phone: "+54 379 410-0002", active: true, createdAt: "2025-01-15" },
+  { id: "s-3", name: "Hugo Benítez", role: "cocina", phone: "+54 379 410-0003", active: true, createdAt: "2025-03-10" },
+  { id: "s-4", name: "Nicolás Rivero", role: "repartidor", phone: "+54 379 410-0004", active: false, createdAt: "2025-06-20" },
 ];
 
 // ---------- Club Pollería (fidelización) ----------
