@@ -9,7 +9,10 @@ FROM base AS deps
 # Copiamos el schema antes de instalar porque el postinstall corre "prisma generate".
 COPY package.json pnpm-lock.yaml ./
 COPY prisma ./prisma
-RUN pnpm install --frozen-lockfile
+# Cache mount del store de pnpm: reusa paquetes ya bajados entre builds.
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+    pnpm config set store-dir /pnpm/store && \
+    pnpm install --frozen-lockfile
 
 # ---- Build ----
 FROM base AS builder
@@ -17,7 +20,9 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm exec prisma generate
-RUN pnpm run build
+# Cache mount de .next/cache: Next reusa la compilación previa → build incremental.
+RUN --mount=type=cache,id=next-cache,target=/app/.next/cache \
+    pnpm run build
 
 # ---- Runner (app + deps para poder correr migraciones/seed) ----
 FROM base AS runner
