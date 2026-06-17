@@ -32,7 +32,7 @@ export function CartDrawer() {
       .map((l) => `• ${l.qty}x ${l.product.name} — ${formatARS(l.qty * l.product.price)}`)
       .join("\n");
     const mensaje =
-      `¡Hola! Quiero hacer un pedido 🍗\n\n` +
+      `*PEDIDO DE LA WEB* 🍗\n\n` +
       `${items}\n\n` +
       `*Total:* ${formatARS(subtotal)}\n` +
       `*Sucursal de retiro:* ${sucursal?.name} (${sucursal?.address})`;

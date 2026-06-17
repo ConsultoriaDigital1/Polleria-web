@@ -1,5 +1,6 @@
 import { UserPlus, TrendingUp, CalendarDays, Users } from "lucide-react";
 import { getNewCustomersStats, getTopBuyers } from "@/lib/repo";
+import { requirePerm } from "@/lib/auth/permissions";
 import { formatARS, formatPoints } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +13,7 @@ const tierColors: Record<string, string> = {
 };
 
 export default async function ReportesPage() {
+  await requirePerm("reportes");
   const [stats, topBuyers] = await Promise.all([getNewCustomersStats(), getTopBuyers(10)]);
 
   const maxMonth = Math.max(1, ...stats.byMonth.map((m) => m.count));

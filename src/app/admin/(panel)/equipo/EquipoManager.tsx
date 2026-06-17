@@ -1,9 +1,10 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
-import { Pencil, Plus, Trash2, X } from "lucide-react";
+import { KeyRound, Pencil, Plus, Trash2, X } from "lucide-react";
 import type { Staff, StaffRole } from "@/lib/types";
 import { cn } from "@/lib/cn";
+import { PERM_MODULES } from "@/lib/auth/perm-modules";
 import { saveStaff, toggleStaffActive, removeStaff, type SaveStaffState } from "./actions";
 
 const ROLES: { value: StaffRole; label: string }[] = [
@@ -68,6 +69,14 @@ export function EquipoManager({ team }: { team: Staff[] }) {
                   <td className="px-4 py-3 text-brand-ink/60">
                     <p>{s.phone || "—"}</p>
                     {s.email && <p className="text-xs">{s.email}</p>}
+                    {s.username && (
+                      <p className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-brand-ink/70">
+                        <KeyRound size={12} /> {s.username}
+                        <span className="text-brand-ink/40">
+                          · {s.permissions.length} {s.permissions.length === 1 ? "acceso" : "accesos"}
+                        </span>
+                      </p>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <button
@@ -175,6 +184,58 @@ function StaffModal({ member, onClose }: { member?: Staff; onClose: () => void }
             />
             Activo
           </label>
+
+          {/* Acceso al panel: usuario, contraseña y permisos por módulo. */}
+          <div className="space-y-3 rounded-xl border border-black/10 bg-brand-cream/40 p-4">
+            <div className="flex items-center gap-2 font-semibold text-brand-ink">
+              <KeyRound size={15} /> Acceso al panel
+            </div>
+            <p className="text-xs text-brand-ink/55">
+              Definí un usuario y contraseña para que pueda iniciar sesión, y marcá a qué secciones
+              accede. Dejá el usuario vacío si es solo un contacto del equipo.
+            </p>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Usuario">
+                <input
+                  name="username"
+                  defaultValue={member?.username}
+                  autoComplete="off"
+                  className="input-admin"
+                />
+              </Field>
+              <Field label={member?.hasPassword ? "Contraseña (dejar vacío = no cambia)" : "Contraseña"}>
+                <input
+                  name="password"
+                  type="password"
+                  autoComplete="new-password"
+                  placeholder={member?.hasPassword ? "••••••" : ""}
+                  className="input-admin"
+                />
+              </Field>
+            </div>
+
+            <div>
+              <span className="mb-1 block font-semibold text-brand-ink">Permisos</span>
+              <div className="grid grid-cols-2 gap-2">
+                {PERM_MODULES.map((m) => (
+                  <label
+                    key={m.key}
+                    className="flex items-center gap-2 rounded-lg bg-white px-2.5 py-1.5 text-brand-ink/80"
+                  >
+                    <input
+                      name="permissions"
+                      value={m.key}
+                      type="checkbox"
+                      defaultChecked={member?.permissions?.includes(m.key)}
+                      className="h-4 w-4 accent-brand-red"
+                    />
+                    {m.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
 
           {state.error && (
             <p className="rounded-lg bg-red-50 px-3 py-2 text-red-700">{state.error}</p>

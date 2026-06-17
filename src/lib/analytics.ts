@@ -41,59 +41,79 @@ function hourOf(d: Date): number {
   return Number(d.toLocaleString("en-GB", { hour: "2-digit", hour12: false, timeZone: TZ })) % 24;
 }
 
+/** Rango de fechas para acotar las métricas. */
+export interface DateRange {
+  from: Date;
+  to: Date;
+}
+
 export interface AnalyticsSummary {
-  visitsToday: number;
-  cartAddsToday: number;
-  /** Visitas por día de los últimos 7 días (el último es hoy). */
+  /** Total de visitas en el rango seleccionado. */
+  visitsInRange: number;
+  /** Total de agregados al carrito en el rango seleccionado. */
+  cartAddsInRange: number;
+  /** Cantidad de días que abarca el rango (>= 1). */
+  rangeDays: number;
+  /** Promedio de visitas por día en el rango. */
+  visitsPerDay: number;
+  /** Visitas por día dentro del rango, en orden cronológico. */
   visitsByDay: { day: string; label: string; visitas: number }[];
-  /** Visitas por hora (0-23) acumuladas en los últimos 7 días. */
+  /** Visitas por hora (0-23) acumuladas en el rango. */
   visitsByHour: { hour: string; visitas: number }[];
-  /** Hora pico (de los últimos 7 días), null si no hay datos. */
+  /** Hora pico dentro del rango, null si no hay datos. */
   peakHour: number | null;
-  /** Productos más agregados al carrito en los últimos 7 días. */
+  /** Productos más agregados al carrito en el rango. */
   topCart: { name: string; agregados: number }[];
 }
 
-export async function getAnalyticsSummary(): Promise<AnalyticsSummary> {
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export async function getAnalyticsSummary(range?: DateRange): Promise<AnalyticsSummary> {
   const now = new Date();
-  const since = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const to = range?.to ?? now;
+  const from = range?.from ?? new Date(to.getTime() - 7 * DAY_MS);
 
   const events: RawEvent[] = hasDatabase
     ? await prisma.analyticsEvent.findMany({
-        where: { createdAt: { gte: since } },
+        where: { createdAt: { gte: from, lte: to } },
         select: { type: true, productId: true, createdAt: true },
       })
-    : memEvents.filter((e) => e.createdAt >= since);
+    : memEvents.filter((e) => e.createdAt >= from && e.createdAt <= to);
 
-  const todayKey = dayKey(now);
-
-  // Últimos 7 días (incluye hoy), en orden cronológico.
+  // Buckets de día (en hora argentina) recorriendo el rango día por día.
+  // Se acota a 366 buckets para evitar rangos disparatados.
   const dayBuckets = new Map<string, number>();
   const dayLabels = new Map<string, string>();
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+  const toKey = dayKey(to);
+  for (let t = from.getTime(), guard = 0; guard < 366; t += DAY_MS, guard++) {
+    const d = new Date(t);
     const key = dayKey(d);
-    dayBuckets.set(key, 0);
-    dayLabels.set(
-      key,
-      d.toLocaleDateString("es-AR", { weekday: "short", day: "numeric", timeZone: TZ })
-    );
+    if (!dayBuckets.has(key)) {
+      dayBuckets.set(key, 0);
+      dayLabels.set(key, d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: TZ }));
+    }
+    if (key >= toKey) break;
+  }
+  // Garantizar que el último día del rango esté presente.
+  if (!dayBuckets.has(toKey)) {
+    dayBuckets.set(toKey, 0);
+    dayLabels.set(toKey, to.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: TZ }));
   }
 
   const hourBuckets = new Array<number>(24).fill(0);
   const cartCounts = new Map<string, number>();
-  let visitsToday = 0;
-  let cartAddsToday = 0;
+  let visitsInRange = 0;
+  let cartAddsInRange = 0;
 
   for (const e of events) {
     const key = dayKey(e.createdAt);
     if (e.type === "visit") {
+      visitsInRange++;
       if (dayBuckets.has(key)) dayBuckets.set(key, (dayBuckets.get(key) ?? 0) + 1);
       hourBuckets[hourOf(e.createdAt)]++;
-      if (key === todayKey) visitsToday++;
     } else if (e.type === "cart_add") {
+      cartAddsInRange++;
       if (e.productId) cartCounts.set(e.productId, (cartCounts.get(e.productId) ?? 0) + 1);
-      if (key === todayKey) cartAddsToday++;
     }
   }
 
@@ -113,10 +133,13 @@ export async function getAnalyticsSummary(): Promise<AnalyticsSummary> {
   }
 
   const maxHour = Math.max(...hourBuckets);
+  const rangeDays = dayBuckets.size;
 
   return {
-    visitsToday,
-    cartAddsToday,
+    visitsInRange,
+    cartAddsInRange,
+    rangeDays,
+    visitsPerDay: rangeDays > 0 ? Math.round(visitsInRange / rangeDays) : 0,
     visitsByDay: [...dayBuckets.entries()].map(([day, visitas]) => ({
       day,
       label: dayLabels.get(day) ?? day,

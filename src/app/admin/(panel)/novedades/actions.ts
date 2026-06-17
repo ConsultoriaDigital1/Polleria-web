@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getSession } from "@/lib/auth/session";
+import { assertPerm } from "@/lib/auth/permissions";
 import { createNovedad, updateNovedad, deleteNovedad, NoDatabaseError } from "@/lib/repo";
 
 export interface SaveNovedadState {
@@ -10,9 +10,7 @@ export interface SaveNovedadState {
 }
 
 async function requireAdmin(): Promise<string | null> {
-  const session = await getSession();
-  if (!session || session.role !== "admin") return "No autorizado.";
-  return null;
+  return assertPerm("novedades");
 }
 
 function revalidateHome() {

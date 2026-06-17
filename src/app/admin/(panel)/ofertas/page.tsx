@@ -1,5 +1,11 @@
-import { Placeholder } from "@/components/admin/Placeholder";
+import { listProducts } from "@/lib/repo";
+import { requirePerm } from "@/lib/auth/permissions";
+import { OfertasManager } from "./OfertasManager";
 
-export default function Page() {
-  return <Placeholder title="Ofertas" />;
+export const dynamic = "force-dynamic";
+
+export default async function Page() {
+  await requirePerm("ofertas");
+  const products = await listProducts({ available: true });
+  return <OfertasManager products={products} />;
 }

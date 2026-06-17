@@ -3,6 +3,8 @@
 import { redirect } from "next/navigation";
 import { verifyAdminCredentials } from "@/lib/auth/admin";
 import { setSessionCookie } from "@/lib/auth/session";
+import { ALL_PERMS } from "@/lib/auth/perm-modules";
+import { verifyStaffLogin } from "@/lib/repo";
 
 export interface AdminLoginState {
   error?: string;
@@ -20,18 +22,32 @@ export async function adminLogin(
     return { error: "Ingresá usuario y contraseña." };
   }
 
-  if (!verifyAdminCredentials(user, password)) {
+  // 1) Super-admin por variables de entorno: acceso total.
+  let sessionData: Parameters<typeof setSessionCookie>[0] | null = null;
+
+  if (verifyAdminCredentials(user, password)) {
+    sessionData = { sub: "admin", name: "Administrador", phone: "", role: "admin", perms: [ALL_PERMS] };
+  } else {
+    // 2) Empleado con login propio: permisos según lo asignado en Equipo.
+    const staff = await verifyStaffLogin(user, password);
+    if (staff) {
+      sessionData = {
+        sub: staff.id,
+        name: staff.name,
+        phone: staff.phone ?? "",
+        role: "admin",
+        perms: staff.permissions,
+      };
+    }
+  }
+
+  if (!sessionData) {
     // Pequeña demora para frenar fuerza bruta.
     await new Promise((r) => setTimeout(r, 800));
     return { error: "Usuario o contraseña incorrectos." };
   }
 
-  await setSessionCookie({
-    sub: "admin",
-    name: "Administrador",
-    phone: "",
-    role: "admin",
-  });
+  await setSessionCookie(sessionData);
 
   // Solo permitir destinos internos del panel.
   redirect(next.startsWith("/admin") ? next : "/admin");

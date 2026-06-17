@@ -34,7 +34,14 @@ export function VisitsAreaChart({
           </linearGradient>
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke="#00000010" vertical={false} />
-        <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize={12} stroke="#1F1A1780" />
+        <XAxis
+          dataKey="label"
+          tickLine={false}
+          axisLine={false}
+          fontSize={12}
+          stroke="#1F1A1780"
+          interval={data.length > 14 ? Math.ceil(data.length / 10) : 0}
+        />
         <YAxis tickLine={false} axisLine={false} fontSize={12} stroke="#1F1A1780" width={36} allowDecimals={false} />
         <Tooltip formatter={(v: number) => [v, "Visitas"]} contentStyle={tooltipStyle} />
         <Area

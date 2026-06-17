@@ -30,6 +30,7 @@ import {
 } from "./data";
 import { OTP_RESEND_MS, OTP_MAX_ATTEMPTS, isAdminPhone } from "./auth/otp";
 import type { Role } from "./auth/session";
+import { hashPassword, verifyPassword } from "./auth/password";
 
 /** Se lanza cuando una operación de escritura necesita base de datos y no hay. */
 export class NoDatabaseError extends Error {
@@ -105,6 +106,9 @@ function mapStaff(s: DbStaff): Staff {
     role: s.role as StaffRole,
     phone: s.phone ?? undefined,
     email: s.email ?? undefined,
+    username: s.username ?? undefined,
+    hasPassword: Boolean(s.passwordHash),
+    permissions: s.permissions ?? [],
     active: s.active,
     createdAt: s.createdAt.toISOString(),
   };
@@ -662,21 +666,45 @@ export interface StaffInput {
   role: StaffRole;
   phone?: string | null;
   email?: string | null;
+  username?: string | null;
+  /** contraseña en texto plano; se hashea antes de guardar. */
+  password?: string | null;
+  permissions?: string[];
   active?: boolean;
+}
+
+/** Se lanza cuando el nombre de usuario ya está en uso por otro integrante. */
+export class UsernameTakenError extends Error {
+  constructor() {
+    super("Ese nombre de usuario ya está en uso.");
+    this.name = "UsernameTakenError";
+  }
+}
+
+function isUniqueViolation(e: unknown): boolean {
+  return Boolean(e && typeof e === "object" && "code" in e && (e as { code?: string }).code === "P2002");
 }
 
 export async function createStaff(input: StaffInput): Promise<Staff> {
   ensureDb();
-  const s = await prisma.staff.create({
-    data: {
-      name: input.name,
-      role: input.role,
-      phone: input.phone ?? null,
-      email: input.email ?? null,
-      active: input.active ?? true,
-    },
-  });
-  return mapStaff(s);
+  try {
+    const s = await prisma.staff.create({
+      data: {
+        name: input.name,
+        role: input.role,
+        phone: input.phone ?? null,
+        email: input.email ?? null,
+        username: input.username ?? null,
+        passwordHash: input.password ? hashPassword(input.password) : null,
+        permissions: input.permissions ?? [],
+        active: input.active ?? true,
+      },
+    });
+    return mapStaff(s);
+  } catch (e) {
+    if (isUniqueViolation(e)) throw new UsernameTakenError();
+    throw e;
+  }
 }
 
 export async function updateStaff(
@@ -686,17 +714,42 @@ export async function updateStaff(
   ensureDb();
   const existing = await prisma.staff.findUnique({ where: { id } });
   if (!existing) return null;
-  const s = await prisma.staff.update({
-    where: { id },
-    data: {
-      name: input.name,
-      role: input.role,
-      phone: input.phone === undefined ? undefined : input.phone,
-      email: input.email === undefined ? undefined : input.email,
-      active: input.active,
-    },
-  });
-  return mapStaff(s);
+  try {
+    const s = await prisma.staff.update({
+      where: { id },
+      data: {
+        name: input.name,
+        role: input.role,
+        phone: input.phone === undefined ? undefined : input.phone,
+        email: input.email === undefined ? undefined : input.email,
+        username: input.username === undefined ? undefined : input.username,
+        // Solo se actualiza la contraseña si se envía una nueva no vacía.
+        passwordHash: input.password ? hashPassword(input.password) : undefined,
+        permissions: input.permissions === undefined ? undefined : input.permissions,
+        active: input.active,
+      },
+    });
+    return mapStaff(s);
+  } catch (e) {
+    if (isUniqueViolation(e)) throw new UsernameTakenError();
+    throw e;
+  }
+}
+
+/**
+ * Login de un empleado por usuario + contraseña. Devuelve el `Staff` (sin el
+ * hash) si las credenciales son válidas y el integrante está activo, o `null`.
+ * Sin base de datos no hay empleados con login (los mocks no tienen contraseña).
+ */
+export async function verifyStaffLogin(
+  username: string,
+  password: string
+): Promise<Staff | null> {
+  if (!hasDatabase) return null;
+  const row = await prisma.staff.findUnique({ where: { username } });
+  if (!row || !row.active || !row.passwordHash) return null;
+  if (!verifyPassword(password, row.passwordHash)) return null;
+  return mapStaff(row);
 }
 
 export async function deleteStaff(id: string): Promise<boolean> {

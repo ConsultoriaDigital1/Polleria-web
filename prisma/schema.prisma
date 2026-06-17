@@ -169,14 +169,20 @@ model Novedad {
 
 // Integrante del equipo de la pollería (empleado), gestionable desde el admin.
 model Staff {
-  id        String    @id @default(cuid())
-  name      String
-  role      StaffRole @default(cajero)
-  phone     String?
-  email     String?
-  active    Boolean   @default(true)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id           String    @id @default(cuid())
+  name         String
+  role         StaffRole @default(cajero)
+  phone        String?
+  email        String?
+  // Login del panel: usuario único + contraseña hasheada (scrypt).
+  // Si están en null, el integrante no puede iniciar sesión (solo directorio).
+  username     String?   @unique
+  passwordHash String?
+  // Módulos del panel habilitados (claves de PERM_MODULES). Vacío = sin acceso.
+  permissions  String[]  @default([])
+  active        Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@index([active])
 }

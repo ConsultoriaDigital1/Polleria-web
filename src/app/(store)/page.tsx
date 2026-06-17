@@ -20,8 +20,8 @@ export default async function HomePage() {
       <section className="relative mx-4 mt-3 overflow-hidden rounded-2xl md:mx-6 md:mt-6 md:rounded-3xl">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="/3.jpeg"
-          alt="Día del Padre: celebrá en familia con el mejor pollo — Pollería Entre Ríos"
+          src="/fondo-polleria.png"
+          alt="El mejor pollo, siempre fresco y al mejor precio — Pollería Entre Ríos"
           className="h-56 w-full object-cover object-top sm:h-72 md:h-[420px]"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent md:bg-gradient-to-r md:from-black/80 md:via-black/50 md:to-transparent" />

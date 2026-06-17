@@ -21,6 +21,11 @@ export interface Session {
   name: string;
   phone: string;
   role: Role;
+  /**
+   * Permisos de panel del empleado (claves de PERM_MODULES).
+   * El super-admin lleva `["*"]` (todos). Solo aplica a `role === "admin"`.
+   */
+  perms?: string[];
   /** epoch en segundos */
   exp: number;
 }

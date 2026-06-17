@@ -1,8 +1,15 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getSession } from "@/lib/auth/session";
-import { createStaff, updateStaff, deleteStaff, NoDatabaseError } from "@/lib/repo";
+import { assertPerm } from "@/lib/auth/permissions";
+import { PERM_KEYS } from "@/lib/auth/perm-modules";
+import {
+  createStaff,
+  updateStaff,
+  deleteStaff,
+  NoDatabaseError,
+  UsernameTakenError,
+} from "@/lib/repo";
 import type { StaffRole } from "@/lib/types";
 
 export interface SaveStaffState {
@@ -12,10 +19,9 @@ export interface SaveStaffState {
 
 const ROLES: StaffRole[] = ["cajero", "cocina", "repartidor", "encargado", "admin"];
 
+// Gestionar el equipo (y los accesos) requiere el permiso "equipo".
 async function requireAdmin(): Promise<string | null> {
-  const session = await getSession();
-  if (!session || session.role !== "admin") return "No autorizado.";
-  return null;
+  return assertPerm("equipo");
 }
 
 export async function saveStaff(
@@ -33,9 +39,32 @@ export async function saveStaff(
   const email = String(formData.get("email") ?? "").trim();
   const active = formData.get("active") === "on";
 
+  // Acceso al panel: usuario + contraseña + permisos por módulo.
+  const username = String(formData.get("username") ?? "").trim();
+  const password = String(formData.get("password") ?? "");
+  const permissions = formData
+    .getAll("permissions")
+    .map(String)
+    .filter((p) => PERM_KEYS.includes(p));
+
   if (!name) return { error: "El nombre es obligatorio." };
 
-  const data = { name, role, phone: phone || null, email: email || null, active };
+  // Si se le da usuario, en el alta también hay que definir una contraseña.
+  if (username && !id && !password) {
+    return { error: "Definí una contraseña para que el usuario pueda ingresar." };
+  }
+
+  const data = {
+    name,
+    role,
+    phone: phone || null,
+    email: email || null,
+    active,
+    username: username || null,
+    permissions,
+    // password vacío => no se modifica (clave en updateStaff/createStaff).
+    password: password || null,
+  };
 
   try {
     if (id) {
@@ -46,6 +75,7 @@ export async function saveStaff(
     }
   } catch (e) {
     if (e instanceof NoDatabaseError) return { error: e.message };
+    if (e instanceof UsernameTakenError) return { error: e.message };
     return { error: "No se pudo guardar el integrante." };
   }
 

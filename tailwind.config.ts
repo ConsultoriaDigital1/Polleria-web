@@ -7,8 +7,10 @@ const config: Config = {
       colors: {
         // Paleta de la marca "Entre Ríos"
         brand: {
-          red: "#C8102E",
-          dark: "#9B0C22",
+          // Acento configurable desde el panel (ver src/lib/theme.ts).
+          // Se resuelve vía variables CSS con soporte de opacidad de Tailwind.
+          red: "rgb(var(--brand-red) / <alpha-value>)",
+          dark: "rgb(var(--brand-dark) / <alpha-value>)",
           gold: "#F6B40A",
           amber: "#F59E0B",
           cream: "#FFF8EE",

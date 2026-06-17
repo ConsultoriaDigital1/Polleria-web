@@ -64,6 +64,12 @@ export interface Staff {
   role: StaffRole;
   phone?: string;
   email?: string;
+  /** usuario de login del panel (si puede iniciar sesión) */
+  username?: string;
+  /** ¿tiene contraseña definida? (nunca exponemos el hash) */
+  hasPassword?: boolean;
+  /** módulos del panel habilitados (claves de PERM_MODULES) */
+  permissions: string[];
   active: boolean;
   createdAt: string;
 }

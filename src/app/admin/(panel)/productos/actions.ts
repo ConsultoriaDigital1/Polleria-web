@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getSession } from "@/lib/auth/session";
+import { assertPerm } from "@/lib/auth/permissions";
 import { createProduct, updateProduct, NoDatabaseError } from "@/lib/repo";
 import type { Category } from "@/lib/types";
 
@@ -13,9 +13,7 @@ export interface SaveProductState {
 const CATEGORIES: Category[] = ["cortes", "cajones", "rebozados"];
 
 async function requireAdmin(): Promise<string | null> {
-  const session = await getSession();
-  if (!session || session.role !== "admin") return "No autorizado.";
-  return null;
+  return assertPerm("productos");
 }
 
 function revalidateCatalog() {

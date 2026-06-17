@@ -1,5 +1,6 @@
 import { formatARS, formatDateTime } from "@/lib/format";
 import { listOrders } from "@/lib/repo";
+import { requirePerm } from "@/lib/auth/permissions";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +13,7 @@ const paymentLabels: Record<string, string> = {
 };
 
 export default async function PedidosPage() {
+  await requirePerm("pedidos");
   const orders = await listOrders();
   return (
     <div className="space-y-5">
