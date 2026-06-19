@@ -44,6 +44,15 @@ function ensureDb() {
   if (!hasDatabase) throw new NoDatabaseError();
 }
 
+/** Clientes creados en runtime cuando no hay DB (solo desarrollo local). */
+const globalForRepo = globalThis as unknown as { runtimeCustomers?: Map<string, Customer> };
+const runtimeCustomers = globalForRepo.runtimeCustomers ?? new Map<string, Customer>();
+if (!globalForRepo.runtimeCustomers) globalForRepo.runtimeCustomers = runtimeCustomers;
+
+function runtimeCustomerId(phone: string) {
+  return `guest-${phone}`;
+}
+
 /** Calcula el nivel del Club según los puntos acumulados. */
 export function tierForPoints(points: number): LoyaltyTier {
   let tier: LoyaltyTier = "Bronce";
@@ -489,7 +498,10 @@ export async function listCustomers(search?: string): Promise<Customer[]> {
     });
     return rows.map(mapCustomer);
   }
-  let list = mockCustomers.slice();
+  let list = [
+    ...runtimeCustomers.values(),
+    ...mockCustomers.filter((c) => !runtimeCustomers.has(c.id)),
+  ];
   if (search) {
     const q = search.toLowerCase();
     list = list.filter(
@@ -510,7 +522,7 @@ export async function getCustomer(id: string): Promise<Customer | null> {
     });
     return c ? mapCustomer(c) : null;
   }
-  return mockCustomers.find((c) => c.id === id) ?? null;
+  return runtimeCustomers.get(id) ?? mockCustomers.find((c) => c.id === id) ?? null;
 }
 
 export async function findCustomer(by: { phone?: string; email?: string }): Promise<Customer | null> {
@@ -522,7 +534,7 @@ export async function findCustomer(by: { phone?: string; email?: string }): Prom
     return c ? mapCustomer(c) : null;
   }
   return (
-    mockCustomers.find(
+    [...runtimeCustomers.values(), ...mockCustomers].find(
       (c) => (by.phone && c.phone === by.phone) || (by.email && c.email === by.email)
     ) ?? null
   );
@@ -933,9 +945,27 @@ export async function loginByPhone(input: { phone: string; name?: string }): Pro
 
   // Sin base de datos (dev): sujeto sintético basado en el teléfono.
   const mock = mockCustomers.find((c) => c.phone === input.phone);
+  const id = mock?.id ?? runtimeCustomerId(input.phone);
+  const existing = runtimeCustomers.get(id) ?? mock;
+  const name = input.name?.trim() || existing?.name || "Cliente";
+  const customer: Customer = existing
+    ? { ...existing, name, phone: input.phone }
+    : {
+        id,
+        name,
+        email: "",
+        phone: input.phone,
+        orders: 0,
+        spent: 0,
+        points: 0,
+        tier: "Bronce",
+        joined: new Date().toISOString(),
+      };
+  runtimeCustomers.set(id, customer);
+
   return {
-    id: mock?.id ?? `guest-${input.phone}`,
-    name: input.name?.trim() || mock?.name || "Cliente",
+    id: customer.id,
+    name: customer.name,
     phone: input.phone,
     role,
   };

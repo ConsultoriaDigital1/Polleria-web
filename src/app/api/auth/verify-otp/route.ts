@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { ok, fail, handleError } from "@/lib/api/respond";
-import { normalizePhone, hashCode } from "@/lib/auth/otp";
+import { normalizePhone, hashCode, OTP_CODE_LENGTH, verifyOtpCookie } from "@/lib/auth/otp";
 import { verifyOtp, loginByPhone } from "@/lib/repo";
 import { setSessionCookie } from "@/lib/auth/session";
 
@@ -10,7 +10,15 @@ export const dynamic = "force-dynamic";
 
 const schema = z.object({
   phone: z.string().min(5, "El teléfono es obligatorio."),
-  code: z.string().regex(/^\d{6}$/, "El código debe tener 6 dígitos."),
+  code: z.coerce
+    .string()
+    .transform((value) => value.replace(/\D/g, ""))
+    .pipe(
+      z.string().regex(
+        new RegExp(`^\\d{${OTP_CODE_LENGTH}}$`),
+        `El código debe tener ${OTP_CODE_LENGTH} dígitos.`
+      )
+    ),
   name: z.string().trim().min(1).max(80).optional(),
 });
 
@@ -26,13 +34,20 @@ export async function POST(req: NextRequest) {
   try {
     const body = schema.parse(await req.json());
     const phone = normalizePhone(body.phone);
+    const codeInput = body.code;
 
     // Código demo: permite entrar sin OTP real (para muestras / entornos sin WhatsApp).
-    const demoCode = process.env.DEMO_LOGIN_CODE ?? "123456";
-    const isDemo = demoCode.length === 6 && body.code === demoCode;
+    const demoCode = process.env.DEMO_LOGIN_CODE ?? (process.env.NODE_ENV === "production" ? "" : "1234");
+    const isDemo = demoCode.length === OTP_CODE_LENGTH && codeInput === demoCode;
 
-    const result = isDemo ? "ok" : await verifyOtp(phone, hashCode(phone, body.code));
+    const codeHash = hashCode(phone, codeInput);
+    const result = isDemo
+      ? "ok"
+      : await verifyOtp(phone, codeHash).then((r) =>
+          r === "none" ? verifyOtpCookie(phone, codeHash) : r
+        );
     if (result !== "ok") {
+      console.warn(`[OTP] Verificación fallida para ${phone}: ${result}.`);
       const code = result === "invalid" ? "INVALID_CODE" : "OTP_" + result.toUpperCase();
       return fail(messages[result] ?? "No se pudo verificar el código.", 401, code);
     }

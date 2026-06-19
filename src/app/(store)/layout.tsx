@@ -11,7 +11,7 @@ export default function StoreLayout({ children }: { children: React.ReactNode })
     <div className="flex min-h-screen flex-col bg-brand-cream">
       <VisitTracker />
       <StoreHeader />
-      <main className="flex-1 pb-4 md:pb-12">
+      <main className="flex-1 pb-20 md:pb-12">
         {/* Ancho completo en mobile; contenido centrado y amplio en escritorio */}
         <div className="mx-auto w-full max-w-6xl">{children}</div>
       </main>
