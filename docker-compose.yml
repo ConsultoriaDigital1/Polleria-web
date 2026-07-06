@@ -44,6 +44,8 @@ services:
       # Pagos online (Mercado Pago Checkout Pro)
       MP_ACCESS_TOKEN: ${MP_ACCESS_TOKEN:-}
       NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL:-}
+      # Demo: si es true, saltea Mercado Pago y marca el pago como aprobado.
+      CHECKOUT_FAKE_PAYMENT: ${CHECKOUT_FAKE_PAYMENT:-}
       # Avisos de estado de pedidos a n8n (ver docs/n8n-pedidos.md)
       N8N_ORDER_WEBHOOK_URL: ${N8N_ORDER_WEBHOOK_URL:-}
       N8N_ORDER_WEBHOOK_SECRET: ${N8N_ORDER_WEBHOOK_SECRET:-}
