@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   ShoppingCart,
+  Truck,
   Package,
   Users,
   UserCog,
@@ -31,6 +32,7 @@ import { hasPermission } from "@/lib/auth/perm-modules";
 const nav = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/pedidos", label: "Pedidos", icon: ShoppingCart, perm: "pedidos" },
+  { href: "/admin/entregas", label: "Entregas", icon: Truck, perm: "entregas" },
   { href: "/admin/productos", label: "Productos", icon: Package, perm: "productos" },
   { href: "/admin/clientes", label: "Clientes", icon: Users, perm: "clientes" },
   { href: "/admin/puntos", label: "Cargar puntos", icon: Gift, perm: "puntos" },

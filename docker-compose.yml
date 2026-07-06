@@ -41,6 +41,12 @@ services:
       ADMIN_USER: ${ADMIN_USER:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Definí ADMIN_PASSWORD en el archivo .env}
       ADMIN_PHONES: ${ADMIN_PHONES:-}
+      # Pagos online (Mercado Pago Checkout Pro)
+      MP_ACCESS_TOKEN: ${MP_ACCESS_TOKEN:-}
+      NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL:-}
+      # Avisos de estado de pedidos a n8n (ver docs/n8n-pedidos.md)
+      N8N_ORDER_WEBHOOK_URL: ${N8N_ORDER_WEBHOOK_URL:-}
+      N8N_ORDER_WEBHOOK_SECRET: ${N8N_ORDER_WEBHOOK_SECRET:-}
     ports:
       - "${WEB_PORT:-3000}:3000"
     healthcheck:

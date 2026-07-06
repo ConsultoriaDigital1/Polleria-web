@@ -5,6 +5,9 @@ export interface Sucursal {
   /** Texto de búsqueda usado para ubicar la sucursal en Google Maps */
   mapsQuery: string;
   phone?: string;
+  /** Coordenadas aproximadas; se usan como origen de la ruta de reparto. */
+  lat: number;
+  lng: number;
 }
 
 export const sucursales: Sucursal[] = [
@@ -14,6 +17,8 @@ export const sucursales: Sucursal[] = [
     address: "Junín 2198, Corrientes",
     mapsQuery: "Junín 2198, Corrientes, Argentina",
     phone: "3794 525617",
+    lat: -27.4712,
+    lng: -58.8267,
   },
   {
     id: "sarmiento",
@@ -21,41 +26,55 @@ export const sucursales: Sucursal[] = [
     address: "Sarmiento y La Pampa, Corrientes",
     mapsQuery: "Sarmiento y La Pampa, Corrientes, Argentina",
     phone: "3794 525617",
+    lat: -27.4783,
+    lng: -58.8144,
   },
   {
     id: "cazadores",
     name: "Av. Cazadores Correntinos",
     address: "Av. Cazadores Correntinos 3038, Corrientes",
     mapsQuery: "Av. Cazadores Correntinos 3038, Corrientes, Argentina",
+    lat: -27.4869,
+    lng: -58.7986,
   },
   {
     id: "independencia-5328",
     name: "Av. Independencia 5328",
     address: "Av. Independencia 5328, Corrientes",
     mapsQuery: "Av. Independencia 5328, Corrientes, Argentina",
+    lat: -27.4935,
+    lng: -58.7724,
   },
   {
     id: "independencia-3540",
     name: "Av. Independencia 3540",
     address: "Av. Independencia 3540, Corrientes",
     mapsQuery: "Av. Independencia 3540, Corrientes, Argentina",
+    lat: -27.4886,
+    lng: -58.7876,
   },
   {
     id: "gutemberg",
     name: "Calle Gutemberg",
     address: "Gutemberg 1670, Corrientes",
     mapsQuery: "Gutemberg 1670, Corrientes, Argentina",
+    lat: -27.4784,
+    lng: -58.8016,
   },
   {
     id: "libertad",
     name: "Av. Libertad",
     address: "Av. Libertad 5279, Corrientes",
     mapsQuery: "Av. Libertad 5279, Corrientes, Argentina",
+    lat: -27.4959,
+    lng: -58.7793,
   },
   {
     id: "maipu",
     name: "Av. Maipú",
     address: "Av. Maipú 7185, Corrientes",
     mapsQuery: "Av. Maipú 7185, Corrientes, Argentina",
+    lat: -27.5031,
+    lng: -58.7642,
   },
 ];

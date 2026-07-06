@@ -24,6 +24,7 @@ export interface PermModule {
 /** Módulos del panel que pueden asignarse a un empleado. */
 export const PERM_MODULES: PermModule[] = [
   { key: "pedidos", label: "Pedidos", href: "/admin/pedidos" },
+  { key: "entregas", label: "Entregas", href: "/admin/entregas" },
   { key: "productos", label: "Productos", href: "/admin/productos" },
   { key: "clientes", label: "Clientes", href: "/admin/clientes" },
   { key: "puntos", label: "Cargar puntos", href: "/admin/puntos" },

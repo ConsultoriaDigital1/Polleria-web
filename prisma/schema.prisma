@@ -101,6 +101,22 @@ model Order {
   customerName String
   phone        String?
   address      String?
+  // Entrega: "retiro" (en sucursal) o "envio" (a domicilio).
+  entrega      String?
+  // Sucursal elegida cuando la entrega es retiro.
+  sucursalId   String?
+  // Punto exacto de entrega marcado en el mapa (solo envíos).
+  lat          Float?
+  lng          Float?
+  // Código que el cliente le da al repartidor al recibir el pedido; al
+  // validarlo se marca como entregado y n8n dispara el aviso al siguiente
+  // cliente de la ruta.
+  deliveryCode String?
+  // Reparto: al "cerrar pedidos" se arma una ruta optimizada y cada envío
+  // recibe su posición (routeSeq), el momento del despacho y la sucursal origen.
+  routeSeq         Int?
+  dispatchedAt     DateTime?
+  originSucursalId String?
   total        Int
   status       OrderStatus   @default(pendiente)
   payment      PaymentMethod
@@ -165,6 +181,23 @@ model Novedad {
   updatedAt DateTime @updatedAt
 
   @@index([active, position])
+}
+
+// Banner principal de la home ("Super Oferta"), editable desde /admin/ofertas.
+// Fila única (id fijo "main"): producto destacado con precio de oferta y
+// fondo en imagen o video mp4.
+model SuperOferta {
+  id        String   @id @default("main")
+  title     String
+  subtitle  String?
+  price     Int
+  oldPrice  Int?
+  image     String
+  video     String?
+  link      String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // Integrante del equipo de la pollería (empleado), gestionable desde el admin.

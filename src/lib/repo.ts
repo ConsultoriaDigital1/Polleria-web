@@ -10,12 +10,14 @@ import type {
 import type {
   Product,
   Order,
+  OrderItem,
   OrderStatus,
   Customer,
   LoyaltyTier,
   PointsEntry,
   Category,
   Novedad,
+  SuperOferta,
   Staff,
   StaffRole,
 } from "./types";
@@ -31,6 +33,9 @@ import {
 import { OTP_RESEND_MS, OTP_MAX_ATTEMPTS, isAdminPhone } from "./auth/otp";
 import type { Role } from "./auth/session";
 import { hashPassword, verifyPassword } from "./auth/password";
+import { eventForStatus, notifyOrderEvent } from "./n8n";
+import { sucursales } from "./sucursales";
+import { optimizeRoute, googleMapsRouteUrl, DEFAULT_ROUTE_ORIGIN } from "./route";
 
 /** Se lanza cuando una operación de escritura necesita base de datos y no hay. */
 export class NoDatabaseError extends Error {
@@ -45,9 +50,23 @@ function ensureDb() {
 }
 
 /** Clientes creados en runtime cuando no hay DB (solo desarrollo local). */
-const globalForRepo = globalThis as unknown as { runtimeCustomers?: Map<string, Customer> };
+const globalForRepo = globalThis as unknown as {
+  runtimeCustomers?: Map<string, Customer>;
+  runtimeOrders?: Map<string, Order>;
+  runtimeSeq?: { n: number };
+};
 const runtimeCustomers = globalForRepo.runtimeCustomers ?? new Map<string, Customer>();
 if (!globalForRepo.runtimeCustomers) globalForRepo.runtimeCustomers = runtimeCustomers;
+
+/**
+ * Pedidos en memoria para el modo sin base de datos (demo/pruebas). Persisten
+ * mientras viva el proceso del server de desarrollo, así se puede recorrer todo
+ * el flujo (pago → preparación → reparto → entregado) sin Postgres.
+ */
+const runtimeOrders = globalForRepo.runtimeOrders ?? new Map<string, Order>();
+if (!globalForRepo.runtimeOrders) globalForRepo.runtimeOrders = runtimeOrders;
+const runtimeSeq = globalForRepo.runtimeSeq ?? { n: 1042 };
+if (!globalForRepo.runtimeSeq) globalForRepo.runtimeSeq = runtimeSeq;
 
 function runtimeCustomerId(phone: string) {
   return `guest-${phone}`;
@@ -78,7 +97,20 @@ function mapProduct(p: DbProduct): Product {
 function mapOrder(o: DbOrder & { items: DbOrderItem[] }): Order {
   return {
     id: o.code ?? `#${1000 + o.seq}`,
+    internalId: o.id,
     customer: o.customerName,
+    phone: o.phone ?? undefined,
+    address: o.address ?? undefined,
+    entrega: (o.entrega as Order["entrega"]) ?? undefined,
+    sucursalId: o.sucursalId ?? undefined,
+    lat: o.lat ?? undefined,
+    lng: o.lng ?? undefined,
+    deliveryCode: o.deliveryCode ?? undefined,
+    routeSeq: o.routeSeq ?? undefined,
+    dispatchedAt: o.dispatchedAt?.toISOString(),
+    updatedAt: o.updatedAt?.toISOString(),
+    originSucursalId: o.originSucursalId ?? undefined,
+    notes: o.notes ?? undefined,
     items: o.items.map((i) => ({
       productId: i.productId,
       name: i.name,
@@ -357,6 +389,86 @@ export async function deleteNovedad(id: string): Promise<boolean> {
   }
 }
 
+// ---------- Super Oferta (banner principal de la home) ----------
+
+/**
+ * Super oferta por defecto: se muestra cuando no hay base de datos o cuando
+ * todavía no se editó desde el panel. Los valores se pisan al guardar.
+ */
+const defaultSuperOferta: SuperOferta = {
+  id: "main",
+  title: "Caja de Patamuslo 10kg",
+  subtitle: "Stock limitado para aprovechar hoy.",
+  price: 28500,
+  oldPrice: 34000,
+  image: "/super-oferta-patamuslo-10kg.png",
+  link: "/productos",
+  active: true,
+};
+
+function mapSuperOferta(s: {
+  id: string;
+  title: string;
+  subtitle: string | null;
+  price: number;
+  oldPrice: number | null;
+  image: string;
+  video: string | null;
+  link: string | null;
+  active: boolean;
+}): SuperOferta {
+  return {
+    id: s.id,
+    title: s.title,
+    subtitle: s.subtitle ?? undefined,
+    price: s.price,
+    oldPrice: s.oldPrice ?? undefined,
+    image: s.image,
+    video: s.video ?? undefined,
+    link: s.link ?? undefined,
+    active: s.active,
+  };
+}
+
+export async function getSuperOferta(): Promise<SuperOferta> {
+  if (hasDatabase) {
+    const row = await prisma.superOferta.findUnique({ where: { id: "main" } });
+    if (row) return mapSuperOferta(row);
+  }
+  return defaultSuperOferta;
+}
+
+export interface SuperOfertaInput {
+  title: string;
+  subtitle?: string | null;
+  price: number;
+  oldPrice?: number | null;
+  image: string;
+  video?: string | null;
+  link?: string | null;
+  active?: boolean;
+}
+
+export async function upsertSuperOferta(input: SuperOfertaInput): Promise<SuperOferta> {
+  ensureDb();
+  const data = {
+    title: input.title,
+    subtitle: input.subtitle ?? null,
+    price: input.price,
+    oldPrice: input.oldPrice ?? null,
+    image: input.image,
+    video: input.video ?? null,
+    link: input.link ?? null,
+    active: input.active ?? true,
+  };
+  const s = await prisma.superOferta.upsert({
+    where: { id: "main" },
+    update: data,
+    create: { id: "main", ...data },
+  });
+  return mapSuperOferta(s);
+}
+
 // ---------- Pedidos ----------
 export interface OrderFilter {
   status?: OrderStatus;
@@ -374,7 +486,9 @@ export async function listOrders(f: OrderFilter = {}): Promise<Order[]> {
     });
     return rows.map(mapOrder);
   }
-  let list = mockOrders.slice();
+  // Sin DB: pedidos en memoria (demo) primero, más nuevos arriba, luego mocks.
+  const runtime = [...runtimeOrders.values()].sort((a, b) => b.date.localeCompare(a.date));
+  let list = [...runtime, ...mockOrders];
   if (f.status) list = list.filter((o) => o.status === f.status);
   if (f.limit) list = list.slice(0, f.limit);
   return list;
@@ -388,27 +502,43 @@ export async function getOrder(idOrCode: string): Promise<Order | null> {
     });
     return o ? mapOrder(o) : null;
   }
-  return mockOrders.find((o) => o.id === idOrCode) ?? null;
+  return (
+    runtimeOrders.get(idOrCode) ??
+    [...runtimeOrders.values()].find((o) => o.id === idOrCode) ??
+    mockOrders.find((o) => o.id === idOrCode) ??
+    null
+  );
 }
 
 export interface CreateOrderInput {
   customerId?: string;
   customer?: { name: string; phone: string; email?: string; document?: string };
-  items: { productId: string; qty: number }[];
+  // name/price son opcionales: se usan como respaldo en el modo sin DB (demo).
+  items: { productId: string; qty: number; name?: string; price?: number }[];
   payment: Order["payment"];
   address?: string;
   notes?: string;
+  entrega?: Order["entrega"];
+  sucursalId?: string;
+  lat?: number;
+  lng?: number;
 }
 
-export async function createOrder(input: CreateOrderInput): Promise<Order> {
+/**
+ * Resuelve los renglones de un pedido contra el catálogo real y calcula el
+ * total en el servidor (nunca se confía en los precios del cliente).
+ * La usan createOrder y el checkout de Mercado Pago (para validar el mínimo
+ * de envío antes de crear nada).
+ */
+export async function quoteOrder(
+  items: { productId: string; qty: number }[]
+): Promise<{ lines: { productId: string; name: string; qty: number; price: number }[]; total: number }> {
   ensureDb();
-
-  // Resolver productos reales y calcular total en el servidor (no confiar en el cliente).
-  const ids = input.items.map((i) => i.productId);
+  const ids = items.map((i) => i.productId);
   const dbProducts = await prisma.product.findMany({ where: { id: { in: ids } } });
   const byId = new Map(dbProducts.map((p) => [p.id, p]));
 
-  const lines = input.items.map((i) => {
+  const lines = items.map((i) => {
     const p = byId.get(i.productId);
     if (!p) throw new Error(`Producto inexistente: ${i.productId}`);
     if (!p.available) throw new Error(`Producto sin stock: ${p.name}`);
@@ -416,6 +546,64 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
     return { productId: p.id, name: p.name, qty: i.qty, price: p.price };
   });
   const total = lines.reduce((a, l) => a + l.qty * l.price, 0);
+  return { lines, total };
+}
+
+/** Código de entrega de 4 dígitos que el cliente le da al repartidor. */
+function generateDeliveryCode(): string {
+  return String(Math.floor(1000 + Math.random() * 9000));
+}
+
+/**
+ * Cotiza los renglones en el modo sin DB (demo). Usa el producto de ejemplo si
+ * existe y, si no, el name/price que mandó el carrito. No lanza si el catálogo
+ * no tiene el producto: así la demo funciona con cualquier ítem.
+ */
+async function quoteOrderMem(
+  items: { productId: string; qty: number; name?: string; price?: number }[]
+): Promise<{ lines: OrderItem[]; total: number }> {
+  const lines: OrderItem[] = [];
+  for (const i of items) {
+    const p = await getProduct(i.productId);
+    const name = p?.name ?? i.name ?? i.productId;
+    const price = p?.price ?? i.price ?? 0;
+    lines.push({ productId: i.productId, name, qty: i.qty, price });
+  }
+  const total = lines.reduce((a, l) => a + l.qty * l.price, 0);
+  return { lines, total };
+}
+
+/** Alta de pedido en memoria (demo sin base de datos). */
+async function createOrderMem(input: CreateOrderInput): Promise<Order> {
+  const { lines, total } = await quoteOrderMem(input.items);
+  runtimeSeq.n += 1;
+  const internalId = `mem-${runtimeSeq.n}`;
+  const order: Order = {
+    id: `#${runtimeSeq.n}`,
+    internalId,
+    customer: input.customer?.name ?? "Cliente",
+    phone: input.customer?.phone,
+    address: input.address,
+    entrega: input.entrega,
+    sucursalId: input.entrega === "retiro" ? input.sucursalId : undefined,
+    lat: input.entrega === "envio" ? input.lat : undefined,
+    lng: input.entrega === "envio" ? input.lng : undefined,
+    deliveryCode: input.entrega === "envio" ? generateDeliveryCode() : undefined,
+    notes: input.notes,
+    items: lines,
+    total,
+    status: "pendiente",
+    payment: input.payment,
+    date: new Date().toISOString(),
+  };
+  runtimeOrders.set(internalId, order);
+  return order;
+}
+
+export async function createOrder(input: CreateOrderInput): Promise<Order> {
+  if (!hasDatabase) return createOrderMem(input);
+
+  const { lines, total } = await quoteOrder(input.items);
 
   // Resolver / crear cliente.
   let customerId = input.customerId ?? null;
@@ -450,6 +638,12 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
       phone: input.customer?.phone,
       address: input.address,
       notes: input.notes,
+      entrega: input.entrega ?? null,
+      sucursalId: input.sucursalId ?? null,
+      lat: input.lat ?? null,
+      lng: input.lng ?? null,
+      // Solo los envíos llevan código de entrega (lo valida el repartidor).
+      deliveryCode: input.entrega === "envio" ? generateDeliveryCode() : null,
       total,
       payment: input.payment,
       items: { create: lines },
@@ -466,7 +660,27 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
   return mapOrder(withCode);
 }
 
+/** Busca un pedido en memoria por internalId o por código (#1234). */
+function findMemOrder(idOrCode: string): Order | undefined {
+  return (
+    runtimeOrders.get(idOrCode) ??
+    [...runtimeOrders.values()].find((o) => o.id === idOrCode)
+  );
+}
+
 export async function updateOrderStatus(idOrCode: string, status: OrderStatus): Promise<Order | null> {
+  if (!hasDatabase) {
+    const order = findMemOrder(idOrCode);
+    if (!order) return null;
+    const changed = order.status !== status;
+    order.status = status;
+    order.updatedAt = new Date().toISOString();
+    if (changed) {
+      const event = eventForStatus(status);
+      if (event) await notifyOrderEvent(event, order);
+    }
+    return order;
+  }
   ensureDb();
   const existing = await prisma.order.findFirst({
     where: { OR: [{ code: idOrCode }, { id: idOrCode }] },
@@ -477,7 +691,260 @@ export async function updateOrderStatus(idOrCode: string, status: OrderStatus): 
     data: { status },
     include: { items: true },
   });
-  return mapOrder(updated);
+  const order = mapOrder(updated);
+
+  // Avisar a n8n solo cuando el estado realmente cambió (evita duplicados
+  // cuando MP reintenta webhooks o el panel guarda sin cambios).
+  if (existing.status !== status) {
+    const event = eventForStatus(status);
+    if (event) await notifyOrderEvent(event, order);
+  }
+
+  return order;
+}
+
+/** Resultado de validar el código de entrega de un pedido. */
+export type DeliveryResult =
+  | { ok: true; order: Order }
+  | { ok: false; reason: "not_found" | "no_code" | "invalid_code" | "already_delivered" };
+
+/**
+ * Avisa al SIGUIENTE cliente de la ruta que es el próximo. "Siguiente" es la
+ * orden que sigue `en_camino` (no entregada) con menor `routeSeq`. Se llama
+ * después de despachar el lote y después de confirmar cada entrega.
+ */
+async function notifyNextAfterDelivery(delivered: {
+  originSucursalId: string | null;
+}): Promise<void> {
+  if (!hasDatabase) {
+    const next = [...runtimeOrders.values()]
+      .filter(
+        (o) =>
+          o.status === "en_camino" &&
+          o.routeSeq != null &&
+          (!delivered.originSucursalId || o.originSucursalId === delivered.originSucursalId)
+      )
+      .sort((a, b) => (a.routeSeq ?? 0) - (b.routeSeq ?? 0))[0];
+    if (next) await notifyOrderEvent("pedido_proximo", next);
+    return;
+  }
+  const next = await prisma.order.findFirst({
+    where: {
+      status: "en_camino",
+      routeSeq: { not: null },
+      ...(delivered.originSucursalId ? { originSucursalId: delivered.originSucursalId } : {}),
+    },
+    orderBy: { routeSeq: "asc" },
+    include: { items: true },
+  });
+  if (next) await notifyOrderEvent("pedido_proximo", mapOrder(next));
+}
+
+/**
+ * Confirma la entrega de un pedido validando el código que el cliente le dio
+ * al repartidor. Si es correcto, el pedido pasa a "entregado" (dispara el
+ * evento pedido_entregado) y se avisa al siguiente cliente de la ruta.
+ */
+export async function confirmDelivery(idOrCode: string, code: string): Promise<DeliveryResult> {
+  if (!hasDatabase) {
+    const existing = findMemOrder(idOrCode);
+    if (!existing) return { ok: false, reason: "not_found" };
+    if (existing.status === "entregado") return { ok: false, reason: "already_delivered" };
+    if (!existing.deliveryCode) return { ok: false, reason: "no_code" };
+    if (existing.deliveryCode !== code.trim()) return { ok: false, reason: "invalid_code" };
+    const order = await updateOrderStatus(existing.internalId ?? existing.id, "entregado");
+    if (!order) return { ok: false, reason: "not_found" };
+    await notifyNextAfterDelivery({ originSucursalId: existing.originSucursalId ?? null });
+    return { ok: true, order };
+  }
+  ensureDb();
+  const existing = await prisma.order.findFirst({
+    where: { OR: [{ code: idOrCode }, { id: idOrCode }] },
+    include: { items: true },
+  });
+  if (!existing) return { ok: false, reason: "not_found" };
+  if (existing.status === "entregado") return { ok: false, reason: "already_delivered" };
+  if (!existing.deliveryCode) return { ok: false, reason: "no_code" };
+  if (existing.deliveryCode !== code.trim()) return { ok: false, reason: "invalid_code" };
+
+  const order = await updateOrderStatus(existing.id, "entregado");
+  if (!order) return { ok: false, reason: "not_found" };
+  await notifyNextAfterDelivery(existing);
+  return { ok: true, order };
+}
+
+/**
+ * Variante para el repartidor: confirma la entrega ingresando SÓLO el código
+ * del cliente (sin saber qué pedido es). Busca entre los pedidos `en_camino`
+ * el que tenga ese código y lo marca entregado. Así el repartidor puede
+ * recorrer en el orden que quiera y cargar "el código de cualquiera".
+ * Si hay más de uno con el mismo código (raro, son 4 dígitos), toma el de
+ * menor `routeSeq`.
+ */
+export async function confirmDeliveryByCode(code: string): Promise<DeliveryResult> {
+  const trimmed = code.trim();
+  if (!hasDatabase) {
+    const all = [...runtimeOrders.values()];
+    const match = all
+      .filter((o) => o.status === "en_camino" && o.deliveryCode === trimmed)
+      .sort((a, b) => (a.routeSeq ?? 0) - (b.routeSeq ?? 0))[0];
+    if (!match) {
+      const already = all.some((o) => o.status === "entregado" && o.deliveryCode === trimmed);
+      return { ok: false, reason: already ? "already_delivered" : "invalid_code" };
+    }
+    const order = await updateOrderStatus(match.internalId ?? match.id, "entregado");
+    if (!order) return { ok: false, reason: "not_found" };
+    await notifyNextAfterDelivery({ originSucursalId: match.originSucursalId ?? null });
+    return { ok: true, order };
+  }
+  ensureDb();
+  const match = await prisma.order.findFirst({
+    where: { status: "en_camino", deliveryCode: trimmed },
+    orderBy: { routeSeq: "asc" },
+    include: { items: true },
+  });
+  if (!match) {
+    const already = await prisma.order.findFirst({
+      where: { status: "entregado", deliveryCode: trimmed },
+      select: { id: true },
+    });
+    return { ok: false, reason: already ? "already_delivered" : "invalid_code" };
+  }
+
+  const order = await updateOrderStatus(match.id, "entregado");
+  if (!order) return { ok: false, reason: "not_found" };
+  await notifyNextAfterDelivery(match);
+  return { ok: true, order };
+}
+
+/** Pedidos del reparto en curso (últimas 12 h), ordenados por la ruta. */
+export async function listActiveRoute(): Promise<Order[]> {
+  const cutoffMs = Date.now() - 12 * 60 * 60 * 1000;
+  if (!hasDatabase) {
+    return [...runtimeOrders.values()]
+      .filter(
+        (o) =>
+          o.routeSeq != null &&
+          (o.status === "en_camino" || o.status === "entregado") &&
+          o.dispatchedAt != null &&
+          new Date(o.dispatchedAt).getTime() >= cutoffMs
+      )
+      .sort((a, b) => (a.routeSeq ?? 0) - (b.routeSeq ?? 0));
+  }
+  const cutoff = new Date(cutoffMs);
+  const rows = await prisma.order.findMany({
+    where: {
+      routeSeq: { not: null },
+      dispatchedAt: { gte: cutoff },
+      status: { in: ["en_camino", "entregado"] },
+    },
+    orderBy: { routeSeq: "asc" },
+    include: { items: true },
+  });
+  return rows.map(mapOrder);
+}
+
+export interface DispatchResult {
+  /** Pedidos ya despachados, en el orden de la ruta. */
+  route: Order[];
+  /** URL de Google Maps con la ruta optimizada (vacía si no hubo envíos). */
+  mapsUrl: string;
+  count: number;
+}
+
+/**
+ * "Cerrar pedidos para enviar": toma todos los envíos pagados listos
+ * (`en_preparacion`, con punto en el mapa), arma la ruta optimizada desde la
+ * sucursal elegida y los despacha (pasan a `en_camino` con su `routeSeq`).
+ * Avisa a n8n: "salió de la sucursal" a todos y "sos el próximo" al primero.
+ */
+export async function dispatchDeliveries(sucursalId: string): Promise<DispatchResult> {
+  const sucursal = sucursales.find((s) => s.id === sucursalId);
+  const origin = sucursal ? { lat: sucursal.lat, lng: sucursal.lng } : DEFAULT_ROUTE_ORIGIN;
+
+  if (!hasDatabase) {
+    const pending = [...runtimeOrders.values()].filter(
+      (o) =>
+        o.status === "en_preparacion" &&
+        o.entrega === "envio" &&
+        o.lat != null &&
+        o.lng != null
+    );
+    if (pending.length === 0) return { route: [], mapsUrl: "", count: 0 };
+
+    const ordered = optimizeRoute(
+      origin,
+      pending.map((o) => ({ order: o, lat: o.lat as number, lng: o.lng as number }))
+    );
+    const nowIso = new Date().toISOString();
+    ordered.forEach((stop, i) => {
+      stop.order.status = "en_camino";
+      stop.order.routeSeq = i + 1;
+      stop.order.dispatchedAt = nowIso;
+      stop.order.originSucursalId = sucursalId;
+    });
+    const routeOrders = ordered.map((s) => s.order);
+    for (const o of routeOrders) await notifyOrderEvent("pedido_en_camino", o);
+    if (routeOrders[0]) await notifyOrderEvent("pedido_proximo", routeOrders[0]);
+    const mapsUrl = googleMapsRouteUrl(
+      origin,
+      ordered.map((s) => ({ lat: s.lat, lng: s.lng }))
+    );
+    return { route: routeOrders, mapsUrl, count: routeOrders.length };
+  }
+
+  ensureDb();
+  const pending = await prisma.order.findMany({
+    where: {
+      status: "en_preparacion",
+      entrega: "envio",
+      lat: { not: null },
+      lng: { not: null },
+    },
+    include: { items: true },
+  });
+  if (pending.length === 0) return { route: [], mapsUrl: "", count: 0 };
+
+  const stops = pending.map((o) => ({
+    id: o.id,
+    lat: o.lat as number,
+    lng: o.lng as number,
+  }));
+  const ordered = optimizeRoute(origin, stops);
+
+  const now = new Date();
+  await prisma.$transaction(
+    ordered.map((stop, i) =>
+      prisma.order.update({
+        where: { id: stop.id },
+        data: {
+          status: "en_camino",
+          routeSeq: i + 1,
+          dispatchedAt: now,
+          originSucursalId: sucursalId,
+        },
+      })
+    )
+  );
+
+  // Releemos con items para armar los avisos y la respuesta, en orden de ruta.
+  const rows = await prisma.order.findMany({
+    where: { id: { in: ordered.map((s) => s.id) } },
+    include: { items: true },
+  });
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const routeOrders = ordered.map((s) => mapOrder(byId.get(s.id)!));
+
+  for (const o of routeOrders) {
+    await notifyOrderEvent("pedido_en_camino", o);
+  }
+  if (routeOrders[0]) await notifyOrderEvent("pedido_proximo", routeOrders[0]);
+
+  const mapsUrl = googleMapsRouteUrl(
+    origin,
+    ordered.map((s) => ({ lat: s.lat, lng: s.lng }))
+  );
+  return { route: routeOrders, mapsUrl, count: routeOrders.length };
 }
 
 // ---------- Clientes ----------

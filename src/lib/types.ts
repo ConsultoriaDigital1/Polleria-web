@@ -10,6 +10,24 @@ export interface Novedad {
   position: number;
 }
 
+/** Banner principal de la home ("Super Oferta"), editable desde /admin/ofertas. */
+export interface SuperOferta {
+  id: string;
+  title: string;
+  subtitle?: string;
+  /** Precio de oferta (el que se cobra). */
+  price: number;
+  /** Precio normal, se muestra tachado. */
+  oldPrice?: number;
+  /** Imagen de fondo; también es el póster mientras carga el video. */
+  image: string;
+  /** Video mp4 opcional: si está, se reproduce en loop como fondo del banner. */
+  video?: string;
+  /** Enlace del botón "Pedila ahora" (default /productos). */
+  link?: string;
+  active: boolean;
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -25,6 +43,9 @@ export interface Product {
 
 export type OrderStatus = "pendiente" | "en_preparacion" | "en_camino" | "entregado" | "cancelado";
 
+/** Forma de entrega del pedido. */
+export type DeliveryType = "retiro" | "envio";
+
 export interface OrderItem {
   productId: string;
   name: string;
@@ -34,7 +55,27 @@ export interface OrderItem {
 
 export interface Order {
   id: string;
+  /** id interno de la base (cuid); se usa como external_reference en pagos. */
+  internalId?: string;
   customer: string;
+  phone?: string;
+  address?: string;
+  entrega?: DeliveryType;
+  sucursalId?: string;
+  /** Punto exacto de entrega marcado en el mapa (solo envíos). */
+  lat?: number;
+  lng?: number;
+  /** Código que el cliente le da al repartidor al recibir el pedido. */
+  deliveryCode?: string;
+  /** Posición del pedido en la ruta optimizada del reparto (1..N). */
+  routeSeq?: number;
+  /** Momento en que el pedido salió de la sucursal (ISO), al cerrar el lote. */
+  dispatchedAt?: string;
+  /** Última actualización del pedido (ISO). Sirve como hora de entrega. */
+  updatedAt?: string;
+  /** Sucursal desde la que salió el reparto. */
+  originSucursalId?: string;
+  notes?: string;
   items: OrderItem[];
   total: number;
   status: OrderStatus;

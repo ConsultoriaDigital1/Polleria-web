@@ -43,7 +43,7 @@ export function ProductCard({ product }: { product: Product }) {
         <button
           onClick={() => {
             add(product);
-            showToast(`${product.name} agregado al carrito`);
+            showToast(product.name, { variant: "cart" });
           }}
           className="btn-primary mt-3 w-full"
           aria-label={`Agregar ${product.name}`}

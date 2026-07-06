@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { X, Home, UtensilsCrossed, Tag, Star, User, LayoutDashboard, MapPin, Phone } from "lucide-react";
+import { X, Home, UtensilsCrossed, Tag, Star, User, MapPin, Phone } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { useUI } from "@/store/ui";
 
@@ -12,7 +12,6 @@ const links = [
   { href: "/sucursales", label: "Sucursales", icon: MapPin },
   { href: "/club", label: "Club Pollería", icon: Star },
   { href: "/cuenta", label: "Mi cuenta", icon: User },
-  { href: "/admin", label: "Panel admin", icon: LayoutDashboard },
 ];
 
 export function SideMenu() {
