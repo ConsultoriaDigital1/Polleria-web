@@ -107,7 +107,7 @@ export default async function HomePage() {
               Hacé tu pedido por WhatsApp
             </h3>
             <p className="mt-1 text-xs text-brand-ink/70 md:mt-2 md:text-base">
-              📱 3794 525617 · Envíos a domicilio en pedidos desde $200.000. Aceptamos todos los medios de pago.
+              📱 3794 525617 · Envíos a domicilio en pedidos desde $100.000. Aceptamos todos los medios de pago.
             </p>
           </div>
           <span className="text-4xl md:text-6xl" aria-hidden>
@@ -129,7 +129,7 @@ export default async function HomePage() {
         <div className="grid grid-cols-3 gap-2 text-center">
           <Feature icon={ShieldCheck} title="Calidad" subtitle="Garantizada" compact />
           <Feature icon={Bird} title="Pollo Fresco" subtitle="Todos los Días" compact />
-          <Feature icon={Truck} title="Envíos" subtitle="Desde $200.000" compact />
+          <Feature icon={Truck} title="Envíos" subtitle="Desde $100.000" compact />
         </div>
       </section>
     </div>

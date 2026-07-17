@@ -111,6 +111,7 @@ function mapOrder(o: DbOrder & { items: DbOrderItem[] }): Order {
     dispatchedAt: o.dispatchedAt?.toISOString(),
     updatedAt: o.updatedAt?.toISOString(),
     originSucursalId: o.originSucursalId ?? undefined,
+    repartidorId: o.repartidorId ?? undefined,
     notes: o.notes ?? undefined,
     items: o.items.map((i) => ({
       productId: i.productId,
@@ -495,6 +496,32 @@ export async function listOrders(f: OrderFilter = {}): Promise<Order[]> {
   return list;
 }
 
+/**
+ * Pedidos por id interno o código (#1043), para la vista de etiquetas.
+ * Devuelve en orden de ruta (routeSeq) y, sin ruta, en el orden pedido.
+ */
+export async function listOrdersByIds(ids: string[]): Promise<Order[]> {
+  const wanted = ids.filter(Boolean);
+  if (wanted.length === 0) return [];
+  let list: Order[];
+  if (hasDatabase) {
+    const rows = await prisma.order.findMany({
+      where: { OR: [{ id: { in: wanted } }, { code: { in: wanted } }] },
+      include: { items: true },
+    });
+    list = rows.map(mapOrder);
+  } else {
+    const all = [...runtimeOrders.values(), ...mockOrders];
+    const set = new Set(wanted);
+    list = all.filter((o) => set.has(o.id) || (o.internalId != null && set.has(o.internalId)));
+  }
+  const pos = new Map(wanted.map((id, i) => [id, i]));
+  const posOf = (o: Order) => pos.get(o.internalId ?? "") ?? pos.get(o.id) ?? 0;
+  return list.sort(
+    (a, b) => (a.routeSeq ?? Infinity) - (b.routeSeq ?? Infinity) || posOf(a) - posOf(b)
+  );
+}
+
 export async function getOrder(idOrCode: string): Promise<Order | null> {
   if (hasDatabase) {
     const o = await prisma.order.findFirst({
@@ -719,15 +746,23 @@ export type DeliveryResult =
  * después de despachar el lote y después de confirmar cada entrega.
  */
 async function notifyNextAfterDelivery(delivered: {
-  originSucursalId: string | null;
+  originSucursalId?: string | null;
+  repartidorId?: string | null;
+  dispatchedAt?: string | Date | null;
 }): Promise<void> {
+  const dispatchedAt = delivered.dispatchedAt
+    ? new Date(delivered.dispatchedAt).getTime()
+    : null;
   if (!hasDatabase) {
     const next = [...runtimeOrders.values()]
       .filter(
         (o) =>
           o.status === "en_camino" &&
           o.routeSeq != null &&
-          (!delivered.originSucursalId || o.originSucursalId === delivered.originSucursalId)
+          (!delivered.originSucursalId || o.originSucursalId === delivered.originSucursalId) &&
+          (!delivered.repartidorId || o.repartidorId === delivered.repartidorId) &&
+          (dispatchedAt == null ||
+            (o.dispatchedAt != null && new Date(o.dispatchedAt).getTime() === dispatchedAt))
       )
       .sort((a, b) => (a.routeSeq ?? 0) - (b.routeSeq ?? 0))[0];
     if (next) await notifyOrderEvent("pedido_proximo", next);
@@ -738,6 +773,8 @@ async function notifyNextAfterDelivery(delivered: {
       status: "en_camino",
       routeSeq: { not: null },
       ...(delivered.originSucursalId ? { originSucursalId: delivered.originSucursalId } : {}),
+      ...(delivered.repartidorId ? { repartidorId: delivered.repartidorId } : {}),
+      ...(dispatchedAt != null ? { dispatchedAt: new Date(dispatchedAt) } : {}),
     },
     orderBy: { routeSeq: "asc" },
     include: { items: true },
@@ -759,7 +796,7 @@ export async function confirmDelivery(idOrCode: string, code: string): Promise<D
     if (existing.deliveryCode !== code.trim()) return { ok: false, reason: "invalid_code" };
     const order = await updateOrderStatus(existing.internalId ?? existing.id, "entregado");
     if (!order) return { ok: false, reason: "not_found" };
-    await notifyNextAfterDelivery({ originSucursalId: existing.originSucursalId ?? null });
+    await notifyNextAfterDelivery(existing);
     return { ok: true, order };
   }
   ensureDb();
@@ -786,31 +823,53 @@ export async function confirmDelivery(idOrCode: string, code: string): Promise<D
  * Si hay más de uno con el mismo código (raro, son 4 dígitos), toma el de
  * menor `routeSeq`.
  */
-export async function confirmDeliveryByCode(code: string): Promise<DeliveryResult> {
+export async function confirmDeliveryByCode(
+  code: string,
+  /** Si viene, solo matchea entregas asignadas a ese repartidor (blindaje). */
+  repartidorId?: string
+): Promise<DeliveryResult> {
   const trimmed = code.trim();
   if (!hasDatabase) {
     const all = [...runtimeOrders.values()];
     const match = all
-      .filter((o) => o.status === "en_camino" && o.deliveryCode === trimmed)
+      .filter(
+        (o) =>
+          o.status === "en_camino" &&
+          o.deliveryCode === trimmed &&
+          (!repartidorId || o.repartidorId === repartidorId)
+      )
       .sort((a, b) => (a.routeSeq ?? 0) - (b.routeSeq ?? 0))[0];
     if (!match) {
-      const already = all.some((o) => o.status === "entregado" && o.deliveryCode === trimmed);
+      const already = all.some(
+        (o) =>
+          o.status === "entregado" &&
+          o.deliveryCode === trimmed &&
+          (!repartidorId || o.repartidorId === repartidorId)
+      );
       return { ok: false, reason: already ? "already_delivered" : "invalid_code" };
     }
     const order = await updateOrderStatus(match.internalId ?? match.id, "entregado");
     if (!order) return { ok: false, reason: "not_found" };
-    await notifyNextAfterDelivery({ originSucursalId: match.originSucursalId ?? null });
+    await notifyNextAfterDelivery(match);
     return { ok: true, order };
   }
   ensureDb();
   const match = await prisma.order.findFirst({
-    where: { status: "en_camino", deliveryCode: trimmed },
+    where: {
+      status: "en_camino",
+      deliveryCode: trimmed,
+      ...(repartidorId ? { repartidorId } : {}),
+    },
     orderBy: { routeSeq: "asc" },
     include: { items: true },
   });
   if (!match) {
     const already = await prisma.order.findFirst({
-      where: { status: "entregado", deliveryCode: trimmed },
+      where: {
+        status: "entregado",
+        deliveryCode: trimmed,
+        ...(repartidorId ? { repartidorId } : {}),
+      },
       select: { id: true },
     });
     return { ok: false, reason: already ? "already_delivered" : "invalid_code" };
@@ -822,8 +881,12 @@ export async function confirmDeliveryByCode(code: string): Promise<DeliveryResul
   return { ok: true, order };
 }
 
-/** Pedidos del reparto en curso (últimas 12 h), ordenados por la ruta. */
-export async function listActiveRoute(): Promise<Order[]> {
+/**
+ * Pedidos del reparto en curso (últimas 12 h), ordenados por la ruta.
+ * Con `repartidorId` devuelve solo las entregas a cargo de ese repartidor:
+ * cada repartidor ve únicamente su propia ruta.
+ */
+export async function listActiveRoute(repartidorId?: string): Promise<Order[]> {
   const cutoffMs = Date.now() - 12 * 60 * 60 * 1000;
   if (!hasDatabase) {
     return [...runtimeOrders.values()]
@@ -832,7 +895,8 @@ export async function listActiveRoute(): Promise<Order[]> {
           o.routeSeq != null &&
           (o.status === "en_camino" || o.status === "entregado") &&
           o.dispatchedAt != null &&
-          new Date(o.dispatchedAt).getTime() >= cutoffMs
+          new Date(o.dispatchedAt).getTime() >= cutoffMs &&
+          (!repartidorId || o.repartidorId === repartidorId)
       )
       .sort((a, b) => (a.routeSeq ?? 0) - (b.routeSeq ?? 0));
   }
@@ -842,6 +906,7 @@ export async function listActiveRoute(): Promise<Order[]> {
       routeSeq: { not: null },
       dispatchedAt: { gte: cutoff },
       status: { in: ["en_camino", "entregado"] },
+      ...(repartidorId ? { repartidorId } : {}),
     },
     orderBy: { routeSeq: "asc" },
     include: { items: true },
@@ -858,14 +923,22 @@ export interface DispatchResult {
 }
 
 /**
- * "Cerrar pedidos para enviar": toma todos los envíos pagados listos
+ * "Cerrar pedidos para enviar": toma los envíos pagados listos
  * (`en_preparacion`, con punto en el mapa), arma la ruta optimizada desde la
  * sucursal elegida y los despacha (pasan a `en_camino` con su `routeSeq`).
+ * Si `orderIds` viene con ids (internos o códigos #), solo despacha esos:
+ * el encargado elige qué pedidos entran en la ruta. `repartidorId` (Staff)
+ * queda asignado a cada envío: es lo que blinda la vista del repartidor.
  * Avisa a n8n: "salió de la sucursal" a todos y "sos el próximo" al primero.
  */
-export async function dispatchDeliveries(sucursalId: string): Promise<DispatchResult> {
+export async function dispatchDeliveries(
+  sucursalId: string,
+  orderIds?: string[],
+  repartidorId?: string
+): Promise<DispatchResult> {
   const sucursal = sucursales.find((s) => s.id === sucursalId);
   const origin = sucursal ? { lat: sucursal.lat, lng: sucursal.lng } : DEFAULT_ROUTE_ORIGIN;
+  const idSet = orderIds && orderIds.length > 0 ? new Set(orderIds) : null;
 
   if (!hasDatabase) {
     const pending = [...runtimeOrders.values()].filter(
@@ -873,7 +946,8 @@ export async function dispatchDeliveries(sucursalId: string): Promise<DispatchRe
         o.status === "en_preparacion" &&
         o.entrega === "envio" &&
         o.lat != null &&
-        o.lng != null
+        o.lng != null &&
+        (!idSet || idSet.has(o.id) || (o.internalId != null && idSet.has(o.internalId)))
     );
     if (pending.length === 0) return { route: [], mapsUrl: "", count: 0 };
 
@@ -887,6 +961,7 @@ export async function dispatchDeliveries(sucursalId: string): Promise<DispatchRe
       stop.order.routeSeq = i + 1;
       stop.order.dispatchedAt = nowIso;
       stop.order.originSucursalId = sucursalId;
+      stop.order.repartidorId = repartidorId;
     });
     const routeOrders = ordered.map((s) => s.order);
     for (const o of routeOrders) await notifyOrderEvent("pedido_en_camino", o);
@@ -905,6 +980,7 @@ export async function dispatchDeliveries(sucursalId: string): Promise<DispatchRe
       entrega: "envio",
       lat: { not: null },
       lng: { not: null },
+      ...(idSet ? { OR: [{ id: { in: [...idSet] } }, { code: { in: [...idSet] } }] } : {}),
     },
     include: { items: true },
   });
@@ -927,6 +1003,7 @@ export async function dispatchDeliveries(sucursalId: string): Promise<DispatchRe
           routeSeq: i + 1,
           dispatchedAt: now,
           originSucursalId: sucursalId,
+          repartidorId: repartidorId ?? null,
         },
       })
     )
@@ -1147,6 +1224,15 @@ export async function listStaff(): Promise<Staff[]> {
     return rows.map(mapStaff);
   }
   return mockStaff.slice();
+}
+
+/** Integrante del equipo por id (para validar asignaciones y sesiones). */
+export async function getStaff(id: string): Promise<Staff | null> {
+  if (hasDatabase) {
+    const row = await prisma.staff.findUnique({ where: { id } });
+    return row ? mapStaff(row) : null;
+  }
+  return mockStaff.find((s) => s.id === id) ?? null;
 }
 
 export interface StaffInput {

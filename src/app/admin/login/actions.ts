@@ -24,6 +24,7 @@ export async function adminLogin(
 
   // 1) Super-admin por variables de entorno: acceso total.
   let sessionData: Parameters<typeof setSessionCookie>[0] | null = null;
+  let esRepartidor = false;
 
   if (verifyAdminCredentials(user, password)) {
     sessionData = { sub: "admin", name: "Administrador", phone: "", role: "admin", perms: [ALL_PERMS] };
@@ -38,6 +39,7 @@ export async function adminLogin(
         role: "admin",
         perms: staff.permissions,
       };
+      esRepartidor = staff.role === "repartidor";
     }
   }
 
@@ -49,6 +51,7 @@ export async function adminLogin(
 
   await setSessionCookie(sessionData);
 
-  // Solo permitir destinos internos del panel.
-  redirect(next.startsWith("/admin") ? next : "/admin");
+  // Los repartidores van directo a su ruta; el resto, solo a destinos internos.
+  if (esRepartidor) redirect("/reparto");
+  redirect(next.startsWith("/admin") || next === "/reparto" ? next : "/admin");
 }

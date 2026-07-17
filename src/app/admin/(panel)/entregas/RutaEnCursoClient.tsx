@@ -8,6 +8,7 @@ import {
   MapPin,
   Navigation,
   Phone,
+  Printer,
   RefreshCw,
   Truck,
 } from "lucide-react";
@@ -24,6 +25,8 @@ export interface RutaStop {
   status: string;
   mapUrl: string | null;
   deliveredAt: string | null;
+  /** Nombre del repartidor a cargo de esta entrega. */
+  repartidor: string | null;
 }
 
 interface Props {
@@ -143,16 +146,26 @@ export function RutaEnCursoClient({ stops, routeMapUrl, originName }: Props) {
         )}
       </div>
 
-      {routeMapUrl && (
+      <div className="mb-4 flex flex-wrap gap-2">
+        {routeMapUrl && (
+          <a
+            href={routeMapUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-xl bg-brand-ink px-4 py-2.5 text-sm font-bold text-white"
+          >
+            <Navigation size={15} /> Abrir ruta completa en Google Maps
+          </a>
+        )}
         <a
-          href={routeMapUrl}
+          href={`/admin/etiquetas?ids=${encodeURIComponent(stops.map((s) => s.id).join(","))}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="mb-4 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-ink px-4 py-2.5 text-sm font-bold text-white"
+          className="flex flex-none items-center justify-center gap-2 rounded-xl border border-black/10 bg-white px-4 py-2.5 text-sm font-bold text-brand-ink hover:bg-black/5"
         >
-          <Navigation size={15} /> Abrir ruta completa en Google Maps
+          <Printer size={15} /> Etiquetas
         </a>
-      )}
+      </div>
 
       {/* Paradas */}
       <ol className="space-y-2">
@@ -198,6 +211,11 @@ export function RutaEnCursoClient({ stops, routeMapUrl, originName }: Props) {
                 )}
                 <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-brand-ink/55">
                   <span className="font-mono font-semibold text-brand-ink/70">{s.code}</span>
+                  {s.repartidor && (
+                    <span className="inline-flex items-center gap-1 font-semibold text-brand-ink/70">
+                      🛵 {s.repartidor}
+                    </span>
+                  )}
                   {s.deliveryCode && !entregado && (
                     <span className="font-mono">
                       Código:{" "}

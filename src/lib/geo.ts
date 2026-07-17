@@ -8,7 +8,7 @@
 export const CORRIENTES_CENTER = { lat: -27.4692, lng: -58.8306 };
 
 /** Monto mínimo del pedido para habilitar el envío a domicilio. */
-export const MIN_ENVIO_TOTAL = 200_000;
+export const MIN_ENVIO_TOTAL = 100_000;
 
 /**
  * Caja que encierra el ejido urbano de Corrientes capital.

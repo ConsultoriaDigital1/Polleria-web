@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
-import { isValidRepartoToken } from "@/lib/reparto";
+import { NextResponse } from "next/server";
+import { getRepartoAccess } from "@/lib/auth/reparto-access";
 import { listActiveRoute } from "@/lib/repo";
 import { googleMapsPointUrl, googleMapsRouteUrl, DEFAULT_ROUTE_ORIGIN } from "@/lib/route";
 import { sucursales } from "@/lib/sucursales";
@@ -8,18 +8,22 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 /**
- * GET /api/reparto/ruta?token=...
- * Ruta del reparto en curso para la página móvil del repartidor. NO expone el
- * código de entrega (lo dice el cliente al recibir el pedido). El "próximo" es
- * el primer pedido que sigue en camino.
+ * GET /api/reparto/ruta
+ * Ruta del reparto en curso para la página móvil del repartidor. Requiere
+ * sesión: un repartidor ve SOLO sus entregas asignadas; el panel (permiso
+ * entregas) ve todo. NO expone el código de entrega (lo dice el cliente al
+ * recibir el pedido). El "próximo" es el primer pedido que sigue en camino.
  */
-export async function GET(req: NextRequest) {
-  const token = new URL(req.url).searchParams.get("token");
-  if (!isValidRepartoToken(token)) {
-    return NextResponse.json({ error: "Link inválido." }, { status: 401 });
+export async function GET() {
+  const access = await getRepartoAccess();
+  if (!access) {
+    return NextResponse.json(
+      { error: "Iniciá sesión con tu usuario para ver tu ruta." },
+      { status: 401 }
+    );
   }
 
-  const route = await listActiveRoute();
+  const route = await listActiveRoute(access.kind === "repartidor" ? access.id : undefined);
   const nextId = route.find((o) => o.status === "en_camino")?.internalId ?? null;
 
   const stops = route.map((o) => ({
@@ -52,5 +56,7 @@ export async function GET(req: NextRequest) {
     entregados,
     total: route.length,
     routeMapUrl,
+    /** Nombre del repartidor logueado (null si mira el panel). */
+    repartidor: access.kind === "repartidor" ? access.name : null,
   });
 }

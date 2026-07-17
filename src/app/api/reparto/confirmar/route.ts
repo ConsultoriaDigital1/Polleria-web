@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { isValidRepartoToken } from "@/lib/reparto";
+import { getRepartoAccess } from "@/lib/auth/reparto-access";
 import { confirmDeliveryByCode, NoDatabaseError } from "@/lib/repo";
 
 export const dynamic = "force-dynamic";
@@ -12,15 +12,19 @@ const bodySchema = z.object({
 });
 
 /**
- * POST /api/reparto/confirmar?token=... { code }
- * El repartidor ingresa el código que le dio el cliente. Buscamos entre los
- * envíos en camino el que coincida y lo marcamos entregado; eso avisa al
+ * POST /api/reparto/confirmar { code }
+ * El repartidor ingresa el código que le dio el cliente. Requiere sesión: un
+ * repartidor solo puede confirmar entregas asignadas a él; el panel (permiso
+ * entregas) puede confirmar cualquiera. Al marcar entregado se avisa al
  * siguiente cliente de la ruta que es el próximo.
  */
 export async function POST(req: NextRequest) {
-  const token = new URL(req.url).searchParams.get("token");
-  if (!isValidRepartoToken(token)) {
-    return NextResponse.json({ error: "Link inválido." }, { status: 401 });
+  const access = await getRepartoAccess();
+  if (!access) {
+    return NextResponse.json(
+      { error: "Iniciá sesión con tu usuario para confirmar entregas." },
+      { status: 401 }
+    );
   }
 
   let payload: unknown;
@@ -37,7 +41,10 @@ export async function POST(req: NextRequest) {
 
   let result;
   try {
-    result = await confirmDeliveryByCode(parsed.data.code);
+    result = await confirmDeliveryByCode(
+      parsed.data.code,
+      access.kind === "repartidor" ? access.id : undefined
+    );
   } catch (e) {
     if (e instanceof NoDatabaseError) {
       return NextResponse.json(

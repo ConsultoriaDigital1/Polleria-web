@@ -1,13 +1,12 @@
 import Link from "next/link";
-import { MapPin, Store, Truck } from "lucide-react";
+import { Store } from "lucide-react";
 import { formatARS, formatDateTime } from "@/lib/format";
-import { listOrders, listActiveRoute } from "@/lib/repo";
+import { listOrders, listActiveRoute, listStaff } from "@/lib/repo";
 import { requirePerm } from "@/lib/auth/permissions";
-import { repartoPath } from "@/lib/reparto";
 import { sucursales } from "@/lib/sucursales";
 import { googleMapsPointUrl, googleMapsRouteUrl, DEFAULT_ROUTE_ORIGIN } from "@/lib/route";
 import type { Order } from "@/lib/types";
-import { EntregasClient } from "./EntregasClient";
+import { EntregasClient, type EnvioPendiente } from "./EntregasClient";
 import { RutaEnCursoClient, type RutaStop } from "./RutaEnCursoClient";
 
 export const dynamic = "force-dynamic";
@@ -27,10 +26,15 @@ function ItemsResumen({ order }: { order: Order }) {
 export default async function EntregasPage() {
   await requirePerm("entregas");
 
-  const [listos, ruta] = await Promise.all([
+  const [listos, ruta, equipo] = await Promise.all([
     listOrders({ status: "en_preparacion" }),
     listActiveRoute(),
+    listStaff(),
   ]);
+  const repartidores = equipo
+    .filter((s) => s.role === "repartidor" && s.active)
+    .map((s) => ({ id: s.id, name: s.name }));
+  const staffName = (id?: string) => equipo.find((s) => s.id === id)?.name ?? null;
 
   const envios = listos.filter((o) => o.entrega === "envio");
   const retiros = listos.filter((o) => o.entrega === "retiro");
@@ -38,32 +42,56 @@ export default async function EntregasPage() {
 
   const sucursalOptions = sucursales.map((s) => ({ id: s.id, name: s.name }));
 
-  // Datos para el tracker en vivo del reparto en curso.
-  const originId = ruta[0]?.originSucursalId;
-  const originSucursal = sucursales.find((s) => s.id === originId);
-  const originName = originSucursal?.name ?? "la sucursal";
-  const routePoints = ruta
-    .filter((o) => o.lat != null && o.lng != null)
-    .map((o) => ({ lat: o.lat as number, lng: o.lng as number }));
-  const routeMapUrl =
-    routePoints.length > 0
-      ? googleMapsRouteUrl(
-          originSucursal ? { lat: originSucursal.lat, lng: originSucursal.lng } : DEFAULT_ROUTE_ORIGIN,
-          routePoints
-        )
-      : null;
-  const rutaStops: RutaStop[] = ruta.map((o) => ({
+  // Envíos pendientes con lo necesario para elegirlos y controlar el stock.
+  const enviosPendientes: EnvioPendiente[] = envios.map((o) => ({
     id: o.internalId ?? o.id,
     code: o.id,
-    routeSeq: o.routeSeq ?? null,
     customer: o.customer,
     phone: o.phone ?? null,
     address: o.address ?? null,
-    deliveryCode: o.deliveryCode ?? null,
-    status: o.status,
+    date: o.date,
+    total: o.total,
+    items: o.items.map((i) => ({ name: i.name, qty: i.qty })),
     mapUrl: o.lat != null && o.lng != null ? googleMapsPointUrl({ lat: o.lat, lng: o.lng }) : null,
-    deliveredAt: o.status === "entregado" ? o.updatedAt ?? null : null,
   }));
+
+  // Cada repartidor tiene su propio tracker y su propia ruta. Mezclar los
+  // puntos de dos repartidores produciría una ruta de Maps incorrecta.
+  const rutaActivas = [...new Set(ruta.map((o) => o.repartidorId ?? "sin-asignar"))].map((key) => {
+    const pedidos = ruta.filter((o) => (o.repartidorId ?? "sin-asignar") === key);
+    const originSucursal = sucursales.find((s) => s.id === pedidos[0]?.originSucursalId);
+    const routePoints = pedidos
+      .filter((o) => o.lat != null && o.lng != null)
+      .map((o) => ({ lat: o.lat as number, lng: o.lng as number }));
+    const stops: RutaStop[] = pedidos.map((o) => ({
+      id: o.internalId ?? o.id,
+      code: o.id,
+      routeSeq: o.routeSeq ?? null,
+      customer: o.customer,
+      phone: o.phone ?? null,
+      address: o.address ?? null,
+      deliveryCode: o.deliveryCode ?? null,
+      status: o.status,
+      mapUrl:
+        o.lat != null && o.lng != null ? googleMapsPointUrl({ lat: o.lat, lng: o.lng }) : null,
+      deliveredAt: o.status === "entregado" ? o.updatedAt ?? null : null,
+      repartidor: staffName(o.repartidorId),
+    }));
+    return {
+      key,
+      stops,
+      originName: originSucursal?.name ?? "la sucursal",
+      routeMapUrl:
+        routePoints.length > 0
+          ? googleMapsRouteUrl(
+              originSucursal
+                ? { lat: originSucursal.lat, lng: originSucursal.lng }
+                : DEFAULT_ROUTE_ORIGIN,
+              routePoints
+            )
+          : null,
+    };
+  });
 
   return (
     <div className="space-y-6">
@@ -75,56 +103,22 @@ export default async function EntregasPage() {
       </div>
 
       {/* Reparto en curso: tracker en vivo con carga de códigos */}
-      {ruta.length > 0 && (
-        <RutaEnCursoClient stops={rutaStops} routeMapUrl={routeMapUrl} originName={originName} />
-      )}
+      {rutaActivas.map((activa) => (
+        <RutaEnCursoClient
+          key={activa.key}
+          stops={activa.stops}
+          routeMapUrl={activa.routeMapUrl}
+          originName={activa.originName}
+        />
+      ))}
 
-      {/* Cierre de pedidos + ruta optimizada */}
+      {/* Cierre de pedidos: selección + control de stock + ruta optimizada */}
       <EntregasClient
         sucursales={sucursalOptions}
-        pendientesEnvio={envios.length}
-        repartoPath={repartoPath()}
+        repartidores={repartidores}
+        envios={enviosPendientes}
         enCurso={enCamino.length}
       />
-
-      {/* Envíos a domicilio (pendientes de despacho) */}
-      <section className="rounded-2xl bg-white p-4 shadow-soft">
-        <div className="mb-3 flex items-center gap-2">
-          <Truck size={18} className="text-brand-red" />
-          <h2 className="font-semibold text-brand-ink">Envío a domicilio</h2>
-          <span className="chip bg-blue-100 text-blue-700">{envios.length}</span>
-        </div>
-        {envios.length === 0 ? (
-          <p className="text-sm text-brand-ink/50">No hay envíos pagados esperando despacho.</p>
-        ) : (
-          <ul className="divide-y divide-black/5">
-            {envios.map((o) => (
-              <li key={o.id} className="flex flex-wrap items-center gap-3 py-3 text-sm">
-                <span className="font-semibold text-brand-ink">{o.id}</span>
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium text-brand-ink">
-                    {o.customer} {o.phone && <span className="text-brand-ink/50">· {o.phone}</span>}
-                  </p>
-                  <p className="truncate text-brand-ink/60">{o.address}</p>
-                  <ItemsResumen order={o} />
-                </div>
-                <span className="text-brand-ink/50">{formatDateTime(o.date)}</span>
-                <span className="font-medium text-brand-ink">{formatARS(o.total)}</span>
-                {o.lat != null && o.lng != null && (
-                  <a
-                    href={googleMapsPointUrl({ lat: o.lat, lng: o.lng })}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-xs font-semibold text-brand-red hover:underline"
-                  >
-                    <MapPin size={13} /> Mapa
-                  </a>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
 
       {/* Retiro en sucursal */}
       <section className="rounded-2xl bg-white p-4 shadow-soft">

@@ -54,8 +54,9 @@ Eventos posibles:
 > **La ruta ya la arma la web.** Desde `/admin/entregas`, el botón "Cerrar
 > pedidos para enviar" optimiza el recorrido, pasa los envíos a `en_camino` y
 > dispara `pedido_en_camino` (a todos) + `pedido_proximo` (al primero). El
-> repartidor usa la página móvil `/reparto?token=<REPARTO_TOKEN>` para ver la
-> ruta ordenada e ingresar el código de cada cliente; cada entrega dispara
+> repartidor entra a la página móvil `/reparto` con su usuario y contraseña
+> (creados en /admin/equipo con rol "repartidor") y ve solo su ruta asignada,
+> donde ingresa el código de cada cliente; cada entrega dispara
 > `pedido_proximo` al siguiente. En n8n sólo necesitás el **Flujo B** (mandar el
 > WhatsApp según el evento). Los Flujos A y C de abajo quedan como alternativa
 > si preferís manejar la ruta desde el bot.

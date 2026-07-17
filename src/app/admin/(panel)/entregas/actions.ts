@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { assertPerm } from "@/lib/auth/permissions";
-import { confirmDeliveryByCode, dispatchDeliveries, NoDatabaseError } from "@/lib/repo";
+import { confirmDeliveryByCode, dispatchDeliveries, getStaff, NoDatabaseError } from "@/lib/repo";
 import { sucursales } from "@/lib/sucursales";
 
 export interface CerrarPedidosState {
@@ -15,20 +15,33 @@ export interface CerrarPedidosState {
 }
 
 /**
- * "Cerrar pedidos para enviar": despacha todos los envíos pagados listos,
- * armando la ruta optimizada desde la sucursal elegida. Los pedidos pasan a
- * "en camino" y se disparan los avisos de WhatsApp (vía n8n).
+ * "Cerrar pedidos para enviar": despacha los envíos pagados seleccionados,
+ * armando la ruta optimizada desde la sucursal elegida y asignándole el
+ * reparto a un repartidor del equipo. Los pedidos pasan a "en camino" y se
+ * disparan los avisos de WhatsApp (vía n8n).
  */
-export async function cerrarPedidosEnvio(sucursalId: string): Promise<CerrarPedidosState> {
+export async function cerrarPedidosEnvio(
+  sucursalId: string,
+  orderIds: string[],
+  repartidorId: string
+): Promise<CerrarPedidosState> {
   const denied = await assertPerm("entregas");
   if (denied) return { error: denied };
 
   if (!sucursales.some((s) => s.id === sucursalId)) {
     return { error: "Elegí la sucursal desde la que sale el reparto." };
   }
+  if (!Array.isArray(orderIds) || orderIds.length === 0) {
+    return { error: "Seleccioná al menos un pedido para la ruta." };
+  }
+
+  const repartidor = repartidorId ? await getStaff(repartidorId) : null;
+  if (!repartidor || repartidor.role !== "repartidor" || !repartidor.active) {
+    return { error: "Elegí el repartidor que sale con este reparto." };
+  }
 
   try {
-    const result = await dispatchDeliveries(sucursalId);
+    const result = await dispatchDeliveries(sucursalId, orderIds, repartidor.id);
     if (result.count === 0) {
       return { error: "No hay envíos pagados listos para despachar." };
     }

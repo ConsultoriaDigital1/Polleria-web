@@ -1,10 +1,11 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   CheckCircle2,
   Loader2,
+  LogIn,
+  LogOut,
   MapPin,
   Navigation,
   Package,
@@ -30,6 +31,8 @@ interface RutaResponse {
   entregados: number;
   total: number;
   routeMapUrl: string | null;
+  /** Nombre del repartidor logueado (null si mira un admin). */
+  repartidor: string | null;
 }
 
 function horaCorta(iso: string | null): string | null {
@@ -39,12 +42,12 @@ function horaCorta(iso: string | null): string | null {
   );
 }
 
-function RepartoContenido() {
-  const params = useSearchParams();
-  const token = params.get("token") ?? "";
+const LOGIN_URL = "/admin/login?next=%2Freparto";
 
+export default function RepartoPage() {
   const [data, setData] = useState<RutaResponse | null>(null);
   const [cargando, setCargando] = useState(true);
+  const [sinSesion, setSinSesion] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [code, setCode] = useState("");
@@ -52,28 +55,41 @@ function RepartoContenido() {
   const [feedback, setFeedback] = useState<{ ok: boolean; msg: string } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const qs = token ? `?token=${encodeURIComponent(token)}` : "";
-
   const cargarRuta = useCallback(async () => {
     setError(null);
     try {
-      const res = await fetch(`/api/reparto/ruta${qs}`, { cache: "no-store" });
+      const res = await fetch("/api/reparto/ruta", { cache: "no-store" });
       const json = await res.json().catch(() => null);
+      if (res.status === 401) {
+        setSinSesion(true);
+        setData(null);
+        return;
+      }
       if (!res.ok) throw new Error(json?.error || "No se pudo cargar la ruta.");
+      setSinSesion(false);
       setData(json as RutaResponse);
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo cargar la ruta.");
     } finally {
       setCargando(false);
     }
-  }, [qs]);
+  }, []);
 
   useEffect(() => {
     cargarRuta();
-    // Refresco automático para reflejar cambios (p. ej. otro repartidor o el local).
+    // Refresco automático para reflejar cambios (p. ej. el local cierra otro lote).
     const t = setInterval(cargarRuta, 20000);
     return () => clearInterval(t);
   }, [cargarRuta]);
+
+  const salir = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch {
+      /* sin conexión: igual mandamos al login */
+    }
+    window.location.href = LOGIN_URL;
+  };
 
   const confirmar = async () => {
     const c = code.trim();
@@ -81,7 +97,7 @@ function RepartoContenido() {
     setConfirmando(true);
     setFeedback(null);
     try {
-      const res = await fetch(`/api/reparto/confirmar${qs}`, {
+      const res = await fetch("/api/reparto/confirmar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code: c }),
@@ -102,22 +118,57 @@ function RepartoContenido() {
     }
   };
 
+  // Sin sesión: invitación a entrar con el usuario del equipo.
+  if (!cargando && sinSesion) {
+    return (
+      <div className="mx-auto flex min-h-screen w-full max-w-md flex-col items-center justify-center gap-4 bg-brand-cream px-6 text-center">
+        <Navigation size={40} className="text-brand-red" />
+        <h1 className="text-xl font-extrabold text-brand-ink">Reparto</h1>
+        <p className="text-sm text-brand-ink/60">
+          Iniciá sesión con tu usuario y contraseña para ver las entregas que tenés asignadas.
+        </p>
+        <a
+          href={LOGIN_URL}
+          className="inline-flex items-center gap-2 rounded-xl bg-brand-red px-5 py-3 text-sm font-bold text-white shadow-soft"
+        >
+          <LogIn size={16} /> Iniciar sesión
+        </a>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto min-h-screen w-full max-w-md bg-brand-cream px-4 py-5">
-      <header className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Navigation size={22} className="text-brand-red" />
-          <h1 className="text-lg font-extrabold text-brand-ink">Reparto</h1>
+      <header className="mb-4 flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <Navigation size={22} className="flex-none text-brand-red" />
+            <h1 className="truncate text-lg font-extrabold text-brand-ink">
+              {data?.repartidor ? `Reparto de ${data.repartidor}` : "Reparto"}
+            </h1>
+          </div>
+          {data?.repartidor && (
+            <p className="text-xs text-brand-ink/55">Estas son tus entregas asignadas.</p>
+          )}
         </div>
-        <button
-          onClick={() => {
-            setCargando(true);
-            cargarRuta();
-          }}
-          className="inline-flex items-center gap-1 rounded-lg border border-black/10 bg-white px-3 py-1.5 text-xs font-semibold text-brand-ink"
-        >
-          <RefreshCw size={14} /> Actualizar
-        </button>
+        <div className="flex flex-none items-center gap-1.5">
+          <button
+            onClick={() => {
+              setCargando(true);
+              cargarRuta();
+            }}
+            className="inline-flex items-center gap-1 rounded-lg border border-black/10 bg-white px-3 py-1.5 text-xs font-semibold text-brand-ink"
+          >
+            <RefreshCw size={14} /> Actualizar
+          </button>
+          <button
+            onClick={salir}
+            className="inline-flex items-center gap-1 rounded-lg border border-black/10 bg-white px-2.5 py-1.5 text-xs font-semibold text-brand-ink/70"
+            aria-label="Cerrar sesión"
+          >
+            <LogOut size={14} /> Salir
+          </button>
+        </div>
       </header>
 
       {/* Confirmar entrega por código */}
@@ -184,8 +235,8 @@ function RepartoContenido() {
       ) : !data || data.stops.length === 0 ? (
         <div className="flex flex-col items-center gap-2 py-10 text-center text-brand-ink/55">
           <Package size={36} className="opacity-40" />
-          <p className="text-sm font-medium">No hay reparto en curso.</p>
-          <p className="text-xs">Cuando el local cierre pedidos vas a ver la ruta acá.</p>
+          <p className="text-sm font-medium">No tenés entregas asignadas ahora.</p>
+          <p className="text-xs">Cuando el local te cierre un reparto vas a ver la ruta acá.</p>
         </div>
       ) : (
         <>
@@ -259,19 +310,5 @@ function RepartoContenido() {
         </>
       )}
     </div>
-  );
-}
-
-export default function RepartoPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-screen items-center justify-center text-sm text-brand-ink/60">
-          Cargando…
-        </div>
-      }
-    >
-      <RepartoContenido />
-    </Suspense>
   );
 }

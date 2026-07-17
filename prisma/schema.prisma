@@ -113,10 +113,12 @@ model Order {
   // cliente de la ruta.
   deliveryCode String?
   // Reparto: al "cerrar pedidos" se arma una ruta optimizada y cada envío
-  // recibe su posición (routeSeq), el momento del despacho y la sucursal origen.
+  // recibe su posición (routeSeq), el momento del despacho, la sucursal origen
+  // y el repartidor (Staff) a cargo de la entrega.
   routeSeq         Int?
   dispatchedAt     DateTime?
   originSucursalId String?
+  repartidorId     String?
   total        Int
   status       OrderStatus   @default(pendiente)
   payment      PaymentMethod
@@ -128,6 +130,7 @@ model Order {
 
   @@index([status])
   @@index([customerId])
+  @@index([repartidorId, status])
 }
 
 model OrderItem {

@@ -75,6 +75,8 @@ export interface Order {
   updatedAt?: string;
   /** Sucursal desde la que salió el reparto. */
   originSucursalId?: string;
+  /** Repartidor (Staff.id) a cargo de la entrega, asignado al cerrar el lote. */
+  repartidorId?: string;
   notes?: string;
   items: OrderItem[];
   total: number;

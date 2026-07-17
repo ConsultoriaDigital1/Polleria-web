@@ -10,7 +10,7 @@ export function Footer() {
           <Logo dark />
           <p className="mt-3 text-sm leading-relaxed text-white/60">
             El mejor pollo de Corrientes, fresco todos los días. Hacé tu pedido por WhatsApp y
-            recibilo a domicilio en pedidos desde $200.000.
+            recibilo a domicilio en pedidos desde $100.000.
           </p>
           <div className="mt-4 flex gap-3">
             <a href="#" aria-label="Instagram" className="rounded-lg bg-white/10 p-2 hover:bg-white/20">
