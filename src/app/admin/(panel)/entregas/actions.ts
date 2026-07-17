@@ -2,7 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { assertPerm } from "@/lib/auth/permissions";
-import { confirmDeliveryByCode, dispatchDeliveries, getStaff, NoDatabaseError } from "@/lib/repo";
+import {
+  closeDeliveryRoute,
+  confirmDeliveryByCode,
+  dispatchDeliveries,
+  getStaff,
+  NoDatabaseError,
+} from "@/lib/repo";
 import { sucursales } from "@/lib/sucursales";
 
 export interface CerrarPedidosState {
@@ -96,4 +102,22 @@ export async function confirmarEntrega(code: string): Promise<ConfirmarEntregaSt
     not_found: "No encontramos el pedido.",
   };
   return { error: messages[result.reason] ?? "No se pudo confirmar." };
+}
+
+export async function cerrarReparto(routeKey: string): Promise<{ ok?: boolean; error?: string }> {
+  const denied = await assertPerm("entregas");
+  if (denied) return { error: denied };
+  if (!routeKey) return { error: "No encontramos el reparto." };
+
+  try {
+    const count = await closeDeliveryRoute(routeKey);
+    if (count === -1) return { error: "Primero completá todas las entregas del reparto." };
+    if (count === 0) return { error: "El reparto ya estaba cerrado o no existe." };
+    revalidatePath("/admin/entregas");
+    revalidatePath("/reparto");
+    return { ok: true };
+  } catch (e) {
+    if (e instanceof NoDatabaseError) return { error: e.message };
+    return { error: "No se pudo cerrar el reparto." };
+  }
 }

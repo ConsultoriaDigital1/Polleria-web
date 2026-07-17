@@ -55,10 +55,11 @@ export default async function EntregasPage() {
     mapUrl: o.lat != null && o.lng != null ? googleMapsPointUrl({ lat: o.lat, lng: o.lng }) : null,
   }));
 
-  // Cada repartidor tiene su propio tracker y su propia ruta. Mezclar los
-  // puntos de dos repartidores produciría una ruta de Maps incorrecta.
-  const rutaActivas = [...new Set(ruta.map((o) => o.repartidorId ?? "sin-asignar"))].map((key) => {
-    const pedidos = ruta.filter((o) => (o.repartidorId ?? "sin-asignar") === key);
+  // Cada cierre es un bloque independiente, incluso si sale el mismo repartidor.
+  const routeKey = (o: Order) =>
+    o.routeBatchId ?? `legacy:${o.repartidorId ?? "sin-asignar"}:${o.dispatchedAt ?? ""}`;
+  const rutaActivas = [...new Set(ruta.map(routeKey))].map((key) => {
+    const pedidos = ruta.filter((o) => routeKey(o) === key);
     const originSucursal = sucursales.find((s) => s.id === pedidos[0]?.originSucursalId);
     const routePoints = pedidos
       .filter((o) => o.lat != null && o.lng != null)
@@ -79,6 +80,8 @@ export default async function EntregasPage() {
     }));
     return {
       key,
+      repartidor: staffName(pedidos[0]?.repartidorId) ?? "Sin asignar",
+      dispatchedAt: pedidos[0]?.dispatchedAt ?? null,
       stops,
       originName: originSucursal?.name ?? "la sucursal",
       routeMapUrl:
@@ -109,6 +112,9 @@ export default async function EntregasPage() {
           stops={activa.stops}
           routeMapUrl={activa.routeMapUrl}
           originName={activa.originName}
+          routeKey={activa.key}
+          repartidor={activa.repartidor}
+          dispatchedAt={activa.dispatchedAt}
         />
       ))}
 

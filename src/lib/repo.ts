@@ -21,6 +21,8 @@ import type {
   SuperOferta,
   Staff,
   StaffRole,
+  Coupon,
+  CouponQuote,
 } from "./types";
 import {
   products as mockProducts,
@@ -109,6 +111,8 @@ function mapOrder(o: DbOrder & { items: DbOrderItem[] }): Order {
     deliveryCode: o.deliveryCode ?? undefined,
     routeSeq: o.routeSeq ?? undefined,
     dispatchedAt: o.dispatchedAt?.toISOString(),
+    routeBatchId: o.routeBatchId ?? undefined,
+    routeClosedAt: o.routeClosedAt?.toISOString(),
     updatedAt: o.updatedAt?.toISOString(),
     originSucursalId: o.originSucursalId ?? undefined,
     repartidorId: o.repartidorId ?? undefined,
@@ -120,6 +124,8 @@ function mapOrder(o: DbOrder & { items: DbOrderItem[] }): Order {
       price: i.price,
     })),
     total: o.total,
+    discount: o.discount,
+    couponCode: o.couponCode ?? undefined,
     status: o.status as OrderStatus,
     payment: o.payment,
     date: o.createdAt.toISOString(),
@@ -300,6 +306,117 @@ export async function updateProduct(
     },
   });
   return mapProduct(p);
+}
+
+// ---------- Cupones ----------
+type CouponRow = Awaited<ReturnType<typeof prisma.coupon.findFirst>> & {
+  discountProduct?: { id: string; name: string } | null;
+  giftProduct?: { id: string; name: string } | null;
+};
+
+function mapCoupon(c: NonNullable<CouponRow>): Coupon {
+  return {
+    id: c.id,
+    code: c.code,
+    maxUses: c.maxUses,
+    usedCount: c.usedCount,
+    discountPercent: c.discountPercent,
+    discountProductId: c.discountProductId ?? undefined,
+    discountProductName: c.discountProduct?.name,
+    giftProductId: c.giftProductId ?? undefined,
+    giftProductName: c.giftProduct?.name,
+    giftQty: c.giftQty,
+    active: c.active,
+  };
+}
+
+const couponInclude = {
+  discountProduct: { select: { id: true, name: true } },
+  giftProduct: { select: { id: true, name: true } },
+} as const;
+
+export async function listCoupons(): Promise<Coupon[]> {
+  if (!hasDatabase) return [];
+  const rows = await prisma.coupon.findMany({ include: couponInclude, orderBy: { createdAt: "desc" } });
+  return rows.map((row) => mapCoupon(row));
+}
+
+export interface CouponInput {
+  code: string;
+  maxUses: number;
+  discountPercent: number;
+  discountProductId?: string | null;
+  giftProductId?: string | null;
+  giftQty: number;
+  active: boolean;
+}
+
+export async function saveCoupon(id: string | undefined, input: CouponInput): Promise<Coupon> {
+  ensureDb();
+  const data = { ...input, code: input.code.trim().toUpperCase() };
+  const row = id
+    ? await prisma.coupon.update({ where: { id }, data, include: couponInclude })
+    : await prisma.coupon.create({ data, include: couponInclude });
+  return mapCoupon(row);
+}
+
+export async function deleteCoupon(id: string): Promise<void> {
+  ensureDb();
+  await prisma.coupon.delete({ where: { id } });
+}
+
+export class CouponError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CouponError";
+  }
+}
+
+type QuoteLine = { productId: string; name: string; qty: number; price: number };
+
+async function resolveCoupon(code: string, lines: QuoteLine[]) {
+  ensureDb();
+  const normalized = code.trim().toUpperCase();
+  const coupon = await prisma.coupon.findUnique({ where: { code: normalized }, include: couponInclude });
+  if (!coupon || !coupon.active) throw new CouponError("El cupón no existe o no está activo.");
+  if (coupon.usedCount >= coupon.maxUses) throw new CouponError("Este cupón ya agotó sus usos disponibles.");
+
+  const eligible = coupon.discountProductId
+    ? lines.filter((line) => line.productId === coupon.discountProductId)
+    : lines;
+  if (coupon.discountPercent > 0 && eligible.length === 0) {
+    throw new CouponError("El cupón no aplica a los productos del carrito.");
+  }
+  const eligibleTotal = eligible.reduce((sum, line) => sum + line.qty * line.price, 0);
+  const discount = Math.round((eligibleTotal * coupon.discountPercent) / 100);
+  const subtotal = lines.reduce((sum, line) => sum + line.qty * line.price, 0);
+  const gift = coupon.giftProduct
+    ? { productId: coupon.giftProduct.id, name: coupon.giftProduct.name, qty: coupon.giftQty }
+    : undefined;
+  const parts: string[] = [];
+  if (coupon.discountPercent > 0) {
+    parts.push(`${coupon.discountPercent}% de descuento${coupon.discountProduct ? ` en ${coupon.discountProduct.name}` : ""}`);
+  }
+  if (gift) parts.push(`${gift.qty}x ${gift.name} de regalo`);
+  return {
+    coupon,
+    quote: {
+      code: coupon.code,
+      subtotal,
+      discount,
+      total: Math.max(0, subtotal - discount),
+      description: parts.join(" + "),
+      gift,
+    } satisfies CouponQuote,
+  };
+}
+
+export async function quoteCoupon(
+  code: string,
+  items: { productId: string; qty: number }[]
+): Promise<CouponQuote> {
+  const { lines } = await quoteOrder(items);
+  return (await resolveCoupon(code, lines)).quote;
 }
 
 // ---------- Novedades (banners de la home) ----------
@@ -550,6 +667,7 @@ export interface CreateOrderInput {
   sucursalId?: string;
   lat?: number;
   lng?: number;
+  couponCode?: string;
 }
 
 /**
@@ -631,7 +749,13 @@ async function createOrderMem(input: CreateOrderInput): Promise<Order> {
 export async function createOrder(input: CreateOrderInput): Promise<Order> {
   if (!hasDatabase) return createOrderMem(input);
 
-  const { lines, total } = await quoteOrder(input.items);
+  const { lines, total: subtotal } = await quoteOrder(input.items);
+  const couponResult = input.couponCode ? await resolveCoupon(input.couponCode, lines) : null;
+  const discount = couponResult?.quote.discount ?? 0;
+  const total = Math.max(0, subtotal - discount);
+  const orderLines = couponResult?.quote.gift
+    ? [...lines, { ...couponResult.quote.gift, price: 0 }]
+    : lines;
 
   // Resolver / crear cliente. El teléfono se normaliza SIEMPRE antes del
   // upsert: es la clave que asocia la compra con el cliente, y si se guarda
@@ -663,8 +787,7 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
     customerName = c.name;
   }
 
-  const created = await prisma.order.create({
-    data: {
+  const createData = {
       customerId,
       customerName,
       phone,
@@ -677,11 +800,27 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
       // Solo los envíos llevan código de entrega (lo valida el repartidor).
       deliveryCode: input.entrega === "envio" ? generateDeliveryCode() : null,
       total,
+      discount,
+      couponId: couponResult?.coupon.id ?? null,
+      couponCode: couponResult?.coupon.code ?? null,
       payment: input.payment,
-      items: { create: lines },
-    },
-    include: { items: true },
-  });
+      items: { create: orderLines },
+  };
+
+  const created = couponResult
+    ? await prisma.$transaction(async (tx) => {
+        const claimed = await tx.coupon.updateMany({
+          where: {
+            id: couponResult.coupon.id,
+            active: true,
+            usedCount: { lt: couponResult.coupon.maxUses },
+          },
+          data: { usedCount: { increment: 1 } },
+        });
+        if (claimed.count !== 1) throw new CouponError("Este cupón ya agotó sus usos disponibles.");
+        return tx.order.create({ data: createData, include: { items: true } });
+      })
+    : await prisma.order.create({ data: createData, include: { items: true } });
 
   const withCode = await prisma.order.update({
     where: { id: created.id },
@@ -895,6 +1034,7 @@ export async function listActiveRoute(repartidorId?: string): Promise<Order[]> {
           o.routeSeq != null &&
           (o.status === "en_camino" || o.status === "entregado") &&
           o.dispatchedAt != null &&
+          o.routeClosedAt == null &&
           new Date(o.dispatchedAt).getTime() >= cutoffMs &&
           (!repartidorId || o.repartidorId === repartidorId)
       )
@@ -905,6 +1045,7 @@ export async function listActiveRoute(repartidorId?: string): Promise<Order[]> {
     where: {
       routeSeq: { not: null },
       dispatchedAt: { gte: cutoff },
+      routeClosedAt: null,
       status: { in: ["en_camino", "entregado"] },
       ...(repartidorId ? { repartidorId } : {}),
     },
@@ -939,6 +1080,7 @@ export async function dispatchDeliveries(
   const sucursal = sucursales.find((s) => s.id === sucursalId);
   const origin = sucursal ? { lat: sucursal.lat, lng: sucursal.lng } : DEFAULT_ROUTE_ORIGIN;
   const idSet = orderIds && orderIds.length > 0 ? new Set(orderIds) : null;
+  const routeBatchId = crypto.randomUUID();
 
   if (!hasDatabase) {
     const pending = [...runtimeOrders.values()].filter(
@@ -960,6 +1102,8 @@ export async function dispatchDeliveries(
       stop.order.status = "en_camino";
       stop.order.routeSeq = i + 1;
       stop.order.dispatchedAt = nowIso;
+      stop.order.routeBatchId = routeBatchId;
+      stop.order.routeClosedAt = undefined;
       stop.order.originSucursalId = sucursalId;
       stop.order.repartidorId = repartidorId;
     });
@@ -1002,6 +1146,8 @@ export async function dispatchDeliveries(
           status: "en_camino",
           routeSeq: i + 1,
           dispatchedAt: now,
+          routeBatchId,
+          routeClosedAt: null,
           originSucursalId: sucursalId,
           repartidorId: repartidorId ?? null,
         },
@@ -1027,6 +1173,47 @@ export async function dispatchDeliveries(
     ordered.map((s) => ({ lat: s.lat, lng: s.lng }))
   );
   return { route: routeOrders, mapsUrl, count: routeOrders.length };
+}
+
+/** Cierra un lote para que deje de figurar entre los repartos activos. */
+export async function closeDeliveryRoute(routeKey: string): Promise<number> {
+  const closedAt = new Date();
+
+  if (!hasDatabase) {
+    const matches = [...runtimeOrders.values()].filter((order) => {
+      const legacyKey = `legacy:${order.repartidorId ?? "sin-asignar"}:${order.dispatchedAt ?? ""}`;
+      return order.routeBatchId === routeKey || (!order.routeBatchId && legacyKey === routeKey);
+    });
+    if (matches.some((order) => order.status === "en_camino")) return -1;
+    let count = 0;
+    for (const order of matches) {
+      order.routeClosedAt = closedAt.toISOString();
+      count += 1;
+    }
+    return count;
+  }
+
+  let where;
+  if (routeKey.startsWith("legacy:")) {
+    const match = /^legacy:(.*):(\d{4}-\d{2}-\d{2}T.*Z)$/.exec(routeKey);
+    if (!match) return 0;
+    const [, repartidorId, dispatchedAt] = match;
+    where = {
+      routeBatchId: null,
+      repartidorId: repartidorId === "sin-asignar" ? null : repartidorId,
+      dispatchedAt: new Date(dispatchedAt),
+      routeClosedAt: null,
+    };
+  } else {
+    where = { routeBatchId: routeKey, routeClosedAt: null };
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const pending = await tx.order.count({ where: { ...where, status: "en_camino" } });
+    if (pending > 0) return -1;
+    const result = await tx.order.updateMany({ where, data: { routeClosedAt: closedAt } });
+    return result.count;
+  });
 }
 
 // ---------- Clientes ----------

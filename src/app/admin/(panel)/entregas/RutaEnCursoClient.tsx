@@ -11,8 +11,9 @@ import {
   Printer,
   RefreshCw,
   Truck,
+  XCircle,
 } from "lucide-react";
-import { confirmarEntrega, type ConfirmarEntregaState } from "./actions";
+import { cerrarReparto, confirmarEntrega, type ConfirmarEntregaState } from "./actions";
 
 export interface RutaStop {
   id: string;
@@ -33,6 +34,9 @@ interface Props {
   stops: RutaStop[];
   routeMapUrl: string | null;
   originName: string;
+  routeKey: string;
+  repartidor: string;
+  dispatchedAt: string | null;
 }
 
 function horaCorta(iso: string | null): string | null {
@@ -42,11 +46,20 @@ function horaCorta(iso: string | null): string | null {
   );
 }
 
-export function RutaEnCursoClient({ stops, routeMapUrl, originName }: Props) {
+export function RutaEnCursoClient({
+  stops,
+  routeMapUrl,
+  originName,
+  routeKey,
+  repartidor,
+  dispatchedAt,
+}: Props) {
   const router = useRouter();
   const [code, setCode] = useState("");
   const [state, setState] = useState<ConfirmarEntregaState | null>(null);
   const [pending, startTransition] = useTransition();
+  const [closing, startClosing] = useTransition();
+  const [closeError, setCloseError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const total = stops.length;
@@ -75,19 +88,47 @@ export function RutaEnCursoClient({ stops, routeMapUrl, originName }: Props) {
     });
   };
 
+  const cerrar = () => {
+    if (
+      closing ||
+      entregados < total ||
+      !window.confirm("\u00bfCerrar este reparto? Dejar\u00e1 de aparecer en curso.")
+    ) return;
+    setCloseError(null);
+    startClosing(async () => {
+      const result = await cerrarReparto(routeKey);
+      if (result.ok) router.refresh();
+      else setCloseError(result.error ?? "No se pudo cerrar el reparto.");
+    });
+  };
+
   return (
     <section className="rounded-2xl border-2 border-violet-200 bg-white p-4 shadow-soft">
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <Truck size={18} className="text-violet-600" />
-        <h2 className="font-semibold text-brand-ink">Reparto en curso</h2>
+        <div>
+          <h2 className="font-semibold text-brand-ink">{repartidor}</h2>
+          <p className="text-xs text-brand-ink/50">
+            Reparto en curso{dispatchedAt ? ` · ${new Date(dispatchedAt).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" })}` : ""}
+          </p>
+        </div>
         <span className="chip bg-violet-100 text-violet-700">Sale de {originName}</span>
-        <button
-          onClick={() => router.refresh()}
-          className="ml-auto inline-flex items-center gap-1 rounded-lg border border-black/10 px-2.5 py-1 text-xs font-semibold text-brand-ink/70 hover:bg-black/5"
-        >
-          <RefreshCw size={13} /> Actualizar
-        </button>
+        <div className="ml-auto flex gap-2">
+          <button onClick={() => router.refresh()} className="rounded-lg border border-black/10 p-2 text-brand-ink/60 hover:bg-black/5" aria-label="Actualizar">
+            <RefreshCw size={14} />
+          </button>
+          <button
+            onClick={cerrar}
+            disabled={closing || entregados < total}
+            title={entregados < total ? "Completá todas las entregas para cerrar" : undefined}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-brand-red px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
+          >
+            {closing ? <Loader2 size={14} className="animate-spin" /> : <XCircle size={14} />}
+            Cerrar reparto
+          </button>
+        </div>
       </div>
+      {closeError && <p className="mb-3 rounded-lg bg-brand-red/10 px-3 py-2 text-sm font-semibold text-brand-red">{closeError}</p>}
 
       {/* Progreso */}
       <div className="mb-4">
@@ -211,11 +252,6 @@ export function RutaEnCursoClient({ stops, routeMapUrl, originName }: Props) {
                 )}
                 <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-brand-ink/55">
                   <span className="font-mono font-semibold text-brand-ink/70">{s.code}</span>
-                  {s.repartidor && (
-                    <span className="inline-flex items-center gap-1 font-semibold text-brand-ink/70">
-                      🛵 {s.repartidor}
-                    </span>
-                  )}
                   {s.deliveryCode && !entregado && (
                     <span className="font-mono">
                       Código:{" "}

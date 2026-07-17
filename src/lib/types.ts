@@ -41,6 +41,29 @@ export interface Product {
   available: boolean;
 }
 
+export interface Coupon {
+  id: string;
+  code: string;
+  maxUses: number;
+  usedCount: number;
+  discountPercent: number;
+  discountProductId?: string;
+  discountProductName?: string;
+  giftProductId?: string;
+  giftProductName?: string;
+  giftQty: number;
+  active: boolean;
+}
+
+export interface CouponQuote {
+  code: string;
+  subtotal: number;
+  discount: number;
+  total: number;
+  description: string;
+  gift?: { productId: string; name: string; qty: number };
+}
+
 export type OrderStatus = "pendiente" | "en_preparacion" | "en_camino" | "entregado" | "cancelado";
 
 /** Forma de entrega del pedido. */
@@ -71,6 +94,10 @@ export interface Order {
   routeSeq?: number;
   /** Momento en que el pedido salió de la sucursal (ISO), al cerrar el lote. */
   dispatchedAt?: string;
+  /** Identificador del lote generado en cada cierre de pedidos. */
+  routeBatchId?: string;
+  /** Momento en que el encargado cerró el reparto. */
+  routeClosedAt?: string;
   /** Última actualización del pedido (ISO). Sirve como hora de entrega. */
   updatedAt?: string;
   /** Sucursal desde la que salió el reparto. */
@@ -80,6 +107,8 @@ export interface Order {
   notes?: string;
   items: OrderItem[];
   total: number;
+  discount?: number;
+  couponCode?: string;
   status: OrderStatus;
   payment: "efectivo" | "tarjeta" | "mercadopago" | "transferencia";
   date: string; // ISO

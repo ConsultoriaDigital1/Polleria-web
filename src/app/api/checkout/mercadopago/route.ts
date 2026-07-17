@@ -44,6 +44,7 @@ const bodySchema = z.object({
     // El teléfono identifica al cliente: si es inválido, la compra no se puede
     // asociar. Se valida sobre el número normalizado (sin 0, 15, +54…).
     .refine(isValidPhone, "Revisá el número de WhatsApp."),
+  couponCode: z.string().trim().min(3).optional(),
 });
 
 /**
@@ -181,6 +182,7 @@ export async function POST(req: NextRequest) {
       sucursalId: body.entrega === "retiro" ? body.sucursalId : undefined,
       lat: body.entrega === "envio" ? body.lat : undefined,
       lng: body.entrega === "envio" ? body.lng : undefined,
+      couponCode: body.couponCode,
       notes:
         body.entrega === "envio"
           ? `Pedido web · Mercado Pago · Envío a domicilio\nMapa: https://www.google.com/maps?q=${body.lat},${body.lng}`
@@ -203,12 +205,12 @@ export async function POST(req: NextRequest) {
     const pref = await crearPreferencia({
       externalReference,
       baseUrl: baseDelSitio(req),
-      items: lines.map((l) => ({
-        id: l.productId,
-        title: l.name,
-        quantity: l.qty,
-        unit_price: l.price,
-      })),
+      items: [{
+        id: orderId,
+        title: body.couponCode ? `Pedido web · Cupón ${body.couponCode.toUpperCase()}` : "Pedido web",
+        quantity: 1,
+        unit_price: order.total,
+      }],
     });
 
     const url = pref.init_point || pref.sandbox_init_point;

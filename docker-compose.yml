@@ -49,6 +49,8 @@ services:
       # Avisos de estado de pedidos a n8n (ver docs/n8n-pedidos.md)
       N8N_ORDER_WEBHOOK_URL: ${N8N_ORDER_WEBHOOK_URL:-}
       N8N_ORDER_WEBHOOK_SECRET: ${N8N_ORDER_WEBHOOK_SECRET:-}
+      # Asistente de IA de la tienda
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
     ports:
       - "${WEB_PORT:-3000}:3000"
     healthcheck:
