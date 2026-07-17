@@ -14,8 +14,9 @@ export const MIN_ENVIO_TOTAL = 200_000;
  * Caja que encierra el ejido urbano de Corrientes capital.
  * El límite oeste (-58.88) deja afuera la orilla chaqueña del Paraná
  * (Barranqueras/Resistencia), que de otro modo entraría por distancia.
+ * También se usa como viewbox para geocodificar direcciones (lib/geocode).
  */
-const BOUNDS = {
+export const CORRIENTES_BOUNDS = {
   latMin: -27.6,
   latMax: -27.4,
   lngMin: -58.88,
@@ -43,7 +44,7 @@ export function distanceKm(
 /** ¿El punto está dentro de la zona de reparto (ciudad de Corrientes)? */
 export function isInsideCorrientes(lat: number, lng: number): boolean {
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
-  if (lat < BOUNDS.latMin || lat > BOUNDS.latMax) return false;
-  if (lng < BOUNDS.lngMin || lng > BOUNDS.lngMax) return false;
+  if (lat < CORRIENTES_BOUNDS.latMin || lat > CORRIENTES_BOUNDS.latMax) return false;
+  if (lng < CORRIENTES_BOUNDS.lngMin || lng > CORRIENTES_BOUNDS.lngMax) return false;
   return distanceKm({ lat, lng }, CORRIENTES_CENTER) <= MAX_KM;
 }

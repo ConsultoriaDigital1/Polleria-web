@@ -358,16 +358,16 @@ export function CartDrawer() {
                           type="text"
                           value={direccion}
                           onChange={(e) => setDireccion(e.target.value)}
-                          placeholder="Calle, número, piso/depto"
+                          placeholder="Ej: Blas Parera 1749, piso/depto"
                           className="w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-sm"
                         />
                       </label>
                       <div>
                         <span className="mb-1 flex items-center gap-1 text-xs font-semibold text-brand-ink/70">
-                          <MapPin size={14} className="text-brand-red" /> Marcá el punto exacto en
-                          el mapa
+                          <MapPin size={14} className="text-brand-red" /> Confirmá el punto exacto
+                          en el mapa
                         </span>
-                        <MapPicker value={punto} onChange={setPunto} />
+                        <MapPicker value={punto} onChange={setPunto} searchQuery={direccion} />
                       </div>
                     </>
                   )}

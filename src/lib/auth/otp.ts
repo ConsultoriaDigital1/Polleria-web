@@ -12,22 +12,12 @@ export const OTP_MAX_ATTEMPTS = 5;
 export const OTP_CODE_LENGTH = 4;
 const OTP_COOKIE = "polleria_otp";
 
-/**
- * Normaliza un teléfono a un formato canónico para usar como clave única.
- * Conserva un `+` inicial y los dígitos; descarta espacios, guiones, paréntesis.
- */
-export function normalizePhone(raw: string): string {
-  const trimmed = raw.trim();
-  const plus = trimmed.startsWith("+") ? "+" : "";
-  const digits = trimmed.replace(/\D/g, "");
-  return plus + digits;
-}
+// La normalización vive en @/lib/phone (módulo puro, compartido con el
+// checkout y el panel). Se reexporta acá para no romper los imports existentes
+// y, sobre todo, para que el login y las compras usen SIEMPRE la misma clave.
+import { normalizePhone } from "@/lib/phone";
 
-/** Valida que el teléfono normalizado tenga una longitud razonable. */
-export function isValidPhone(phone: string): boolean {
-  const digits = phone.replace(/\D/g, "");
-  return digits.length >= 8 && digits.length <= 15;
-}
+export { normalizePhone, isValidPhone } from "@/lib/phone";
 
 /** Genera un código numérico de 4 dígitos. */
 export function generateCode(): string {

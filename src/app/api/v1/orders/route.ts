@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireApiKey } from "@/lib/api/auth";
 import { ok, handleError } from "@/lib/api/respond";
 import { listOrders, createOrder } from "@/lib/repo";
+import { isValidPhone } from "@/lib/phone";
 import type { OrderStatus } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +22,10 @@ const createOrderSchema = z.object({
   customer: z
     .object({
       name: z.string().min(1, "El nombre es obligatorio."),
-      phone: z.string().min(5, "El teléfono es obligatorio."),
+      phone: z
+        .string()
+        .min(5, "El teléfono es obligatorio.")
+        .refine(isValidPhone, "Teléfono inválido."),
       email: z.string().email().optional(),
     })
     .optional(),

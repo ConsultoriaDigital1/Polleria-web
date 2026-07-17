@@ -1,4 +1,5 @@
 import { prisma, hasDatabase } from "./prisma";
+import { normalizePhone } from "./phone";
 import type {
   Product as DbProduct,
   Order as DbOrder,
@@ -582,7 +583,7 @@ async function createOrderMem(input: CreateOrderInput): Promise<Order> {
     id: `#${runtimeSeq.n}`,
     internalId,
     customer: input.customer?.name ?? "Cliente",
-    phone: input.customer?.phone,
+    phone: input.customer ? normalizePhone(input.customer.phone) : undefined,
     address: input.address,
     entrega: input.entrega,
     sucursalId: input.entrega === "retiro" ? input.sucursalId : undefined,
@@ -605,12 +606,16 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
 
   const { lines, total } = await quoteOrder(input.items);
 
-  // Resolver / crear cliente.
+  // Resolver / crear cliente. El teléfono se normaliza SIEMPRE antes del
+  // upsert: es la clave que asocia la compra con el cliente, y si se guarda
+  // como lo tipeó la persona ("+54 379…" vs "0379 15…") el mismo cliente
+  // termina duplicado y su historial de compras partido en dos.
   let customerId = input.customerId ?? null;
   let customerName = input.customer?.name ?? "Cliente";
+  const phone = input.customer ? normalizePhone(input.customer.phone) : undefined;
   if (!customerId && input.customer) {
     const c = await prisma.customer.upsert({
-      where: { phone: input.customer.phone },
+      where: { phone: phone! },
       update: {
         name: input.customer.name,
         email: input.customer.email ?? undefined,
@@ -618,7 +623,7 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
       },
       create: {
         name: input.customer.name,
-        phone: input.customer.phone,
+        phone: phone!,
         email: input.customer.email ?? null,
         document: input.customer.document ?? null,
       },
@@ -635,7 +640,7 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
     data: {
       customerId,
       customerName,
-      phone: input.customer?.phone,
+      phone,
       address: input.address,
       notes: input.notes,
       entrega: input.entrega ?? null,
@@ -993,16 +998,19 @@ export async function getCustomer(id: string): Promise<Customer | null> {
 }
 
 export async function findCustomer(by: { phone?: string; email?: string }): Promise<Customer | null> {
+  // Se busca por el teléfono normalizado, que es como quedó guardado.
+  const phone = by.phone ? normalizePhone(by.phone) : undefined;
   if (hasDatabase) {
     const c = await prisma.customer.findFirst({
-      where: { OR: [by.phone ? { phone: by.phone } : {}, by.email ? { email: by.email } : {}] },
+      where: { OR: [phone ? { phone } : {}, by.email ? { email: by.email } : {}] },
       include: { orders: { select: { total: true } } },
     });
     return c ? mapCustomer(c) : null;
   }
   return (
     [...runtimeCustomers.values(), ...mockCustomers].find(
-      (c) => (by.phone && c.phone === by.phone) || (by.email && c.email === by.email)
+      (c) =>
+        (phone && normalizePhone(c.phone) === phone) || (by.email && c.email === by.email)
     ) ?? null
   );
 }
@@ -1014,8 +1022,9 @@ export async function createCustomer(input: {
   document?: string;
 }): Promise<Customer> {
   ensureDb();
+  const phone = normalizePhone(input.phone);
   const c = await prisma.customer.upsert({
-    where: { phone: input.phone },
+    where: { phone },
     update: {
       name: input.name,
       email: input.email ?? undefined,
@@ -1023,7 +1032,7 @@ export async function createCustomer(input: {
     },
     create: {
       name: input.name,
-      phone: input.phone,
+      phone,
       email: input.email ?? null,
       document: input.document ?? null,
     },
@@ -1411,17 +1420,18 @@ export async function loginByPhone(input: { phone: string; name?: string }): Pro
   }
 
   // Sin base de datos (dev): sujeto sintético basado en el teléfono.
-  const mock = mockCustomers.find((c) => c.phone === input.phone);
-  const id = mock?.id ?? runtimeCustomerId(input.phone);
+  const phone = normalizePhone(input.phone);
+  const mock = mockCustomers.find((c) => normalizePhone(c.phone) === phone);
+  const id = mock?.id ?? runtimeCustomerId(phone);
   const existing = runtimeCustomers.get(id) ?? mock;
   const name = input.name?.trim() || existing?.name || "Cliente";
   const customer: Customer = existing
-    ? { ...existing, name, phone: input.phone }
+    ? { ...existing, name, phone }
     : {
         id,
         name,
         email: "",
-        phone: input.phone,
+        phone,
         orders: 0,
         spent: 0,
         points: 0,
@@ -1433,7 +1443,7 @@ export async function loginByPhone(input: { phone: string; name?: string }): Pro
   return {
     id: customer.id,
     name: customer.name,
-    phone: input.phone,
+    phone,
     role,
   };
 }

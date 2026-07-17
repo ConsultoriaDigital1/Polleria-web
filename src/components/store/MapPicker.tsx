@@ -5,24 +5,32 @@ import { LocateFixed } from "lucide-react";
 import type { Map as LeafletMap, Marker } from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { CORRIENTES_CENTER, isInsideCorrientes } from "@/lib/geo";
+import { geocodeDireccion } from "@/lib/geocode";
 
 export interface MapPoint {
   lat: number;
   lng: number;
 }
 
+type Busqueda = "idle" | "buscando" | "encontrada" | "sin-resultado";
+
 /**
  * Mini mapa (Leaflet + OpenStreetMap, sin API key) para que el cliente marque
- * el punto exacto de entrega: toca el mapa o arrastra el pin. El botón
- * "Usar mi ubicación" centra con el GPS del teléfono. Valida en vivo que el
- * punto esté dentro de la zona de reparto (ciudad de Corrientes).
+ * el punto exacto de entrega: toca el mapa o arrastra el pin. Si recibe
+ * `searchQuery` (la dirección escrita), la geocodifica con debounce y pre-ubica
+ * el pin ahí; el cliente después lo ajusta a mano. El botón "Usar mi ubicación"
+ * centra con el GPS del teléfono. Valida en vivo que el punto esté dentro de
+ * la zona de reparto (ciudad de Corrientes).
  */
 export function MapPicker({
   value,
   onChange,
+  searchQuery,
 }: {
   value: MapPoint | null;
   onChange: (point: MapPoint) => void;
+  /** Dirección escrita por el cliente; se busca en el mapa mientras escribe. */
+  searchQuery?: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LeafletMap | null>(null);
@@ -30,6 +38,8 @@ export function MapPicker({
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   const [gpsError, setGpsError] = useState<string | null>(null);
+  const [busqueda, setBusqueda] = useState<Busqueda>("idle");
+  const ultimaBusquedaRef = useRef("");
 
   useEffect(() => {
     let cancelado = false;
@@ -61,6 +71,8 @@ export function MapPicker({
           markerRef.current = L.marker([lat, lng], { icon, draggable: true }).addTo(map);
           markerRef.current.on("dragend", () => {
             const p = markerRef.current!.getLatLng();
+            // El ajuste manual pisa cualquier estado de la búsqueda automática.
+            setBusqueda("idle");
             onChangeRef.current({ lat: p.lat, lng: p.lng });
           });
         } else {
@@ -71,6 +83,9 @@ export function MapPicker({
 
       if (value) setPoint(value.lat, value.lng);
       map.on("click", (e: { latlng: { lat: number; lng: number } }) => {
+        // Un toque manual limpia el aviso de la búsqueda automática (la
+        // búsqueda con éxito re-marca "encontrada" justo después del fire).
+        setBusqueda("idle");
         setPoint(e.latlng.lat, e.latlng.lng);
       });
 
@@ -86,6 +101,43 @@ export function MapPicker({
     // Solo al montar: el valor inicial se toma una vez; después manda el usuario.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Geocodifica la dirección escrita (con debounce) y pre-ubica el pin ahí.
+  useEffect(() => {
+    const q = (searchQuery ?? "").trim();
+    if (q.length < 4) {
+      setBusqueda("idle");
+      return;
+    }
+    if (q === ultimaBusquedaRef.current) return;
+
+    const controller = new AbortController();
+    // El debounce espera a que termine de escribir y de paso respeta el
+    // límite de uso de Nominatim (1 request por segundo).
+    const timer = setTimeout(() => {
+      setBusqueda("buscando");
+      geocodeDireccion(q, controller.signal)
+        .then((r) => {
+          ultimaBusquedaRef.current = q;
+          if (!r) {
+            setBusqueda("sin-resultado");
+            return;
+          }
+          mapRef.current?.setView([r.lat, r.lng], 17);
+          // Reusa el flujo del click del mapa para crear/mover el pin.
+          mapRef.current?.fire("click", { latlng: { lat: r.lat, lng: r.lng } });
+          setBusqueda("encontrada");
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setBusqueda("sin-resultado");
+        });
+    }, 900);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [searchQuery]);
 
   const usarMiUbicacion = () => {
     setGpsError(null);
@@ -120,9 +172,20 @@ export function MapPicker({
           <LocateFixed size={14} /> Usar mi ubicación
         </button>
         <span className="text-[11px] text-brand-ink/50">
-          {value ? "Podés arrastrar el pin para ajustar." : "Tocá el mapa para marcar tu casa."}
+          {busqueda === "buscando"
+            ? "Buscando tu dirección en el mapa…"
+            : busqueda === "encontrada"
+              ? "📍 Ubicamos tu dirección: ajustá el pin si hace falta."
+              : value
+                ? "Podés arrastrar el pin para ajustar."
+                : "Tocá el mapa para marcar tu casa."}
         </span>
       </div>
+      {busqueda === "sin-resultado" && (
+        <p className="text-xs text-brand-red">
+          No encontramos esa dirección en el mapa. Marcá el punto tocando el mapa.
+        </p>
+      )}
       {gpsError && <p className="text-xs text-brand-red">{gpsError}</p>}
       {fueraDeZona && (
         <p className="rounded-lg bg-brand-red/10 px-3 py-2 text-xs font-semibold text-brand-red">

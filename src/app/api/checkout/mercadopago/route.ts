@@ -10,6 +10,7 @@ import {
 } from "@/lib/repo";
 import { hasDatabase } from "@/lib/prisma";
 import { isInsideCorrientes, MIN_ENVIO_TOTAL } from "@/lib/geo";
+import { isValidPhone } from "@/lib/phone";
 import { sucursales } from "@/lib/sucursales";
 import { formatARS } from "@/lib/format";
 
@@ -36,7 +37,13 @@ const bodySchema = z.object({
   lat: z.number().optional(),
   lng: z.number().optional(),
   nombre: z.string().trim().min(2, "Decinos tu nombre."),
-  telefono: z.string().trim().min(6, "Dejanos un WhatsApp de contacto."),
+  telefono: z
+    .string()
+    .trim()
+    .min(6, "Dejanos un WhatsApp de contacto.")
+    // El teléfono identifica al cliente: si es inválido, la compra no se puede
+    // asociar. Se valida sobre el número normalizado (sin 0, 15, +54…).
+    .refine(isValidPhone, "Revisá el número de WhatsApp."),
 });
 
 /**
