@@ -32,11 +32,11 @@ const PAGO: Record<Order["payment"], string> = {
 export default async function EtiquetasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ ids?: string }>;
+  searchParams: Promise<{ ids?: string; autoPrint?: string }>;
 }) {
   await requirePerm("entregas");
 
-  const { ids } = await searchParams;
+  const { ids, autoPrint } = await searchParams;
   const wanted = (ids ?? "")
     .split(",")
     .map((s) => s.trim())
@@ -108,7 +108,7 @@ export default async function EtiquetasPage({
         >
           Volver a Entregas
         </Link>
-        <PrintButton />
+        <PrintButton autoPrint={autoPrint === "1"} />
       </div>
 
       {orders.length === 0 ? (
@@ -142,6 +142,11 @@ export default async function EtiquetasPage({
                     {o.routeSeq != null && (
                       <p className="text-[2.8mm] font-bold text-neutral-600">
                         Parada {o.routeSeq}
+                      </p>
+                    )}
+                    {o.routeBatchId && (
+                      <p className="text-[2.4mm] font-semibold text-neutral-500">
+                        Lote {o.routeBatchId.slice(0, 8).toUpperCase()}
                       </p>
                     )}
                   </div>

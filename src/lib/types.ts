@@ -90,6 +90,8 @@ export interface Order {
   lng?: number;
   /** Código que el cliente le da al repartidor al recibir el pedido. */
   deliveryCode?: string;
+  /** Momento exacto en que se confirmó la entrega. */
+  deliveredAt?: string;
   /** Posición del pedido en la ruta optimizada del reparto (1..N). */
   routeSeq?: number;
   /** Momento en que el pedido salió de la sucursal (ISO), al cerrar el lote. */

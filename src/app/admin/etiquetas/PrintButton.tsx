@@ -1,9 +1,16 @@
 "use client";
 
 import { Printer } from "lucide-react";
+import { useEffect } from "react";
 
 /** Botón que abre el diálogo de impresión (o "Guardar como PDF") del navegador. */
-export function PrintButton() {
+export function PrintButton({ autoPrint = false }: { autoPrint?: boolean }) {
+  useEffect(() => {
+    if (!autoPrint) return;
+    const timer = window.setTimeout(() => window.print(), 400);
+    return () => window.clearTimeout(timer);
+  }, [autoPrint]);
+
   return (
     <button
       onClick={() => window.print()}

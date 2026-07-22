@@ -114,6 +114,8 @@ model Order {
   // validarlo se marca como entregado y n8n dispara el aviso al siguiente
   // cliente de la ruta.
   deliveryCode     String?
+  // Momento exacto en que el repartidor confirmó la entrega.
+  deliveredAt      DateTime?
   // Reparto: al "cerrar pedidos" se arma una ruta optimizada y cada envío
   // recibe su posición (routeSeq), el momento del despacho, la sucursal origen
   // y el repartidor (Staff) a cargo de la entrega.

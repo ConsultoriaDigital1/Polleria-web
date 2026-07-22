@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { Store } from "lucide-react";
 import { formatARS, formatDateTime } from "@/lib/format";
-import { listOrders, listActiveRoute, listStaff } from "@/lib/repo";
+import { listOrders, listActiveRoute, listRouteHistory, listStaff } from "@/lib/repo";
 import { requirePerm } from "@/lib/auth/permissions";
 import { sucursales } from "@/lib/sucursales";
 import { googleMapsPointUrl, googleMapsRouteUrl, DEFAULT_ROUTE_ORIGIN } from "@/lib/route";
 import type { Order } from "@/lib/types";
 import { EntregasClient, type EnvioPendiente } from "./EntregasClient";
 import { RutaEnCursoClient, type RutaStop } from "./RutaEnCursoClient";
+import { HistorialRutas } from "./HistorialRutas";
 
 export const dynamic = "force-dynamic";
 
@@ -26,9 +27,10 @@ function ItemsResumen({ order }: { order: Order }) {
 export default async function EntregasPage() {
   await requirePerm("entregas");
 
-  const [listos, ruta, equipo] = await Promise.all([
+  const [listos, ruta, historial, equipo] = await Promise.all([
     listOrders({ status: "en_preparacion" }),
     listActiveRoute(),
+    listRouteHistory(),
     listStaff(),
   ]);
   const repartidores = equipo
@@ -75,7 +77,7 @@ export default async function EntregasPage() {
       status: o.status,
       mapUrl:
         o.lat != null && o.lng != null ? googleMapsPointUrl({ lat: o.lat, lng: o.lng }) : null,
-      deliveredAt: o.status === "entregado" ? o.updatedAt ?? null : null,
+      deliveredAt: o.status === "entregado" ? o.deliveredAt ?? o.updatedAt ?? null : null,
       repartidor: staffName(o.repartidorId),
     }));
     return {
@@ -113,10 +115,20 @@ export default async function EntregasPage() {
           routeMapUrl={activa.routeMapUrl}
           originName={activa.originName}
           routeKey={activa.key}
+          batchId={activa.key}
           repartidor={activa.repartidor}
           dispatchedAt={activa.dispatchedAt}
         />
       ))}
+
+      <div className="flex justify-end">
+        <a
+          href="#historial-rutas"
+          className="rounded-lg border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-brand-ink hover:bg-black/5"
+        >
+          Ver historial de rutas y pedidos
+        </a>
+      </div>
 
       {/* Cierre de pedidos: selección + control de stock + ruta optimizada */}
       <EntregasClient
@@ -160,6 +172,12 @@ export default async function EntregasPage() {
           </ul>
         )}
       </section>
+
+      <HistorialRutas
+        rutas={historial}
+        staffName={staffName}
+        sucursalName={sucursalName}
+      />
     </div>
   );
 }

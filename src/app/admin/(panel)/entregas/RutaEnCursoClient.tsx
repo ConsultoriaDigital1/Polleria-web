@@ -10,6 +10,7 @@ import {
   Phone,
   Printer,
   RefreshCw,
+  List,
   Truck,
   XCircle,
 } from "lucide-react";
@@ -35,6 +36,7 @@ interface Props {
   routeMapUrl: string | null;
   originName: string;
   routeKey: string;
+  batchId: string;
   repartidor: string;
   dispatchedAt: string | null;
 }
@@ -51,6 +53,7 @@ export function RutaEnCursoClient({
   routeMapUrl,
   originName,
   routeKey,
+  batchId,
   repartidor,
   dispatchedAt,
 }: Props) {
@@ -60,12 +63,17 @@ export function RutaEnCursoClient({
   const [pending, startTransition] = useTransition();
   const [closing, startClosing] = useTransition();
   const [closeError, setCloseError] = useState<string | null>(null);
+  const [mostrarTodo, setMostrarTodo] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const total = stops.length;
   const entregados = stops.filter((s) => s.status === "entregado").length;
   const pct = total > 0 ? Math.round((entregados / total) * 100) : 0;
   const nextId = stops.find((s) => s.status === "en_camino")?.id ?? null;
+  const visibleStops = mostrarTodo || nextId === null ? stops : stops.filter((s) => s.status !== "entregado");
+  const loteLabel = batchId.startsWith("legacy:")
+    ? "Lote anterior"
+    : `Lote ${batchId.slice(0, 8).toUpperCase()}`;
 
   // Refresco automático para reflejar lo que confirma el repartidor.
   useEffect(() => {
@@ -113,7 +121,16 @@ export function RutaEnCursoClient({
           </p>
         </div>
         <span className="chip bg-violet-100 text-violet-700">Sale de {originName}</span>
+        <span className="chip bg-brand-cream text-brand-ink/70">{loteLabel}</span>
         <div className="ml-auto flex gap-2">
+          {entregados > 0 && nextId !== null && (
+            <button
+              onClick={() => setMostrarTodo((value) => !value)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-black/10 px-3 py-2 text-xs font-bold text-brand-ink hover:bg-black/5"
+            >
+              <List size={14} /> {mostrarTodo ? "Solo llegando" : `Ver todo (${total})`}
+            </button>
+          )}
           <button onClick={() => router.refresh()} className="rounded-lg border border-black/10 p-2 text-brand-ink/60 hover:bg-black/5" aria-label="Actualizar">
             <RefreshCw size={14} />
           </button>
@@ -210,7 +227,7 @@ export function RutaEnCursoClient({
 
       {/* Paradas */}
       <ol className="space-y-2">
-        {stops.map((s) => {
+        {visibleStops.map((s) => {
           const entregado = s.status === "entregado";
           const esProximo = s.id === nextId;
           const hora = horaCorta(s.deliveredAt);

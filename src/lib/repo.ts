@@ -109,6 +109,7 @@ function mapOrder(o: DbOrder & { items: DbOrderItem[] }): Order {
     lat: o.lat ?? undefined,
     lng: o.lng ?? undefined,
     deliveryCode: o.deliveryCode ?? undefined,
+    deliveredAt: o.deliveredAt?.toISOString(),
     routeSeq: o.routeSeq ?? undefined,
     dispatchedAt: o.dispatchedAt?.toISOString(),
     routeBatchId: o.routeBatchId ?? undefined,
@@ -845,7 +846,9 @@ export async function updateOrderStatus(idOrCode: string, status: OrderStatus): 
     if (!order) return null;
     const changed = order.status !== status;
     order.status = status;
-    order.updatedAt = new Date().toISOString();
+    const now = new Date().toISOString();
+    order.updatedAt = now;
+    if (status === "entregado" && changed) order.deliveredAt = now;
     if (changed) {
       const event = eventForStatus(status);
       if (event) await notifyOrderEvent(event, order);
@@ -859,7 +862,12 @@ export async function updateOrderStatus(idOrCode: string, status: OrderStatus): 
   if (!existing) return null;
   const updated = await prisma.order.update({
     where: { id: existing.id },
-    data: { status },
+    data: {
+      status,
+      ...(status === "entregado" && existing.status !== "entregado"
+        ? { deliveredAt: new Date() }
+        : {}),
+    },
     include: { items: true },
   });
   const order = mapOrder(updated);
@@ -1061,6 +1069,59 @@ export interface DispatchResult {
   /** URL de Google Maps con la ruta optimizada (vacía si no hubo envíos). */
   mapsUrl: string;
   count: number;
+}
+
+export interface RouteHistory {
+  /** Identificador del lote; también agrupa rutas antiguas sin UUID. */
+  batchId: string;
+  dispatchedAt?: string;
+  closedAt?: string;
+  originSucursalId?: string;
+  repartidorId?: string;
+  orders: Order[];
+}
+
+/** Historial de lotes ya cerrados, con cada pedido en el orden de su ruta. */
+export async function listRouteHistory(limit = 30): Promise<RouteHistory[]> {
+  const grouped = new Map<string, RouteHistory>();
+  const add = (order: Order) => {
+    if (order.routeSeq == null || !order.routeClosedAt) return;
+    const batchId =
+      order.routeBatchId ??
+      `legacy:${order.repartidorId ?? "sin-asignar"}:${order.dispatchedAt ?? ""}`;
+    const current = grouped.get(batchId) ?? {
+      batchId,
+      dispatchedAt: order.dispatchedAt,
+      closedAt: order.routeClosedAt,
+      originSucursalId: order.originSucursalId,
+      repartidorId: order.repartidorId,
+      orders: [],
+    };
+    current.orders.push(order);
+    if ((order.routeClosedAt ?? "") > (current.closedAt ?? "")) {
+      current.closedAt = order.routeClosedAt;
+    }
+    grouped.set(batchId, current);
+  };
+
+  if (!hasDatabase) {
+    for (const order of runtimeOrders.values()) add(order);
+  } else {
+    const rows = await prisma.order.findMany({
+      where: { routeSeq: { not: null }, routeClosedAt: { not: null } },
+      orderBy: { routeClosedAt: "desc" },
+      include: { items: true },
+    });
+    for (const row of rows) add(mapOrder(row));
+  }
+
+  return [...grouped.values()]
+    .map((route) => ({
+      ...route,
+      orders: route.orders.sort((a, b) => (a.routeSeq ?? 0) - (b.routeSeq ?? 0)),
+    }))
+    .sort((a, b) => (b.closedAt ?? "").localeCompare(a.closedAt ?? ""))
+    .slice(0, limit);
 }
 
 /**
