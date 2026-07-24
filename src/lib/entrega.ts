@@ -26,6 +26,19 @@ export function deliverySlotLabel(id?: string | null): string | null {
 export const AVISO_TURNOS =
   "Las compras realizadas por la mañana se reciben por la tarde. Las compras realizadas por la tarde se reciben por la mañana del día siguiente.";
 
+/**
+ * El mismo aviso separado por turno, para mostrarlo como dos reglas claras
+ * (cada una con su ícono) en vez de un párrafo largo.
+ */
+export const AVISO_TURNOS_REGLAS = [
+  { turno: "manana", compra: "Comprás por la mañana", entrega: "lo recibís por la tarde" },
+  {
+    turno: "tarde",
+    compra: "Comprás por la tarde",
+    entrega: "lo recibís a la mañana del día siguiente",
+  },
+] as const;
+
 /** Recordatorio de cómo se debe cargar la dirección. */
 export const AVISO_DIRECCION =
   "Importante: solo podemos reconocer calle y altura. No cargues piso, departamento, barrio ni referencias.";

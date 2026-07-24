@@ -27,11 +27,14 @@ export function MapPicker({
   value,
   onChange,
   searchQuery,
+  compact = false,
 }: {
   value: MapPoint | null;
   onChange: (point: MapPoint) => void;
   /** Dirección escrita por el cliente; se busca en el mapa mientras escribe. */
   searchQuery?: string;
+  /** Versión chica (mapa más bajo) para ubicarlo al final del carrito. */
+  compact?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LeafletMap | null>(null);
@@ -164,7 +167,7 @@ export function MapPicker({
     <div className="space-y-2">
       <div
         ref={containerRef}
-        className={`h-52 w-full overflow-hidden rounded-xl border ${
+        className={`${compact ? "h-36" : "h-52"} w-full overflow-hidden rounded-xl border ${
           fueraDeZona ? "border-brand-red" : "border-black/10"
         }`}
       />

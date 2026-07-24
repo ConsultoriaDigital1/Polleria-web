@@ -363,24 +363,6 @@ export function CartDrawer() {
                   </p>
                 </div>
 
-                {/* Paso: mapa + confirmación de la ubicación */}
-                <div>
-                  <span className="mb-1 flex items-center gap-1 text-xs font-semibold text-brand-ink/70">
-                    <MapPin size={14} className="text-brand-red" /> Marcá el punto exacto en el mapa
-                  </span>
-                  <MapPicker value={punto} onChange={setPunto} searchQuery={direccion} />
-                  <label className="mt-2 flex items-start gap-2 rounded-lg bg-brand-gold/20 px-3 py-2 text-xs font-bold text-brand-ink">
-                    <input
-                      type="checkbox"
-                      checked={puntoConfirmado}
-                      disabled={!punto}
-                      onChange={(e) => setPuntoConfirmado(e.target.checked)}
-                      className="mt-0.5 h-4 w-4 shrink-0 accent-brand-red disabled:opacity-40"
-                    />
-                    <span>Confirmo que la ubicación marcada en el mapa es la correcta.</span>
-                  </label>
-                </div>
-
                 {/* Paso: rango horario de entrega */}
                 <div>
                   <span className="mb-1 flex items-center gap-1 text-xs font-semibold text-brand-ink/70">
@@ -410,6 +392,24 @@ export function CartDrawer() {
                       </button>
                     ))}
                   </div>
+                </div>
+
+                {/* Paso: mapa + confirmación de la ubicación (versión compacta) */}
+                <div>
+                  <span className="mb-1 flex items-center gap-1 text-[11px] font-semibold text-brand-ink/70">
+                    <MapPin size={13} className="text-brand-red" /> Marcá el punto exacto en el mapa
+                  </span>
+                  <MapPicker value={punto} onChange={setPunto} searchQuery={direccion} compact />
+                  <label className="mt-2 flex items-start gap-2 rounded-lg bg-brand-gold/20 px-3 py-1.5 text-[11px] font-bold text-brand-ink">
+                    <input
+                      type="checkbox"
+                      checked={puntoConfirmado}
+                      disabled={!punto}
+                      onChange={(e) => setPuntoConfirmado(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 shrink-0 accent-brand-red disabled:opacity-40"
+                    />
+                    <span>Confirmo que la ubicación marcada en el mapa es la correcta.</span>
+                  </label>
                 </div>
               </div>
 
