@@ -9,6 +9,10 @@ import { useToast } from "@/store/toast";
 export function ProductCard({ product }: { product: Product }) {
   const add = useCart((s) => s.add);
   const showToast = useToast((s) => s.show);
+  const enCarrito = useCart((s) => s.lines.find((l) => l.product.id === product.id)?.qty ?? 0);
+
+  const sinStock = !product.available || product.stock <= 0;
+  const alcanzoElTope = enCarrito >= product.stock;
 
   return (
     <div className="flex flex-col overflow-hidden rounded-2xl bg-white shadow-soft">
@@ -40,15 +44,25 @@ export function ProductCard({ product }: { product: Product }) {
           )}
         </div>
 
+        <span
+          className={`mt-1 text-xs font-semibold ${
+            sinStock ? "text-brand-red" : "text-emerald-700"
+          }`}
+        >
+          {sinStock ? "Sin stock" : `Stock: ${product.stock} disponibles`}
+        </span>
+
         <button
           onClick={() => {
             add(product);
             showToast(product.name, { variant: "cart" });
           }}
-          className="btn-primary mt-3 w-full"
+          disabled={sinStock || alcanzoElTope}
+          className="btn-primary mt-3 w-full disabled:cursor-not-allowed disabled:opacity-40"
           aria-label={`Agregar ${product.name}`}
         >
-          <Plus size={16} /> Agregar
+          <Plus size={16} />
+          {sinStock ? "Sin stock" : alcanzoElTope ? "Máximo disponible" : "Agregar"}
         </button>
       </div>
     </div>

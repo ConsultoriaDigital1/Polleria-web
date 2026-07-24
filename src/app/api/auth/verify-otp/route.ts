@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { ok, fail, handleError } from "@/lib/api/respond";
 import { normalizePhone, hashCode, OTP_CODE_LENGTH, verifyOtpCookie } from "@/lib/auth/otp";
-import { verifyOtp, loginByPhone } from "@/lib/repo";
+import { findCustomer, verifyOtp, loginByPhone } from "@/lib/repo";
 import { setSessionCookie } from "@/lib/auth/session";
 
 export const runtime = "nodejs";
@@ -18,8 +18,10 @@ const schema = z.object({
         new RegExp(`^\\d{${OTP_CODE_LENGTH}}$`),
         `El código debe tener ${OTP_CODE_LENGTH} dígitos.`
       )
-    ),
+  ),
   name: z.string().trim().min(1).max(80).optional(),
+  document: z.string().trim().min(3).max(30).optional(),
+  email: z.string().trim().email("El correo no es válido.").max(160).optional(),
 });
 
 const messages: Record<string, string> = {
@@ -35,6 +37,14 @@ export async function POST(req: NextRequest) {
     const body = schema.parse(await req.json());
     const phone = normalizePhone(body.phone);
     const codeInput = body.code;
+    const existingCustomer = await findCustomer({ phone });
+    if (!existingCustomer && (!body.name || !body.document || !body.email)) {
+      return fail(
+        "Para crear tu cuenta completá nombre, documento y correo.",
+        422,
+        "PROFILE_REQUIRED"
+      );
+    }
 
     // Código demo: permite entrar sin OTP real (para muestras / entornos sin WhatsApp).
     const demoCode = process.env.DEMO_LOGIN_CODE ?? (process.env.NODE_ENV === "production" ? "" : "1234");
@@ -52,7 +62,12 @@ export async function POST(req: NextRequest) {
       return fail(messages[result] ?? "No se pudo verificar el código.", 401, code);
     }
 
-    const subject = await loginByPhone({ phone, name: body.name });
+    const subject = await loginByPhone({
+      phone,
+      name: body.name,
+      document: body.document,
+      email: body.email,
+    });
     await setSessionCookie({
       sub: subject.id,
       name: subject.name,

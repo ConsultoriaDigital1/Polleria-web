@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireApiKey } from "@/lib/api/auth";
 import { ok, handleError } from "@/lib/api/respond";
 import { listOrders, createOrder } from "@/lib/repo";
+import { DELIVERY_SLOTS } from "@/lib/entrega";
 import { isValidPhone } from "@/lib/phone";
 import type { OrderStatus } from "@/lib/types";
 
@@ -40,6 +41,10 @@ const createOrderSchema = z.object({
   payment: z.enum(["efectivo", "tarjeta", "mercadopago", "transferencia"]),
   address: z.string().optional(),
   notes: z.string().optional(),
+  /** Rango horario de entrega ("08-12" o "17-20"). */
+  deliverySlot: z
+    .enum(DELIVERY_SLOTS.map((s) => s.id) as [string, ...string[]])
+    .optional(),
 }).refine((d) => d.customerId || d.customer, {
   message: "Indicá customerId o los datos del cliente (customer).",
   path: ["customer"],

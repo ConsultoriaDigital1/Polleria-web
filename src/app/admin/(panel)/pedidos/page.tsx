@@ -1,6 +1,7 @@
 import { formatARS, formatDateTime } from "@/lib/format";
 import { listOrders } from "@/lib/repo";
 import { requirePerm } from "@/lib/auth/permissions";
+import { deliverySlotLabel } from "@/lib/entrega";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +34,7 @@ export default async function PedidosPage() {
                 <th className="px-4 py-3 font-semibold">Pedido</th>
                 <th className="px-4 py-3 font-semibold">Cliente</th>
                 <th className="px-4 py-3 font-semibold">Detalle</th>
+                <th className="px-4 py-3 font-semibold">Entrega</th>
                 <th className="px-4 py-3 font-semibold">Pago</th>
                 <th className="px-4 py-3 font-semibold">Fecha</th>
                 <th className="px-4 py-3 font-semibold">Total</th>
@@ -46,6 +48,9 @@ export default async function PedidosPage() {
                   <td className="px-4 py-3 text-brand-ink/80">{o.customer}</td>
                   <td className="px-4 py-3 text-brand-ink/60">
                     {o.items.map((i) => `${i.qty}× ${i.name}`).join(", ")}
+                  </td>
+                  <td className="px-4 py-3 text-brand-ink/70">
+                    {deliverySlotLabel(o.deliverySlot) ?? "—"}
                   </td>
                   <td className="px-4 py-3 text-brand-ink/70">{paymentLabels[o.payment]}</td>
                   <td className="px-4 py-3 text-brand-ink/60">{formatDateTime(o.date)}</td>

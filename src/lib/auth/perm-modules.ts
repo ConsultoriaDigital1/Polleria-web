@@ -27,7 +27,6 @@ export const PERM_MODULES: PermModule[] = [
   { key: "entregas", label: "Entregas", href: "/admin/entregas" },
   { key: "productos", label: "Productos", href: "/admin/productos" },
   { key: "clientes", label: "Clientes", href: "/admin/clientes" },
-  { key: "puntos", label: "Cargar puntos", href: "/admin/puntos" },
   { key: "equipo", label: "Equipo", href: "/admin/equipo" },
   { key: "ofertas", label: "Ofertas", href: "/admin/ofertas" },
   { key: "cupones", label: "Cupones", href: "/admin/cupones" },

@@ -1,8 +1,8 @@
 import { PrismaClient } from "@prisma/client";
-import { products } from "../src/lib/data";
+import { products, CODIGO_BIENVENIDA, REGALO_BIENVENIDA_PRODUCT_ID } from "../src/lib/data";
 
-// Carga/actualiza SOLO los productos del catálogo (upsert por id).
-// Seguro de correr en producción: no toca clientes, pedidos ni puntos.
+// Carga/actualiza el catálogo (upsert por id) y el cupón de bienvenida.
+// Seguro de correr en producción: no toca clientes ni pedidos.
 const prisma = new PrismaClient();
 
 async function main() {
@@ -20,12 +20,32 @@ async function main() {
     };
     await prisma.product.upsert({
       where: { id: p.id },
-      create: { id: p.id, ...data },
+      // El stock solo se define al crear el producto: si ya existe se respeta
+      // el que venga cargado desde el panel (puede haber ventas en el medio).
+      create: { id: p.id, ...data, stock: p.stock },
       update: data,
     });
     console.log(`  ✔ ${p.name}`);
   }
   console.log(`✅ ${products.length} productos cargados/actualizados.`);
+
+  // Regalo de bienvenida: cupón de un solo uso por número de teléfono que
+  // suma una bolsa de patitas de 1 kg. El cliente tiene que escribir el código.
+  console.log("🎁 Configurando el código de bienvenida…");
+  const regalo = {
+    maxUses: 100_000,
+    discountPercent: 0,
+    giftProductId: REGALO_BIENVENIDA_PRODUCT_ID,
+    giftQty: 1,
+    firstPurchaseOnly: true,
+    active: true,
+  };
+  await prisma.coupon.upsert({
+    where: { code: CODIGO_BIENVENIDA },
+    create: { code: CODIGO_BIENVENIDA, ...regalo },
+    update: regalo,
+  });
+  console.log(`✅ Código ${CODIGO_BIENVENIDA} listo.`);
 }
 
 main()

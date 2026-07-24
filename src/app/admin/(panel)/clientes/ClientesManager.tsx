@@ -1,18 +1,10 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
-import { Star, Pencil, Plus, X } from "lucide-react";
+import { Pencil, Plus, X } from "lucide-react";
 import type { Customer } from "@/lib/types";
-import { formatARS, formatPoints } from "@/lib/format";
-import { cn } from "@/lib/cn";
+import { formatARS } from "@/lib/format";
 import { saveCustomer, type SaveCustomerState } from "./actions";
-
-const tierColors: Record<string, string> = {
-  Bronce: "bg-orange-100 text-orange-700",
-  Plata: "bg-slate-200 text-slate-700",
-  Oro: "bg-amber-100 text-amber-700",
-  Diamante: "bg-cyan-100 text-cyan-700",
-};
 
 export function ClientesManager({ customers }: { customers: Customer[] }) {
   // null = cerrado, undefined = crear nuevo, Customer = editar
@@ -40,8 +32,6 @@ export function ClientesManager({ customers }: { customers: Customer[] }) {
                 <th className="px-4 py-3 font-semibold">Documento</th>
                 <th className="px-4 py-3 font-semibold">Pedidos</th>
                 <th className="px-4 py-3 font-semibold">Gastado</th>
-                <th className="px-4 py-3 font-semibold">Puntos</th>
-                <th className="px-4 py-3 font-semibold">Nivel</th>
                 <th className="px-4 py-3 font-semibold text-right">Acciones</th>
               </tr>
             </thead>
@@ -63,12 +53,6 @@ export function ClientesManager({ customers }: { customers: Customer[] }) {
                   <td className="px-4 py-3 text-brand-ink/70">{c.document || "—"}</td>
                   <td className="px-4 py-3 text-brand-ink/80">{c.orders}</td>
                   <td className="px-4 py-3 font-medium text-brand-ink">{formatARS(c.spent)}</td>
-                  <td className="px-4 py-3 font-medium text-brand-ink">{formatPoints(c.points)}</td>
-                  <td className="px-4 py-3">
-                    <span className={cn("chip", tierColors[c.tier])}>
-                      <Star size={12} className="fill-current" /> {c.tier}
-                    </span>
-                  </td>
                   <td className="px-4 py-3 text-right">
                     <button
                       onClick={() => setEditing(c)}
@@ -81,7 +65,7 @@ export function ClientesManager({ customers }: { customers: Customer[] }) {
               ))}
               {customers.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-brand-ink/50">
+                  <td colSpan={6} className="px-4 py-8 text-center text-brand-ink/50">
                     Todavía no hay clientes registrados.
                   </td>
                 </tr>

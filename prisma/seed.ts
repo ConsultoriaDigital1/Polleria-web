@@ -1,11 +1,16 @@
 import { PrismaClient } from "@prisma/client";
-import { products, customers, orders, pointsHistory } from "../src/lib/data";
+import {
+  products,
+  customers,
+  orders,
+  CODIGO_BIENVENIDA,
+  REGALO_BIENVENIDA_PRODUCT_ID,
+} from "../src/lib/data";
 
 const prisma = new PrismaClient();
 
 async function main() {
   console.log("🌱 Limpiando datos previos…");
-  await prisma.pointsEntry.deleteMany();
   await prisma.orderItem.deleteMany();
   await prisma.order.deleteMany();
   await prisma.customer.deleteMany();
@@ -24,9 +29,23 @@ async function main() {
         image: p.image,
         badge: p.badge ?? null,
         available: p.available,
+        stock: p.stock,
       },
     });
   }
+
+  console.log("🎁 Cargando el código de bienvenida…");
+  await prisma.coupon.create({
+    data: {
+      code: CODIGO_BIENVENIDA,
+      maxUses: 100_000,
+      discountPercent: 0,
+      giftProductId: REGALO_BIENVENIDA_PRODUCT_ID,
+      giftQty: 1,
+      firstPurchaseOnly: true,
+      active: true,
+    },
+  });
 
   console.log("📰 Cargando novedades…");
   await prisma.novedad.createMany({
@@ -45,8 +64,6 @@ async function main() {
         name: c.name,
         email: c.email,
         phone: c.phone,
-        points: c.points,
-        tier: c.tier,
         joinedAt: new Date(c.joined),
       },
     });
@@ -77,19 +94,6 @@ async function main() {
     await prisma.order.update({
       where: { id: created.id },
       data: { code: `#${1000 + created.seq}` },
-    });
-  }
-
-  console.log("⭐ Cargando historial de puntos…");
-  for (const h of pointsHistory) {
-    await prisma.pointsEntry.create({
-      data: {
-        customerId: "c-1",
-        label: h.label,
-        points: h.points,
-        type: h.type,
-        createdAt: new Date(h.date),
-      },
     });
   }
 

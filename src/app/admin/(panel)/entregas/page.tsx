@@ -1,10 +1,8 @@
-import Link from "next/link";
-import { Store } from "lucide-react";
-import { formatARS, formatDateTime } from "@/lib/format";
 import { listOrders, listActiveRoute, listRouteHistory, listStaff } from "@/lib/repo";
 import { requirePerm } from "@/lib/auth/permissions";
 import { sucursales } from "@/lib/sucursales";
 import { googleMapsPointUrl, googleMapsRouteUrl, DEFAULT_ROUTE_ORIGIN } from "@/lib/route";
+import { deliverySlotLabel } from "@/lib/entrega";
 import type { Order } from "@/lib/types";
 import { EntregasClient, type EnvioPendiente } from "./EntregasClient";
 import { RutaEnCursoClient, type RutaStop } from "./RutaEnCursoClient";
@@ -14,14 +12,6 @@ export const dynamic = "force-dynamic";
 
 function sucursalName(id?: string) {
   return sucursales.find((s) => s.id === id)?.name ?? id ?? "—";
-}
-
-function ItemsResumen({ order }: { order: Order }) {
-  return (
-    <span className="text-brand-ink/60">
-      {order.items.map((i) => `${i.qty}× ${i.name}`).join(", ")}
-    </span>
-  );
 }
 
 export default async function EntregasPage() {
@@ -38,8 +28,8 @@ export default async function EntregasPage() {
     .map((s) => ({ id: s.id, name: s.name }));
   const staffName = (id?: string) => equipo.find((s) => s.id === id)?.name ?? null;
 
-  const envios = listos.filter((o) => o.entrega === "envio");
-  const retiros = listos.filter((o) => o.entrega === "retiro");
+  // Todos los pedidos son envíos a domicilio (no existe el retiro por sucursal).
+  const envios = listos;
   const enCamino = ruta.filter((o) => o.status === "en_camino");
 
   const sucursalOptions = sucursales.map((s) => ({ id: s.id, name: s.name }));
@@ -55,6 +45,7 @@ export default async function EntregasPage() {
     total: o.total,
     items: o.items.map((i) => ({ name: i.name, qty: i.qty })),
     mapUrl: o.lat != null && o.lng != null ? googleMapsPointUrl({ lat: o.lat, lng: o.lng }) : null,
+    franjaHoraria: deliverySlotLabel(o.deliverySlot),
   }));
 
   // Cada cierre es un bloque independiente, incluso si sale el mismo repartidor.
@@ -103,7 +94,7 @@ export default async function EntregasPage() {
       <div>
         <h1 className="text-2xl font-bold text-brand-ink">Entregas</h1>
         <p className="text-sm text-brand-ink/55">
-          Pedidos pagados listos para entregar, separados por forma de entrega.
+          Pedidos pagados listos para salir a reparto.
         </p>
       </div>
 
@@ -137,41 +128,6 @@ export default async function EntregasPage() {
         envios={enviosPendientes}
         enCurso={enCamino.length}
       />
-
-      {/* Retiro en sucursal */}
-      <section className="rounded-2xl bg-white p-4 shadow-soft">
-        <div className="mb-3 flex items-center gap-2">
-          <Store size={18} className="text-brand-gold" />
-          <h2 className="font-semibold text-brand-ink">Retiro en sucursal</h2>
-          <span className="chip bg-amber-100 text-amber-700">{retiros.length}</span>
-        </div>
-        {retiros.length === 0 ? (
-          <p className="text-sm text-brand-ink/50">No hay pedidos pagados para retirar.</p>
-        ) : (
-          <ul className="divide-y divide-black/5">
-            {retiros.map((o) => (
-              <li key={o.id} className="flex flex-wrap items-center gap-3 py-3 text-sm">
-                <span className="font-semibold text-brand-ink">{o.id}</span>
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium text-brand-ink">
-                    {o.customer} {o.phone && <span className="text-brand-ink/50">· {o.phone}</span>}
-                  </p>
-                  <p className="text-brand-ink/60">{sucursalName(o.sucursalId)}</p>
-                  <ItemsResumen order={o} />
-                </div>
-                <span className="text-brand-ink/50">{formatDateTime(o.date)}</span>
-                <span className="font-medium text-brand-ink">{formatARS(o.total)}</span>
-                <Link
-                  href={`/admin/pedidos`}
-                  className="text-xs font-semibold text-brand-ink/50 hover:text-brand-ink"
-                >
-                  Ver
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
 
       <HistorialRutas
         rutas={historial}

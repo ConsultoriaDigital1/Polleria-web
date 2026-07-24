@@ -1,16 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { X, Home, UtensilsCrossed, Tag, Star, User, MapPin, Phone } from "lucide-react";
+import { X, Home, UtensilsCrossed, Tag, User, MapPin, Phone } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { useUI } from "@/store/ui";
+import { WHATSAPP_VISIBLE } from "@/lib/whatsapp";
 
 const links = [
   { href: "/", label: "Inicio", icon: Home },
   { href: "/productos", label: "Productos", icon: UtensilsCrossed },
   { href: "/ofertas", label: "Ofertas", icon: Tag },
   { href: "/sucursales", label: "Sucursales", icon: MapPin },
-  { href: "/club", label: "Club Pollería", icon: Star },
   { href: "/cuenta", label: "Mi cuenta", icon: User },
 ];
 
@@ -58,7 +58,7 @@ export function SideMenu() {
             <MapPin size={16} className="text-brand-red" /> Sarmiento y La Pampa
           </p>
           <p className="flex items-center gap-2">
-            <Phone size={16} className="text-brand-red" /> WhatsApp 3794 525617
+            <Phone size={16} className="text-brand-red" /> Consultas: WhatsApp {WHATSAPP_VISIBLE}
           </p>
         </div>
       </aside>

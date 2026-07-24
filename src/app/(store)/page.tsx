@@ -1,14 +1,21 @@
 import Link from "next/link";
-import { ShieldCheck, Bird, Truck, MapPin, MessageCircle, Flame, Sunrise, Sunset } from "lucide-react";
+import { ShieldCheck, Bird, Truck, MapPin, Flame } from "lucide-react";
 import { listProducts, getSuperOferta } from "@/lib/repo";
 import { PromoCarousel } from "@/components/store/PromoCarousel";
 import { ProductCatalog } from "@/components/store/ProductCatalog";
 import { SuperOfertaHero } from "@/components/store/SuperOfertaHero";
+import { AvisoTurnos } from "@/components/store/AvisoTurnos";
 import { sucursales } from "@/lib/sucursales";
+import { MIN_ENVIO_TOTAL } from "@/lib/geo";
+import { formatARS } from "@/lib/format";
+import {
+  WHATSAPP_SOPORTE_TEXTO,
+  WHATSAPP_SOPORTE_URL,
+  WHATSAPP_VISIBLE,
+} from "@/lib/whatsapp";
 
 export const dynamic = "force-dynamic";
 
-const WHATSAPP_URL = "https://wa.me/543794525617";
 const SUPER_OFERTA_PRODUCT_ID = "p-pata-muslo-10kg";
 
 export default async function HomePage() {
@@ -61,8 +68,10 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Franja de compra/entrega: la promesa de la casa */}
-      <FranjaEntrega />
+      {/* Aviso de turnos: cuándo se recibe cada compra */}
+      <section className="px-4 md:px-6">
+        <AvisoTurnos />
+      </section>
 
       {/* Sucursales */}
       <section className="px-4 md:px-6">
@@ -72,8 +81,8 @@ export default async function HomePage() {
             <span className="absolute bottom-0 left-0 h-0.5 w-12 rounded bg-brand-red md:h-1 md:w-16" />
           </h2>
           <p className="mt-2 text-xs text-brand-ink/60 md:text-sm">
-            8 sucursales en Corrientes. Las marcadas con WhatsApp ya toman pedidos por ese medio;
-            las demás estarán habilitadas próximamente.
+            8 sucursales en Corrientes. Todos los pedidos se hacen desde la web y se entregan a
+            domicilio.
           </p>
         </div>
         <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-4">
@@ -88,38 +97,34 @@ export default async function HomePage() {
                 <p className="text-xs font-semibold leading-tight text-brand-ink md:text-sm">
                   {s.address}
                 </p>
-                {s.phone && (
-                  <p className="mt-0.5 flex items-center gap-1 text-[11px] font-semibold text-green-600">
-                    <MessageCircle size={12} /> Pedidos por WhatsApp
-                  </p>
-                )}
               </div>
             </Link>
           ))}
         </div>
       </section>
 
-      {/* Banner de envío / WhatsApp */}
+      {/* Banner de soporte: WhatsApp solo para consultas o problemas */}
       <section className="px-4 md:px-6">
         <div className="flex items-center gap-3 rounded-2xl bg-brand-gold p-4 shadow-soft md:gap-6 md:rounded-3xl md:p-8">
           <div className="flex-1">
             <h3 className="text-base font-extrabold leading-tight text-brand-ink md:text-3xl">
-              Hacé tu pedido por WhatsApp
+              {WHATSAPP_SOPORTE_TEXTO}
             </h3>
             <p className="mt-1 text-xs text-brand-ink/70 md:mt-2 md:text-base">
-              📱 3794 525617 · Envíos a domicilio en pedidos desde $100.000. Aceptamos todos los medios de pago.
+              📱 {WHATSAPP_VISIBLE} · Estamos para ayudarte con tu pedido. Las compras se hacen
+              desde la web, con envío a domicilio desde {formatARS(MIN_ENVIO_TOTAL)}.
             </p>
           </div>
           <span className="text-4xl md:text-6xl" aria-hidden>
-            🛵
+            💬
           </span>
           <a
-            href={WHATSAPP_URL}
+            href={WHATSAPP_SOPORTE_URL}
             target="_blank"
             rel="noopener noreferrer"
             className="rounded-lg bg-brand-red px-3 py-2 text-xs font-bold text-white md:px-6 md:py-3 md:text-base"
           >
-            Pedir por WhatsApp
+            Escribinos
           </a>
         </div>
       </section>
@@ -129,36 +134,15 @@ export default async function HomePage() {
         <div className="grid grid-cols-3 gap-2 text-center">
           <Feature icon={ShieldCheck} title="Calidad" subtitle="Garantizada" compact />
           <Feature icon={Bird} title="Pollo Fresco" subtitle="Todos los Días" compact />
-          <Feature icon={Truck} title="Envíos" subtitle="Desde $100.000" compact />
+          <Feature
+            icon={Truck}
+            title="Envíos"
+            subtitle={`Desde ${formatARS(MIN_ENVIO_TOTAL)}`}
+            compact
+          />
         </div>
       </section>
     </div>
-  );
-}
-
-/** Franja con la promesa de entrega: comprás en un turno, recibís en el otro. */
-function FranjaEntrega() {
-  return (
-    <section className="px-4 md:px-6">
-      <div className="grid gap-2 md:grid-cols-2 md:gap-4">
-        <div className="flex items-center gap-3 rounded-2xl bg-brand-ink p-3 text-white shadow-soft md:p-5">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-gold text-brand-ink md:h-12 md:w-12">
-            <Sunrise size={22} />
-          </span>
-          <p className="text-sm font-extrabold uppercase leading-snug tracking-wide md:text-lg">
-            Comprá a la mañana, <span className="text-brand-gold">recibí a la tarde</span>
-          </p>
-        </div>
-        <div className="flex items-center gap-3 rounded-2xl bg-brand-ink p-3 text-white shadow-soft md:p-5">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-gold text-brand-ink md:h-12 md:w-12">
-            <Sunset size={22} />
-          </span>
-          <p className="text-sm font-extrabold uppercase leading-snug tracking-wide md:text-lg">
-            Comprá a la tarde, <span className="text-brand-gold">recibí por la mañana</span>
-          </p>
-        </div>
-      </div>
-    </section>
   );
 }
 
@@ -183,7 +167,7 @@ function HeroClasico() {
           <br /> y al mejor precio
         </h1>
         <p className="mt-2 hidden text-white/80 md:block md:text-lg">
-          Calidad, variedad y sabor para compartir en familia. Pedí online o por WhatsApp.
+          Calidad, variedad y sabor para compartir en familia. Pedí online y recibilo en tu casa.
         </p>
         <div className="mt-3 flex gap-3 md:mt-6">
           <Link href="/productos" className="btn-gold md:px-6 md:py-3 md:text-base">

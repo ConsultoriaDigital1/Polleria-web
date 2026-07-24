@@ -7,8 +7,8 @@ export function formatARS(value: number): string {
   }).format(value);
 }
 
-/** Formatea puntos con separador de miles. */
-export function formatPoints(value: number): string {
+/** Formatea una cantidad entera con separador de miles. */
+export function formatCantidad(value: number): string {
   return new Intl.NumberFormat("es-AR").format(value);
 }
 

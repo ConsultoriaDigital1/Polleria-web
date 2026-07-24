@@ -30,6 +30,8 @@ export interface EnvioPendiente {
   total: number;
   items: { name: string; qty: number }[];
   mapUrl: string | null;
+  /** Rango horario que eligió el cliente ("08:00 a 12:00"), si lo hay. */
+  franjaHoraria: string | null;
 }
 
 interface Props {
@@ -215,6 +217,11 @@ export function EntregasClient({ sucursales, repartidores, envios, enCurso = 0 }
                         <b className="text-brand-ink">{e.code}</b>
                         <span className="font-medium text-brand-ink">{e.customer}</span>
                         {e.phone && <span className="text-brand-ink/50">· {e.phone}</span>}
+                        {e.franjaHoraria && (
+                          <span className="chip bg-brand-gold/25 text-brand-ink">
+                            {e.franjaHoraria}
+                          </span>
+                        )}
                         <span className="ml-auto text-xs text-brand-ink/50">
                           {formatDateTime(e.date)}
                         </span>

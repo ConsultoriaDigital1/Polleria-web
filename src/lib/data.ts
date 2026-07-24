@@ -1,19 +1,11 @@
-import type {
-  Product,
-  Order,
-  Customer,
-  Reward,
-  PointsEntry,
-  LoyaltyTier,
-  Staff,
-} from "./types";
+import type { Product, Order, Customer, Staff } from "./types";
+
+/** Stock inicial con el que se carga cada producto del catálogo. */
+export const STOCK_INICIAL = 50;
 
 // Imágenes reales de promos (en /public).
 const IMG = {
   medallones: "/1.jpeg",
-  bannerPadre: "/2.jpeg",
-  bannerPadreFamilia: "/3.jpeg",
-  bannerPadreFesteja: "/4.jpeg",
   pataMuslo10: "/5.jpeg",
   suprema: "/6.jpeg",
   pataMuslo15: "/8.jpeg",
@@ -31,6 +23,7 @@ export const products: Product[] = [
     image: IMG.suprema,
     badge: "Promo del día",
     available: true,
+    stock: STOCK_INICIAL,
   },
   {
     id: "p-pata-muslo-10kg",
@@ -41,6 +34,7 @@ export const products: Product[] = [
     image: IMG.pataMuslo10,
     badge: "Promo del día",
     available: true,
+    stock: STOCK_INICIAL,
   },
   {
     id: "p-pata-muslo-15kg",
@@ -51,6 +45,7 @@ export const products: Product[] = [
     image: IMG.pataMuslo15,
     badge: "Promo del día",
     available: true,
+    stock: STOCK_INICIAL,
   },
   {
     id: "p-cuartos-traseros-3kg",
@@ -60,6 +55,7 @@ export const products: Product[] = [
     category: "cortes",
     image: IMG.cuartosTraseros,
     available: true,
+    stock: STOCK_INICIAL,
   },
   {
     id: "p-medallones-1kg",
@@ -70,6 +66,7 @@ export const products: Product[] = [
     image: IMG.medallones,
     badge: "Más vendido",
     available: true,
+    stock: STOCK_INICIAL,
   },
   {
     id: "p-patitas-1kg",
@@ -79,8 +76,18 @@ export const products: Product[] = [
     category: "rebozados",
     image: IMG.patitas,
     available: true,
+    stock: STOCK_INICIAL,
   },
 ];
+
+/**
+ * Producto que se regala con el código de bienvenida (una vez por teléfono).
+ * Lo usa el seed del cupón BIENVENIDA y el aviso del carrito.
+ */
+export const REGALO_BIENVENIDA_PRODUCT_ID = "p-patitas-1kg";
+
+/** Código que el cliente tiene que escribir para llevarse el regalo. */
+export const CODIGO_BIENVENIDA = "BIENVENIDA";
 
 export const categories: { id: Product["category"] | "todos"; label: string }[] = [
   { id: "todos", label: "Todos" },
@@ -159,8 +166,6 @@ export const customers: Customer[] = [
     document: "30.123.456",
     orders: 28,
     spent: 312500,
-    points: 1250,
-    tier: "Oro",
     joined: "2025-02-14",
   },
   {
@@ -171,8 +176,6 @@ export const customers: Customer[] = [
     document: "27.998.221",
     orders: 41,
     spent: 487900,
-    points: 2840,
-    tier: "Diamante",
     joined: "2024-11-03",
   },
   {
@@ -182,8 +185,6 @@ export const customers: Customer[] = [
     phone: "+54 379 488-7711",
     orders: 12,
     spent: 98700,
-    points: 540,
-    tier: "Plata",
     joined: "2025-08-20",
   },
   {
@@ -193,8 +194,6 @@ export const customers: Customer[] = [
     phone: "+54 379 401-5566",
     orders: 6,
     spent: 41200,
-    points: 180,
-    tier: "Bronce",
     joined: "2026-01-09",
   },
   {
@@ -204,8 +203,6 @@ export const customers: Customer[] = [
     phone: "+54 379 477-9080",
     orders: 19,
     spent: 176400,
-    points: 920,
-    tier: "Oro",
     joined: "2025-05-27",
   },
 ];
@@ -218,45 +215,6 @@ export const staff: Staff[] = [
   { id: "s-4", name: "Nicolás Rivero", role: "repartidor", phone: "+54 379 410-0004", permissions: [], active: true, createdAt: "2025-06-20" },
   { id: "s-5", name: "Emanuel Aguirre", role: "repartidor", phone: "+54 379 410-0005", permissions: [], active: true, createdAt: "2026-02-02" },
 ];
-
-// ---------- Club Pollería (fidelización) ----------
-export const loyaltyTiers: {
-  tier: LoyaltyTier;
-  min: number;
-  perk: string;
-}[] = [
-  { tier: "Bronce", min: 0, perk: "Acumulás 1 punto por cada $10" },
-  { tier: "Plata", min: 500, perk: "Descuentos exclusivos los martes" },
-  { tier: "Oro", min: 1000, perk: "10% extra de puntos en cada compra" },
-  { tier: "Diamante", min: 2000, perk: "Regalo sorpresa en tu cumpleaños" },
-];
-
-export const rewards: Reward[] = [
-  { id: "r-1", name: "$1.000 de descuento", cost: 1000, image: IMG.bannerPadre, highlight: true },
-  { id: "r-2", name: "Medallones 1kg GRATIS", cost: 2500, image: IMG.medallones },
-  { id: "r-3", name: "Patitas 1kg GRATIS", cost: 2500, image: IMG.patitas },
-  { id: "r-4", name: "Cuartos Traseros 3kg GRATIS", cost: 2800, image: IMG.cuartosTraseros },
-  { id: "r-5", name: "$2.500 de descuento", cost: 2200, image: IMG.suprema },
-  { id: "r-6", name: "$5.000 de descuento", cost: 4000, image: IMG.pataMuslo10 },
-];
-
-export const pointsHistory: PointsEntry[] = [
-  { id: "h-1", label: "Compra en tienda", date: "2026-05-31", points: 150, type: "compra" },
-  { id: "h-2", label: "Bonificación por nivel Oro", date: "2026-05-30", points: 250, type: "bonus" },
-  { id: "h-3", label: "Compra en tienda", date: "2026-05-29", points: 120, type: "compra" },
-  { id: "h-4", label: "Canje: Medallones 1kg", date: "2026-05-22", points: -2500, type: "canje" },
-  { id: "h-5", label: "Compra en tienda", date: "2026-05-18", points: 90, type: "compra" },
-];
-
-/** Cliente "logueado" de ejemplo para la vista de cliente del club. */
-export const currentUser = {
-  id: "c-1",
-  name: "Martín Gómez",
-  points: 1250,
-  tier: "Oro" as LoyaltyTier,
-  nextTier: "Diamante" as LoyaltyTier,
-  pointsToNext: 750,
-};
 
 export function productById(id: string): Product | undefined {
   return products.find((p) => p.id === id);

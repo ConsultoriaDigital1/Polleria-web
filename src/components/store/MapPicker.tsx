@@ -5,6 +5,7 @@ import { LocateFixed } from "lucide-react";
 import type { Map as LeafletMap, Marker } from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { CORRIENTES_CENTER, isInsideCorrientes } from "@/lib/geo";
+import { AVISO_MAPA } from "@/lib/entrega";
 import { geocodeDireccion } from "@/lib/geocode";
 
 export interface MapPoint {
@@ -193,6 +194,9 @@ export function MapPicker({
           de la ciudad.
         </p>
       )}
+      <p className="rounded-lg bg-brand-cream px-3 py-2 text-xs font-semibold text-brand-ink">
+        {AVISO_MAPA}
+      </p>
     </div>
   );
 }

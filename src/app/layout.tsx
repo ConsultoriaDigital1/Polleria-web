@@ -5,7 +5,7 @@ import { buildAccentScript } from "@/lib/theme";
 export const metadata: Metadata = {
   title: "Pollería Entre Ríos — El mejor pollo de Corrientes",
   description:
-    "Pollería Entre Ríos, Corrientes: pollo fresco todos los días. Pedí por WhatsApp al 3794 525617, envíos a domicilio en pedidos desde $100.000 y sumá puntos con el Club Pollería.",
+    "Pollería Entre Ríos, Corrientes: pollo fresco todos los días. Comprá online y recibilo a domicilio en compras desde $50.000. Consultas por WhatsApp al 3794 525617.",
   icons: {
     icon: "/logo.jpg",
     apple: "/logo.jpg",

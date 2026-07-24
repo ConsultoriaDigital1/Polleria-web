@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { MapPin, Phone, Clock, Instagram, Facebook } from "lucide-react";
 import { Logo } from "@/components/Logo";
+import { MIN_ENVIO_TOTAL } from "@/lib/geo";
+import { formatARS } from "@/lib/format";
+import { WHATSAPP_VISIBLE } from "@/lib/whatsapp";
 
 export function Footer() {
   return (
@@ -9,8 +12,8 @@ export function Footer() {
         <div className="col-span-1">
           <Logo dark />
           <p className="mt-3 text-sm leading-relaxed text-white/60">
-            El mejor pollo de Corrientes, fresco todos los días. Hacé tu pedido por WhatsApp y
-            recibilo a domicilio en pedidos desde $100.000.
+            El mejor pollo de Corrientes, fresco todos los días. Hacé tu pedido desde la web y
+            recibilo a domicilio en compras desde {formatARS(MIN_ENVIO_TOTAL)}.
           </p>
           <div className="mt-4 flex gap-3">
             <a href="#" aria-label="Instagram" className="rounded-lg bg-white/10 p-2 hover:bg-white/20">
@@ -29,22 +32,24 @@ export function Footer() {
             <li><Link href="/productos" className="hover:text-white">Productos</Link></li>
             <li><Link href="/ofertas" className="hover:text-white">Ofertas</Link></li>
             <li><Link href="/sucursales" className="hover:text-white">Sucursales</Link></li>
-            <li><Link href="/club" className="hover:text-white">Club Pollería</Link></li>
+            <li><Link href="/cuenta" className="hover:text-white">Mi cuenta</Link></li>
           </ul>
         </div>
 
         <div>
           <h4 className="mb-3 font-semibold text-white">Sucursales</h4>
           <ul className="space-y-1.5 text-sm">
-            <li className="flex items-center gap-2"><MapPin size={15} /> Junin 2198 · WhatsApp</li>
-            <li className="flex items-center gap-2"><MapPin size={15} /> Sarmiento y La Pampa · WhatsApp</li>
+            <li className="flex items-center gap-2"><MapPin size={15} /> Junin 2198</li>
+            <li className="flex items-center gap-2"><MapPin size={15} /> Sarmiento y La Pampa</li>
             <li className="flex items-center gap-2"><MapPin size={15} /> Av. Cazadores Correntinos 3038</li>
             <li className="flex items-center gap-2"><MapPin size={15} /> Av. Independencia 5328</li>
             <li className="flex items-center gap-2"><MapPin size={15} /> Av. Independencia 3540</li>
             <li className="flex items-center gap-2"><MapPin size={15} /> Calle Gutemberg 1670</li>
             <li className="flex items-center gap-2"><MapPin size={15} /> Av. Libertad 5279</li>
             <li className="flex items-center gap-2"><MapPin size={15} /> Av. Maipú 7185</li>
-            <li className="mt-2 flex items-center gap-2"><Phone size={15} /> WhatsApp 3794 525617</li>
+            <li className="mt-2 flex items-center gap-2">
+              <Phone size={15} /> Consultas: WhatsApp {WHATSAPP_VISIBLE}
+            </li>
           </ul>
         </div>
 

@@ -37,6 +37,7 @@ export function ProductsManager({ products }: { products: Product[] }) {
                 <th className="px-4 py-3 font-semibold">Producto</th>
                 <th className="px-4 py-3 font-semibold">Categoría</th>
                 <th className="px-4 py-3 font-semibold">Precio</th>
+                <th className="px-4 py-3 font-semibold">Stock</th>
                 <th className="px-4 py-3 font-semibold">Estado</th>
                 <th className="px-4 py-3 font-semibold text-right">Acciones</th>
               </tr>
@@ -64,15 +65,28 @@ export function ProductsManager({ products }: { products: Product[] }) {
                     )}
                   </td>
                   <td className="px-4 py-3">
+                    <span
+                      className={cn(
+                        "font-semibold",
+                        p.stock > 0 ? "text-brand-ink" : "text-brand-red"
+                      )}
+                    >
+                      {p.stock}
+                    </span>
+                    <span className="ml-1 text-xs text-brand-ink/50">u.</span>
+                  </td>
+                  <td className="px-4 py-3">
                     <button
                       onClick={() => toggleProductAvailability(p.id, !p.available)}
                       title="Cambiar disponibilidad"
                       className={cn(
                         "chip cursor-pointer",
-                        p.available ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
+                        p.available && p.stock > 0
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-red-100 text-red-700"
                       )}
                     >
-                      {p.available ? "Disponible" : "Sin stock"}
+                      {!p.available ? "Pausado" : p.stock > 0 ? "A la venta" : "Sin stock"}
                     </button>
                   </td>
                   <td className="px-4 py-3 text-right">
@@ -157,6 +171,18 @@ function ProductModal({ product, onClose }: { product?: Product; onClose: () => 
               />
             </Field>
           </div>
+
+          <Field label="Stock disponible (unidades)">
+            <input
+              name="stock"
+              type="number"
+              min={0}
+              step={1}
+              defaultValue={product?.stock ?? 0}
+              required
+              className="input-admin"
+            />
+          </Field>
 
           <div className="grid grid-cols-2 gap-3">
             <Field label="Categoría">

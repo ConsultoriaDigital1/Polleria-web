@@ -31,13 +31,6 @@ enum PaymentMethod {
   transferencia
 }
 
-enum LoyaltyTier {
-  Bronce
-  Plata
-  Oro
-  Diamante
-}
-
 enum Role {
   cliente
   admin
@@ -51,12 +44,6 @@ enum StaffRole {
   admin
 }
 
-enum PointsType {
-  compra
-  bonus
-  canje
-}
-
 model Product {
   id          String   @id
   name        String
@@ -67,6 +54,9 @@ model Product {
   image       String
   badge       String?
   available   Boolean  @default(true)
+  // Unidades disponibles. Se descuenta al crear el pedido y se devuelve si el
+  // pedido se cancela. Un producto se vende solo si available && stock > 0.
+  stock       Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -78,20 +68,17 @@ model Product {
 }
 
 model Customer {
-  id        String      @id @default(cuid())
+  id        String   @id @default(cuid())
   name      String
-  email     String?     @unique
-  phone     String      @unique
+  email     String?  @unique
+  phone     String   @unique
   document  String?
-  points    Int         @default(0)
-  tier      LoyaltyTier @default(Bronce)
-  role      Role        @default(cliente)
-  joinedAt  DateTime    @default(now())
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
+  role      Role     @default(cliente)
+  joinedAt  DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  orders    Order[]
-  pointsLog PointsEntry[]
+  orders Order[]
 }
 
 model Order {
@@ -103,11 +90,11 @@ model Order {
   customerName     String
   phone            String?
   address          String?
-  // Entrega: "retiro" (en sucursal) o "envio" (a domicilio).
+  // Entrega: siempre "envio" a domicilio (no hay retiro por sucursal).
   entrega          String?
-  // Sucursal elegida cuando la entrega es retiro.
-  sucursalId       String?
-  // Punto exacto de entrega marcado en el mapa (solo envíos).
+  // Rango horario de entrega elegido por el cliente ("08-12" o "17-20").
+  deliverySlot     String?
+  // Punto exacto de entrega marcado en el mapa.
   lat              Float?
   lng              Float?
   // Código que el cliente le da al repartidor al recibir el pedido; al
@@ -171,6 +158,8 @@ model Coupon {
   giftProduct       Product? @relation("CouponGiftProduct", fields: [giftProductId], references: [id])
   giftProductId     String?
   giftQty           Int      @default(1)
+  // Regalo de bienvenida: solo vale en la primera compra de cada teléfono.
+  firstPurchaseOnly Boolean  @default(false)
   active            Boolean  @default(true)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -257,16 +246,4 @@ model Staff {
   updatedAt    DateTime  @updatedAt
 
   @@index([active])
-}
-
-model PointsEntry {
-  id         String     @id @default(cuid())
-  customer   Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  customerId String
-  label      String
-  points     Int
-  type       PointsType
-  createdAt  DateTime   @default(now())
-
-  @@index([customerId])
 }

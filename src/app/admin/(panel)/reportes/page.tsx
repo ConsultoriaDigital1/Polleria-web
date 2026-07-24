@@ -1,16 +1,9 @@
 import { UserPlus, TrendingUp, CalendarDays, Users } from "lucide-react";
 import { getNewCustomersStats, getTopBuyers } from "@/lib/repo";
 import { requirePerm } from "@/lib/auth/permissions";
-import { formatARS, formatPoints } from "@/lib/format";
+import { formatARS, formatCantidad } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
-
-const tierColors: Record<string, string> = {
-  Bronce: "bg-orange-100 text-orange-700",
-  Plata: "bg-slate-200 text-slate-700",
-  Oro: "bg-amber-100 text-amber-700",
-  Diamante: "bg-cyan-100 text-cyan-700",
-};
 
 export default async function ReportesPage() {
   await requirePerm("reportes");
@@ -19,12 +12,12 @@ export default async function ReportesPage() {
   const maxMonth = Math.max(1, ...stats.byMonth.map((m) => m.count));
   const delta = stats.thisMonth - stats.lastMonth;
   const cards = [
-    { label: "Clientes totales", value: formatPoints(stats.total), icon: Users },
-    { label: "Nuevos este mes", value: formatPoints(stats.thisMonth), icon: UserPlus },
-    { label: "Últimos 30 días", value: formatPoints(stats.last30Days), icon: CalendarDays },
+    { label: "Clientes totales", value: formatCantidad(stats.total), icon: Users },
+    { label: "Nuevos este mes", value: formatCantidad(stats.thisMonth), icon: UserPlus },
+    { label: "Últimos 30 días", value: formatCantidad(stats.last30Days), icon: CalendarDays },
     {
       label: "vs. mes anterior",
-      value: `${delta >= 0 ? "+" : ""}${formatPoints(delta)}`,
+      value: `${delta >= 0 ? "+" : ""}${formatCantidad(delta)}`,
       icon: TrendingUp,
     },
   ];
@@ -33,7 +26,7 @@ export default async function ReportesPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-brand-ink">Reportes</h1>
-        <p className="text-sm text-brand-ink/55">Estadísticas de clientes y fidelización</p>
+        <p className="text-sm text-brand-ink/55">Estadísticas de clientes y ventas</p>
       </div>
 
       {/* Tarjetas de clientes nuevos */}
@@ -82,10 +75,7 @@ export default async function ReportesPage() {
                   <p className="truncate font-medium text-brand-ink">{c.name}</p>
                   <p className="text-xs text-brand-ink/50">{c.orders} pedidos</p>
                 </div>
-                <div className="text-right">
-                  <p className="font-semibold text-brand-ink">{formatARS(c.spent)}</p>
-                  <span className={`chip ${tierColors[c.tier]}`}>{c.tier}</span>
-                </div>
+                <p className="text-right font-semibold text-brand-ink">{formatARS(c.spent)}</p>
               </li>
             ))}
             {topBuyers.length === 0 && (

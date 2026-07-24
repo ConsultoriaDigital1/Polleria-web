@@ -35,6 +35,7 @@ export function CouponsManager({ coupons, products }: { coupons: Coupon[]; produ
           <td className="px-4 py-3 text-brand-ink/70">
             {c.discountPercent > 0 && <div>{c.discountPercent}% {c.discountProductName ? `en ${c.discountProductName}` : "en todo el carrito"}</div>}
             {c.giftProductName && <div>{c.giftQty}x {c.giftProductName} de regalo</div>}
+            {c.firstPurchaseOnly && <div className="text-xs font-semibold text-brand-red">Solo 1ª compra (por teléfono)</div>}
           </td>
           <td className="px-4 py-3"><span className={`chip ${c.active && c.usedCount < c.maxUses ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>{c.active && c.usedCount < c.maxUses ? "Activo" : "Inactivo"}</span></td>
           <td className="px-4 py-3 text-right"><div className="inline-flex gap-2">
@@ -67,6 +68,7 @@ function CouponModal({ coupon, products, onClose }: { coupon?: Coupon; products:
           <Field label="Producto de regalo (opcional)"><select name="giftProductId" defaultValue={coupon?.giftProductId ?? ""} className="input-admin"><option value="">Sin regalo</option>{products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
           <Field label="Cantidad"><input name="giftQty" type="number" min="1" defaultValue={coupon?.giftQty ?? 1} className="input-admin" /></Field>
         </div>
+        <label className="flex items-start gap-2 font-semibold"><input name="firstPurchaseOnly" type="checkbox" defaultChecked={coupon?.firstPurchaseOnly ?? false} className="mt-0.5 h-4 w-4 accent-brand-red" /> <span>Solo para la primera compra<span className="block text-xs font-normal text-brand-ink/55">Se puede usar una única vez por número de teléfono.</span></span></label>
         <label className="flex items-center gap-2 font-semibold"><input name="active" type="checkbox" defaultChecked={coupon?.active ?? true} className="h-4 w-4 accent-brand-red" /> Cupón activo</label>
         {state.error && <p className="rounded-lg bg-red-50 px-3 py-2 text-red-700">{state.error}</p>}
         <div className="flex justify-end gap-2"><button type="button" onClick={onClose} className="rounded-lg border border-black/10 px-4 py-2 font-semibold">Cancelar</button><button disabled={pending} className="btn-primary">{pending ? "Guardando…" : "Guardar"}</button></div>

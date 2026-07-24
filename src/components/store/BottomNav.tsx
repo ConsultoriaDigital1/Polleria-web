@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, UtensilsCrossed, Tag, Star, User } from "lucide-react";
+import { Home, UtensilsCrossed, Tag, MapPin, User } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 const items = [
   { href: "/", label: "Inicio", icon: Home },
   { href: "/productos", label: "Productos", icon: UtensilsCrossed },
   { href: "/ofertas", label: "Ofertas", icon: Tag },
-  { href: "/club", label: "Club", icon: Star },
+  { href: "/sucursales", label: "Sucursales", icon: MapPin },
   { href: "/cuenta", label: "Mi cuenta", icon: User },
 ];
 

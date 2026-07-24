@@ -6,12 +6,14 @@ import {
   quoteOrder,
   getProduct,
   updateOrderStatus,
+  CouponError,
   NoDatabaseError,
+  OutOfStockError,
 } from "@/lib/repo";
 import { hasDatabase } from "@/lib/prisma";
 import { isInsideCorrientes, MIN_ENVIO_TOTAL } from "@/lib/geo";
+import { DELIVERY_SLOTS, deliverySlotLabel } from "@/lib/entrega";
 import { isValidPhone } from "@/lib/phone";
-import { sucursales } from "@/lib/sucursales";
 import { formatARS } from "@/lib/format";
 
 // Prisma + Mercado Pago necesitan el runtime Node (no Edge).
@@ -31,11 +33,12 @@ const bodySchema = z.object({
       })
     )
     .min(1),
-  entrega: z.enum(["retiro", "envio"]),
-  sucursalId: z.string().optional(),
   direccion: z.string().optional(),
   lat: z.number().optional(),
   lng: z.number().optional(),
+  franjaHoraria: z.enum(DELIVERY_SLOTS.map((s) => s.id) as [string, ...string[]], {
+    message: "Elegí el rango horario en el que querés recibir el pedido.",
+  }),
   nombre: z.string().trim().min(2, "Decinos tu nombre."),
   telefono: z
     .string()
@@ -117,55 +120,40 @@ export async function POST(req: NextRequest) {
   }
   const body = parsed.data;
 
-  // Validación de la entrega. Nada de esto se confía del navegador.
-  let address: string | undefined;
-  if (body.entrega === "retiro") {
-    const sucursal = sucursales.find((s) => s.id === body.sucursalId);
-    if (!sucursal) {
-      return NextResponse.json(
-        { error: "Elegí la sucursal donde vas a retirar el pedido." },
-        { status: 400 }
-      );
-    }
-    address = `Retiro en ${sucursal.name} (${sucursal.address})`;
-  } else {
-    const direccion = body.direccion?.trim() ?? "";
-    if (direccion.length < 4) {
-      return NextResponse.json(
-        { error: "Completá la dirección de entrega." },
-        { status: 400 }
-      );
-    }
-    if (body.lat === undefined || body.lng === undefined) {
-      return NextResponse.json(
-        { error: "Marcá el punto de entrega en el mapa." },
-        { status: 400 }
-      );
-    }
-    if (!isInsideCorrientes(body.lat, body.lng)) {
-      return NextResponse.json(
-        {
-          error:
-            "Por el momento solo hacemos envíos dentro de la ciudad de Corrientes. Podés elegir retiro en sucursal.",
-        },
-        { status: 400 }
-      );
-    }
-    address = direccion;
+  // Validación de la entrega (siempre a domicilio). Nada de esto se confía
+  // del navegador: se revalida todo acá.
+  const direccion = body.direccion?.trim() ?? "";
+  if (direccion.length < 4) {
+    return NextResponse.json(
+      { error: "Completá la dirección de entrega (calle y altura)." },
+      { status: 400 }
+    );
   }
+  if (body.lat === undefined || body.lng === undefined) {
+    return NextResponse.json(
+      { error: "Marcá y confirmá el punto de entrega en el mapa." },
+      { status: 400 }
+    );
+  }
+  if (!isInsideCorrientes(body.lat, body.lng)) {
+    return NextResponse.json(
+      { error: "Por el momento solo hacemos envíos dentro de la ciudad de Corrientes." },
+      { status: 400 }
+    );
+  }
+  const address = direccion;
+  const franjaLabel = deliverySlotLabel(body.franjaHoraria);
 
   try {
-    // Precios reales del catálogo + validación del mínimo de envío.
+    // Precios reales del catálogo + validación del mínimo de compra.
     // Sin base de datos (dev/sandbox) se cotiza contra los datos de ejemplo.
-    const { lines, total } = hasDatabase
+    const { total } = hasDatabase
       ? await quoteOrder(body.items)
       : await quoteFromMocks(body.items);
-    if (body.entrega === "envio" && total < MIN_ENVIO_TOTAL) {
+    if (total < MIN_ENVIO_TOTAL) {
       return NextResponse.json(
         {
-          error: `El envío a domicilio es para pedidos desde ${formatARS(
-            MIN_ENVIO_TOTAL
-          )}. Sumá productos o elegí retiro en sucursal.`,
+          error: `La compra mínima es de ${formatARS(MIN_ENVIO_TOTAL)}. Sumá productos para completar tu pedido.`,
         },
         { status: 400 }
       );
@@ -178,15 +166,14 @@ export async function POST(req: NextRequest) {
       items: body.items,
       payment: "mercadopago",
       address,
-      entrega: body.entrega,
-      sucursalId: body.entrega === "retiro" ? body.sucursalId : undefined,
-      lat: body.entrega === "envio" ? body.lat : undefined,
-      lng: body.entrega === "envio" ? body.lng : undefined,
+      entrega: "envio",
+      deliverySlot: body.franjaHoraria,
+      lat: body.lat,
+      lng: body.lng,
       couponCode: body.couponCode,
       notes:
-        body.entrega === "envio"
-          ? `Pedido web · Mercado Pago · Envío a domicilio\nMapa: https://www.google.com/maps?q=${body.lat},${body.lng}`
-          : "Pedido web · Mercado Pago · Retiro en sucursal",
+        `Pedido web · Mercado Pago · Entrega ${franjaLabel}\n` +
+        `Mapa: https://www.google.com/maps?q=${body.lat},${body.lng}`,
     });
     const externalReference = order.internalId ?? order.id;
     const orderId = order.id;

@@ -39,6 +39,8 @@ export interface Product {
   /** Precio anterior, para mostrar ofertas */
   oldPrice?: number;
   available: boolean;
+  /** Unidades disponibles. Se vende solo si `available` y `stock > 0`. */
+  stock: number;
 }
 
 export interface Coupon {
@@ -52,6 +54,8 @@ export interface Coupon {
   giftProductId?: string;
   giftProductName?: string;
   giftQty: number;
+  /** Regalo de bienvenida: solo vale en la primera compra de cada teléfono. */
+  firstPurchaseOnly: boolean;
   active: boolean;
 }
 
@@ -66,8 +70,11 @@ export interface CouponQuote {
 
 export type OrderStatus = "pendiente" | "en_preparacion" | "en_camino" | "entregado" | "cancelado";
 
-/** Forma de entrega del pedido. */
-export type DeliveryType = "retiro" | "envio";
+/**
+ * Forma de entrega del pedido: siempre envío a domicilio.
+ * El retiro por sucursal ya no existe.
+ */
+export type DeliveryType = "envio";
 
 export interface OrderItem {
   productId: string;
@@ -84,8 +91,9 @@ export interface Order {
   phone?: string;
   address?: string;
   entrega?: DeliveryType;
-  sucursalId?: string;
-  /** Punto exacto de entrega marcado en el mapa (solo envíos). */
+  /** Rango horario de entrega elegido por el cliente ("08-12" o "17-20"). */
+  deliverySlot?: string;
+  /** Punto exacto de entrega marcado en el mapa. */
   lat?: number;
   lng?: number;
   /** Código que el cliente le da al repartidor al recibir el pedido. */
@@ -124,8 +132,6 @@ export interface Customer {
   document?: string;
   orders: number;
   spent: number;
-  points: number;
-  tier: LoyaltyTier;
   joined: string;
 }
 
@@ -146,22 +152,4 @@ export interface Staff {
   permissions: string[];
   active: boolean;
   createdAt: string;
-}
-
-export type LoyaltyTier = "Bronce" | "Plata" | "Oro" | "Diamante";
-
-export interface Reward {
-  id: string;
-  name: string;
-  cost: number; // puntos
-  image: string;
-  highlight?: boolean;
-}
-
-export interface PointsEntry {
-  id: string;
-  label: string;
-  date: string;
-  points: number; // positivo = ganados, negativo = canjeados
-  type: "compra" | "bonus" | "canje";
 }

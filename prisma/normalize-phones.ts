@@ -6,10 +6,10 @@
  * que "+54 379 452-5617", "0379 15 452 5617" y "3794525617" creaban tres filas
  * distintas y el historial de compras quedaba partido. Este script recalcula la
  * clave canónica (ver src/lib/phone.ts), elige un cliente "ganador" por número
- * y le reasigna los pedidos y los puntos de sus duplicados.
+ * y le reasigna los pedidos de sus duplicados.
  *
  * Ganador = el que tiene más pedidos; a igualdad, el más antiguo (conserva la
- * antigüedad en el Club). Los puntos de los duplicados se suman al ganador.
+ * antigüedad como cliente).
  *
  * Uso:
  *   pnpm tsx prisma/normalize-phones.ts          # dry-run: solo informa
@@ -17,16 +17,6 @@
  */
 import { PrismaClient } from "@prisma/client";
 import { normalizePhone } from "../src/lib/phone";
-import { loyaltyTiers } from "../src/lib/data";
-import type { LoyaltyTier } from "../src/lib/types";
-
-// Copia local de repo.tierForPoints: importar repo.ts arrastraría los módulos
-// "server-only" del panel, que no se pueden cargar en un script de node.
-function tierForPoints(points: number): LoyaltyTier {
-  let tier: LoyaltyTier = "Bronce";
-  for (const t of loyaltyTiers) if (points >= t.min) tier = t.tier;
-  return tier;
-}
 
 const prisma = new PrismaClient();
 const APPLY = process.argv.includes("--apply");
@@ -84,19 +74,14 @@ async function main() {
 
     await prisma.$transaction(async (tx) => {
       for (const loser of losers) {
-        // Los pedidos y los puntos del duplicado pasan al ganador.
+        // Los pedidos del duplicado pasan al ganador.
         await tx.order.updateMany({
-          where: { customerId: loser.id },
-          data: { customerId: winner.id },
-        });
-        await tx.pointsEntry.updateMany({
           where: { customerId: loser.id },
           data: { customerId: winner.id },
         });
       }
 
       if (losers.length) {
-        const points = list.reduce((a, c) => a + c.points, 0);
         // El email/documento del ganador puede estar vacío y el del duplicado no.
         const email = winner.email ?? losers.find((l) => l.email)?.email ?? null;
         const document = winner.document ?? losers.find((l) => l.document)?.document ?? null;
@@ -111,7 +96,7 @@ async function main() {
         }
         await tx.customer.update({
           where: { id: winner.id },
-          data: { phone: key, points, tier: tierForPoints(points), email, document },
+          data: { phone: key, email, document },
         });
         for (const loser of losers) {
           await tx.customer.delete({ where: { id: loser.id } });

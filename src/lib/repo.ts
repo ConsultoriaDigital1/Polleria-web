@@ -5,7 +5,6 @@ import type {
   Order as DbOrder,
   OrderItem as DbOrderItem,
   Customer as DbCustomer,
-  PointsEntry as DbPointsEntry,
   Staff as DbStaff,
 } from "@prisma/client";
 import type {
@@ -14,8 +13,6 @@ import type {
   OrderItem,
   OrderStatus,
   Customer,
-  LoyaltyTier,
-  PointsEntry,
   Category,
   Novedad,
   SuperOferta,
@@ -28,9 +25,7 @@ import {
   products as mockProducts,
   customers as mockCustomers,
   orders as mockOrders,
-  pointsHistory as mockPoints,
   staff as mockStaff,
-  loyaltyTiers,
   categories,
 } from "./data";
 import { OTP_RESEND_MS, OTP_MAX_ATTEMPTS, isAdminPhone } from "./auth/otp";
@@ -45,6 +40,18 @@ export class NoDatabaseError extends Error {
   constructor() {
     super("Operación no disponible: no hay base de datos configurada (DATABASE_URL).");
     this.name = "NoDatabaseError";
+  }
+}
+
+/** Se lanza cuando un producto no tiene unidades suficientes para el pedido. */
+export class OutOfStockError extends Error {
+  constructor(productName: string, disponible: number) {
+    super(
+      disponible > 0
+        ? `Nos quedan ${disponible} unidades de ${productName}. Ajustá la cantidad.`
+        : `${productName} se quedó sin stock.`
+    );
+    this.name = "OutOfStockError";
   }
 }
 
@@ -75,13 +82,6 @@ function runtimeCustomerId(phone: string) {
   return `guest-${phone}`;
 }
 
-/** Calcula el nivel del Club según los puntos acumulados. */
-export function tierForPoints(points: number): LoyaltyTier {
-  let tier: LoyaltyTier = "Bronce";
-  for (const t of loyaltyTiers) if (points >= t.min) tier = t.tier;
-  return tier;
-}
-
 // ---------- Mappers DB -> tipos públicos ----------
 function mapProduct(p: DbProduct): Product {
   return {
@@ -94,6 +94,7 @@ function mapProduct(p: DbProduct): Product {
     image: p.image,
     badge: p.badge ?? undefined,
     available: p.available,
+    stock: p.stock,
   };
 }
 
@@ -105,7 +106,7 @@ function mapOrder(o: DbOrder & { items: DbOrderItem[] }): Order {
     phone: o.phone ?? undefined,
     address: o.address ?? undefined,
     entrega: (o.entrega as Order["entrega"]) ?? undefined,
-    sucursalId: o.sucursalId ?? undefined,
+    deliverySlot: o.deliverySlot ?? undefined,
     lat: o.lat ?? undefined,
     lng: o.lng ?? undefined,
     deliveryCode: o.deliveryCode ?? undefined,
@@ -143,8 +144,6 @@ function mapCustomer(c: DbCustomer & { orders?: { total: number }[] }): Customer
     document: c.document ?? undefined,
     orders: ords.length,
     spent: ords.reduce((a, o) => a + o.total, 0),
-    points: c.points,
-    tier: c.tier as LoyaltyTier,
     joined: c.joinedAt.toISOString(),
   };
 }
@@ -161,28 +160,6 @@ function mapStaff(s: DbStaff): Staff {
     permissions: s.permissions ?? [],
     active: s.active,
     createdAt: s.createdAt.toISOString(),
-  };
-}
-
-/**
- * Club de puntos: se acumula 1 punto por cada $10 gastados.
- * Centralizado acá para que el cálculo sea idéntico en toda la app.
- */
-export const PESOS_PER_POINT = 10;
-
-/** Puntos que genera un monto gastado (redondeado hacia abajo). */
-export function pointsForAmount(amount: number): number {
-  if (!Number.isFinite(amount) || amount <= 0) return 0;
-  return Math.floor(amount / PESOS_PER_POINT);
-}
-
-function mapPoint(e: DbPointsEntry): PointsEntry {
-  return {
-    id: e.id,
-    label: e.label,
-    date: e.createdAt.toISOString(),
-    points: e.points,
-    type: e.type,
   };
 }
 
@@ -256,6 +233,7 @@ export interface ProductInput {
   image: string;
   badge?: string | null;
   available?: boolean;
+  stock?: number;
 }
 
 /** Crea un producto. El id se deriva del nombre (slug) si no se pasa. */
@@ -280,6 +258,7 @@ export async function createProduct(input: ProductInput & { id?: string }): Prom
       image: input.image,
       badge: input.badge ?? null,
       available: input.available ?? true,
+      stock: input.stock ?? 0,
     },
   });
   return mapProduct(p);
@@ -304,6 +283,7 @@ export async function updateProduct(
       image: input.image,
       badge: input.badge === undefined ? undefined : input.badge,
       available: input.available,
+      stock: input.stock,
     },
   });
   return mapProduct(p);
@@ -327,6 +307,7 @@ function mapCoupon(c: NonNullable<CouponRow>): Coupon {
     giftProductId: c.giftProductId ?? undefined,
     giftProductName: c.giftProduct?.name,
     giftQty: c.giftQty,
+    firstPurchaseOnly: c.firstPurchaseOnly,
     active: c.active,
   };
 }
@@ -349,6 +330,7 @@ export interface CouponInput {
   discountProductId?: string | null;
   giftProductId?: string | null;
   giftQty: number;
+  firstPurchaseOnly: boolean;
   active: boolean;
 }
 
@@ -375,12 +357,29 @@ export class CouponError extends Error {
 
 type QuoteLine = { productId: string; name: string; qty: number; price: number };
 
-async function resolveCoupon(code: string, lines: QuoteLine[]) {
+/**
+ * Resuelve un cupón contra los renglones del pedido. `phone` (ya normalizado)
+ * es obligatorio para los cupones de bienvenida: son de un solo uso por número,
+ * así que se chequea que ese teléfono no tenga compras anteriores.
+ */
+async function resolveCoupon(code: string, lines: QuoteLine[], phone?: string) {
   ensureDb();
   const normalized = code.trim().toUpperCase();
   const coupon = await prisma.coupon.findUnique({ where: { code: normalized }, include: couponInclude });
   if (!coupon || !coupon.active) throw new CouponError("El cupón no existe o no está activo.");
   if (coupon.usedCount >= coupon.maxUses) throw new CouponError("Este cupón ya agotó sus usos disponibles.");
+
+  if (coupon.firstPurchaseOnly) {
+    if (!phone) {
+      throw new CouponError("Completá tu WhatsApp para usar el código de bienvenida.");
+    }
+    const previas = await prisma.order.count({
+      where: { phone, status: { not: "cancelado" } },
+    });
+    if (previas > 0) {
+      throw new CouponError("El código de bienvenida es solo para tu primera compra.");
+    }
+  }
 
   const eligible = coupon.discountProductId
     ? lines.filter((line) => line.productId === coupon.discountProductId)
@@ -414,10 +413,12 @@ async function resolveCoupon(code: string, lines: QuoteLine[]) {
 
 export async function quoteCoupon(
   code: string,
-  items: { productId: string; qty: number }[]
+  items: { productId: string; qty: number }[],
+  phone?: string
 ): Promise<CouponQuote> {
   const { lines } = await quoteOrder(items);
-  return (await resolveCoupon(code, lines)).quote;
+  const normalizado = phone?.trim() ? normalizePhone(phone) : undefined;
+  return (await resolveCoupon(code, lines, normalizado)).quote;
 }
 
 // ---------- Novedades (banners de la home) ----------
@@ -665,7 +666,8 @@ export interface CreateOrderInput {
   address?: string;
   notes?: string;
   entrega?: Order["entrega"];
-  sucursalId?: string;
+  /** Rango horario de entrega ("08-12" o "17-20"). */
+  deliverySlot?: string;
   lat?: number;
   lng?: number;
   couponCode?: string;
@@ -688,8 +690,9 @@ export async function quoteOrder(
   const lines = items.map((i) => {
     const p = byId.get(i.productId);
     if (!p) throw new Error(`Producto inexistente: ${i.productId}`);
-    if (!p.available) throw new Error(`Producto sin stock: ${p.name}`);
     if (i.qty <= 0) throw new Error(`Cantidad inválida para ${p.name}`);
+    if (!p.available || p.stock <= 0) throw new OutOfStockError(p.name, 0);
+    if (p.stock < i.qty) throw new OutOfStockError(p.name, p.stock);
     return { productId: p.id, name: p.name, qty: i.qty, price: p.price };
   });
   const total = lines.reduce((a, l) => a + l.qty * l.price, 0);
@@ -732,10 +735,10 @@ async function createOrderMem(input: CreateOrderInput): Promise<Order> {
     phone: input.customer ? normalizePhone(input.customer.phone) : undefined,
     address: input.address,
     entrega: input.entrega,
-    sucursalId: input.entrega === "retiro" ? input.sucursalId : undefined,
-    lat: input.entrega === "envio" ? input.lat : undefined,
-    lng: input.entrega === "envio" ? input.lng : undefined,
-    deliveryCode: input.entrega === "envio" ? generateDeliveryCode() : undefined,
+    deliverySlot: input.deliverySlot,
+    lat: input.lat,
+    lng: input.lng,
+    deliveryCode: generateDeliveryCode(),
     notes: input.notes,
     items: lines,
     total,
@@ -751,12 +754,6 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
   if (!hasDatabase) return createOrderMem(input);
 
   const { lines, total: subtotal } = await quoteOrder(input.items);
-  const couponResult = input.couponCode ? await resolveCoupon(input.couponCode, lines) : null;
-  const discount = couponResult?.quote.discount ?? 0;
-  const total = Math.max(0, subtotal - discount);
-  const orderLines = couponResult?.quote.gift
-    ? [...lines, { ...couponResult.quote.gift, price: 0 }]
-    : lines;
 
   // Resolver / crear cliente. El teléfono se normaliza SIEMPRE antes del
   // upsert: es la clave que asocia la compra con el cliente, y si se guarda
@@ -765,6 +762,9 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
   let customerId = input.customerId ?? null;
   let customerName = input.customer?.name ?? "Cliente";
   const phone = input.customer ? normalizePhone(input.customer.phone) : undefined;
+  // Teléfono con el que se chequean los cupones de un uso por número: el que
+  // vino en el pedido o, si se pidió con customerId, el del cliente guardado.
+  let customerPhone = phone;
   if (!customerId && input.customer) {
     const c = await prisma.customer.upsert({
       where: { phone: phone! },
@@ -786,7 +786,19 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
     const c = await prisma.customer.findUnique({ where: { id: customerId } });
     if (!c) throw new Error(`Cliente inexistente: ${customerId}`);
     customerName = c.name;
+    customerPhone = c.phone;
   }
+
+  // El cupón se resuelve con el teléfono ya normalizado: los códigos de
+  // bienvenida valen una sola vez por número.
+  const couponResult = input.couponCode
+    ? await resolveCoupon(input.couponCode, lines, customerPhone)
+    : null;
+  const discount = couponResult?.quote.discount ?? 0;
+  const total = Math.max(0, subtotal - discount);
+  const orderLines = couponResult?.quote.gift
+    ? [...lines, { ...couponResult.quote.gift, price: 0 }]
+    : lines;
 
   const createData = {
       customerId,
@@ -795,11 +807,11 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
       address: input.address,
       notes: input.notes,
       entrega: input.entrega ?? null,
-      sucursalId: input.sucursalId ?? null,
+      deliverySlot: input.deliverySlot ?? null,
       lat: input.lat ?? null,
       lng: input.lng ?? null,
-      // Solo los envíos llevan código de entrega (lo valida el repartidor).
-      deliveryCode: input.entrega === "envio" ? generateDeliveryCode() : null,
+      // El cliente le da este código al repartidor al recibir el pedido.
+      deliveryCode: generateDeliveryCode(),
       total,
       discount,
       couponId: couponResult?.coupon.id ?? null,
@@ -808,20 +820,39 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
       items: { create: orderLines },
   };
 
-  const created = couponResult
-    ? await prisma.$transaction(async (tx) => {
-        const claimed = await tx.coupon.updateMany({
-          where: {
-            id: couponResult.coupon.id,
-            active: true,
-            usedCount: { lt: couponResult.coupon.maxUses },
-          },
-          data: { usedCount: { increment: 1 } },
+  // Todo junto y atómico: descontar stock (incluido el regalo), consumir el
+  // cupón y crear el pedido. Si algo no da, no se crea nada y no se pierde
+  // stock. El `where` con `stock: { gte: qty }` es lo que evita sobrevender
+  // cuando dos personas compran la última unidad a la vez.
+  const created = await prisma.$transaction(async (tx) => {
+    for (const line of orderLines) {
+      const claimed = await tx.product.updateMany({
+        where: { id: line.productId, available: true, stock: { gte: line.qty } },
+        data: { stock: { decrement: line.qty } },
+      });
+      if (claimed.count !== 1) {
+        const actual = await tx.product.findUnique({
+          where: { id: line.productId },
+          select: { stock: true },
         });
-        if (claimed.count !== 1) throw new CouponError("Este cupón ya agotó sus usos disponibles.");
-        return tx.order.create({ data: createData, include: { items: true } });
-      })
-    : await prisma.order.create({ data: createData, include: { items: true } });
+        throw new OutOfStockError(line.name, actual?.stock ?? 0);
+      }
+    }
+
+    if (couponResult) {
+      const claimed = await tx.coupon.updateMany({
+        where: {
+          id: couponResult.coupon.id,
+          active: true,
+          usedCount: { lt: couponResult.coupon.maxUses },
+        },
+        data: { usedCount: { increment: 1 } },
+      });
+      if (claimed.count !== 1) throw new CouponError("Este cupón ya agotó sus usos disponibles.");
+    }
+
+    return tx.order.create({ data: createData, include: { items: true } });
+  });
 
   const withCode = await prisma.order.update({
     where: { id: created.id },
@@ -858,17 +889,33 @@ export async function updateOrderStatus(idOrCode: string, status: OrderStatus): 
   ensureDb();
   const existing = await prisma.order.findFirst({
     where: { OR: [{ code: idOrCode }, { id: idOrCode }] },
+    include: { items: true },
   });
   if (!existing) return null;
-  const updated = await prisma.order.update({
-    where: { id: existing.id },
-    data: {
-      status,
-      ...(status === "entregado" && existing.status !== "entregado"
-        ? { deliveredAt: new Date() }
-        : {}),
-    },
-    include: { items: true },
+
+  // Al cancelar devolvemos al catálogo las unidades que el pedido había
+  // reservado al crearse. Solo la primera vez: el guard de estado evita que
+  // un segundo "cancelado" (webhook repetido) infle el stock.
+  const devuelveStock = status === "cancelado" && existing.status !== "cancelado";
+  const updated = await prisma.$transaction(async (tx) => {
+    if (devuelveStock) {
+      for (const item of existing.items) {
+        await tx.product.update({
+          where: { id: item.productId },
+          data: { stock: { increment: item.qty } },
+        });
+      }
+    }
+    return tx.order.update({
+      where: { id: existing.id },
+      data: {
+        status,
+        ...(status === "entregado" && existing.status !== "entregado"
+          ? { deliveredAt: new Date() }
+          : {}),
+      },
+      include: { items: true },
+    });
   });
   const order = mapOrder(updated);
 
@@ -1322,20 +1369,44 @@ export async function getCustomer(id: string): Promise<Customer | null> {
   return runtimeCustomers.get(id) ?? mockCustomers.find((c) => c.id === id) ?? null;
 }
 
-export async function findCustomer(by: { phone?: string; email?: string }): Promise<Customer | null> {
+function normalizeDocument(value?: string): string {
+  return String(value ?? "").trim().replace(/\D/g, "");
+}
+
+export async function findCustomer(by: {
+  phone?: string;
+  email?: string;
+  document?: string;
+}): Promise<Customer | null> {
   // Se busca por el teléfono normalizado, que es como quedó guardado.
   const phone = by.phone ? normalizePhone(by.phone) : undefined;
+  const document = normalizeDocument(by.document);
   if (hasDatabase) {
-    const c = await prisma.customer.findFirst({
-      where: { OR: [phone ? { phone } : {}, by.email ? { email: by.email } : {}] },
+    const clauses = [
+      ...(phone ? [{ phone }] : []),
+      ...(by.email ? [{ email: by.email }] : []),
+      ...(by.document?.trim() ? [{ document: by.document.trim() }] : []),
+    ];
+    if (clauses.length === 0) return null;
+    let c = await prisma.customer.findFirst({
+      where: { OR: clauses },
       include: { orders: { select: { total: true } } },
     });
+    if (!c && document) {
+      const candidates = await prisma.customer.findMany({
+        where: { document: { not: null } },
+        include: { orders: { select: { total: true } } },
+      });
+      c = candidates.find((candidate) => normalizeDocument(candidate.document ?? "") === document) ?? null;
+    }
     return c ? mapCustomer(c) : null;
   }
   return (
     [...runtimeCustomers.values(), ...mockCustomers].find(
       (c) =>
-        (phone && normalizePhone(c.phone) === phone) || (by.email && c.email === by.email)
+        (phone && normalizePhone(c.phone) === phone) ||
+        (by.email && c.email === by.email) ||
+        (document && normalizeDocument(c.document) === document)
     ) ?? null
   );
 }
@@ -1384,83 +1455,6 @@ export async function updateCustomer(
     include: { orders: { select: { total: true } } },
   });
   return mapCustomer(c);
-}
-
-// ---------- Club de puntos ----------
-export interface PointsSummary {
-  customerId: string;
-  points: number;
-  tier: LoyaltyTier;
-  history: PointsEntry[];
-}
-
-export async function getPoints(customerId: string): Promise<PointsSummary | null> {
-  if (hasDatabase) {
-    const c = await prisma.customer.findUnique({
-      where: { id: customerId },
-      include: { pointsLog: { orderBy: { createdAt: "desc" } } },
-    });
-    if (!c) return null;
-    return {
-      customerId: c.id,
-      points: c.points,
-      tier: c.tier as LoyaltyTier,
-      history: c.pointsLog.map(mapPoint),
-    };
-  }
-  const c = mockCustomers.find((x) => x.id === customerId);
-  if (!c) return null;
-  return {
-    customerId: c.id,
-    points: c.points,
-    tier: c.tier,
-    history: customerId === "c-1" ? mockPoints : [],
-  };
-}
-
-export async function addPoints(
-  customerId: string,
-  entry: { points: number; label: string; type: PointsEntry["type"] }
-): Promise<PointsSummary | null> {
-  ensureDb();
-  const c = await prisma.customer.findUnique({ where: { id: customerId } });
-  if (!c) return null;
-
-  const newPoints = c.points + entry.points;
-  if (newPoints < 0) throw new Error("Puntos insuficientes para el canje.");
-  const newTier = tierForPoints(newPoints);
-
-  await prisma.$transaction([
-    prisma.pointsEntry.create({
-      data: { customerId, label: entry.label, points: entry.points, type: entry.type },
-    }),
-    prisma.customer.update({
-      where: { id: customerId },
-      data: { points: newPoints, tier: newTier },
-    }),
-  ]);
-
-  return getPoints(customerId);
-}
-
-/**
- * Acredita a un cliente los puntos que corresponden a un monto gastado.
- * Pensado para el panel admin: el encargado carga el monto (o productos) de
- * una compra presencial y se computan los puntos canjeables.
- */
-export async function creditPurchasePoints(
-  customerId: string,
-  amount: number,
-  label = "Compra en local"
-): Promise<{ summary: PointsSummary | null; points: number; amount: number }> {
-  ensureDb();
-  const points = pointsForAmount(amount);
-  if (points <= 0) {
-    const summary = await getPoints(customerId);
-    return { summary, points: 0, amount };
-  }
-  const summary = await addPoints(customerId, { points, label, type: "compra" });
-  return { summary, points, amount };
 }
 
 // ---------- Equipo (empleados) ----------
@@ -1727,20 +1721,26 @@ export interface SessionSubject {
  * El rol se decide por `ADMIN_PHONES`: si el teléfono está en la lista, queda
  * como admin (y se persiste en la base si la hay).
  */
-export async function loginByPhone(input: { phone: string; name?: string }): Promise<SessionSubject> {
+export async function loginByPhone(input: {
+  phone: string;
+  name?: string;
+  document?: string;
+  email?: string;
+}): Promise<SessionSubject> {
   const role: Role = isAdminPhone(input.phone) ? "admin" : "cliente";
 
   if (hasDatabase) {
     const c = await prisma.customer.upsert({
       where: { phone: input.phone },
       update: {
-        // No pisar el nombre existente con uno vacío; promover a admin si corresponde.
-        ...(input.name ? { name: input.name } : {}),
+        // No pisar los datos del cliente en los ingresos posteriores.
         ...(role === "admin" ? { role } : {}),
       },
       create: {
         phone: input.phone,
         name: input.name?.trim() || "Cliente",
+        document: input.document?.trim() || null,
+        email: input.email?.trim() || null,
         role,
       },
     });
@@ -1758,18 +1758,18 @@ export async function loginByPhone(input: { phone: string; name?: string }): Pro
   const mock = mockCustomers.find((c) => normalizePhone(c.phone) === phone);
   const id = mock?.id ?? runtimeCustomerId(phone);
   const existing = runtimeCustomers.get(id) ?? mock;
-  const name = input.name?.trim() || existing?.name || "Cliente";
+  const isNew = !existing;
+  const name = isNew ? input.name?.trim() || "Cliente" : existing.name;
   const customer: Customer = existing
-    ? { ...existing, name, phone }
+    ? { ...existing, phone }
     : {
         id,
         name,
-        email: "",
+        email: input.email?.trim() || "",
         phone,
+        document: input.document?.trim(),
         orders: 0,
         spent: 0,
-        points: 0,
-        tier: "Bronce",
         joined: new Date().toISOString(),
       };
   runtimeCustomers.set(id, customer);

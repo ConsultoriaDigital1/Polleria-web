@@ -10,20 +10,43 @@ import {
   sendOtp,
   OTP_TTL_MS,
 } from "@/lib/auth/otp";
-import { storeOtp } from "@/lib/repo";
+import { findCustomer, storeOtp } from "@/lib/repo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const schema = z.object({ phone: z.string().min(5, "El teléfono es obligatorio.") });
+const schema = z
+  .object({
+    phone: z.string().trim().optional(),
+    document: z.string().trim().optional(),
+  })
+  .refine((value) => Boolean(value.phone) !== Boolean(value.document), {
+    message: "Ingresá un teléfono o un documento.",
+  });
 
 /** Genera un OTP, lo guarda y lo envía por WhatsApp (n8n). */
 export async function POST(req: NextRequest) {
   try {
-    const { phone: raw } = schema.parse(await req.json());
-    const phone = normalizePhone(raw);
-    if (!isValidPhone(phone)) {
-      return fail("El número de teléfono no es válido.", 422, "INVALID_PHONE");
+    const body = schema.parse(await req.json());
+    let phone: string;
+    let existingCustomer;
+
+    if (body.document) {
+      existingCustomer = await findCustomer({ document: body.document });
+      if (!existingCustomer) {
+        return fail(
+          "No encontramos una cuenta con ese documento. Primero ingresá con tu teléfono.",
+          404,
+          "ACCOUNT_NOT_FOUND"
+        );
+      }
+      phone = normalizePhone(existingCustomer.phone);
+    } else {
+      phone = normalizePhone(body.phone ?? "");
+      if (!isValidPhone(phone)) {
+        return fail("El número de teléfono no es válido.", 422, "INVALID_PHONE");
+      }
+      existingCustomer = await findCustomer({ phone });
     }
 
     const code = generateCode();
@@ -46,7 +69,13 @@ export async function POST(req: NextRequest) {
     }
 
     console.info(`[OTP] Código generado para ${phone}. Entrega: ${delivery}.`);
-    return ok({ sent: delivery === "whatsapp", delivery, phone, expiresInSec: OTP_TTL_MS / 1000 });
+    return ok({
+      sent: delivery === "whatsapp",
+      delivery,
+      phone,
+      expiresInSec: OTP_TTL_MS / 1000,
+      isFirstLogin: !existingCustomer,
+    });
   } catch (e) {
     return handleError(e);
   }

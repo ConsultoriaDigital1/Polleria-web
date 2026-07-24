@@ -37,6 +37,7 @@ export async function saveCouponAction(
       discountProductId,
       giftProductId,
       giftQty,
+      firstPurchaseOnly: formData.get("firstPurchaseOnly") === "on",
       active: formData.get("active") === "on",
     });
   } catch (e) {

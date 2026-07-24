@@ -1,7 +1,7 @@
 # 🔌 API Pollería Entre Ríos — Referencia para n8n
 
 API REST para que el **bot de consultoría digital en n8n** consuma el catálogo,
-tome pedidos y gestione clientes y el Club de puntos.
+tome pedidos y gestione clientes.
 
 - **Base URL:** `https://TU_DOMINIO/api/v1` (local: `http://localhost:3000/api/v1`)
 - **Formato:** JSON. Respuestas exitosas → `{ "data": ... }`. Errores → `{ "error": { "message", "code" } }`.
@@ -71,10 +71,13 @@ POST /orders
   ],
   "payment": "mercadopago",
   "address": "Av. Siempreviva 742",
+  "deliverySlot": "08-12",
   "notes": "Sin sal"
 }
 ```
 > Alternativamente, en lugar de `customer` podés mandar `customerId` de un cliente existente.
+> `deliverySlot` es el rango horario de entrega: `08-12` (08:00 a 12:00) o `17-20` (17:00 a 20:00).
+> El stock se descuenta al crear el pedido: si no alcanza, la respuesta es `400` con el detalle.
 
 Respuesta (`201`):
 ```json
@@ -106,30 +109,8 @@ POST /customers
 Ejemplo de cliente:
 ```json
 { "id": "c-1", "name": "Martín Gómez", "email": "...", "phone": "...",
-  "orders": 28, "spent": 312500, "points": 1250, "tier": "Oro", "joined": "..." }
+  "orders": 28, "spent": 312500, "joined": "..." }
 ```
-
-### Club de puntos
-
-```
-GET  /customers/:id/points
-POST /customers/:id/points
-```
-**Consultar saldo + historial:**
-```json
-{ "data": { "customerId": "c-1", "points": 1250, "tier": "Oro",
-  "history": [ { "id": "...", "label": "Compra en tienda", "date": "...", "points": 150, "type": "compra" } ] } }
-```
-**Sumar (compra/bonus) o canjear (negativo) puntos** — el nivel se recalcula solo:
-```json
-POST /customers/c-1/points
-{ "points": 150, "label": "Compra #1043", "type": "compra" }
-```
-```json
-POST /customers/c-1/points
-{ "points": -800, "label": "Canje: Papas gratis", "type": "canje" }
-```
-`type`: `compra | bonus | canje`. Niveles: `Bronce (0) → Plata (500) → Oro (1000) → Diamante (2000)`.
 
 ---
 
@@ -158,7 +139,6 @@ curl -X POST https://TU_DOMINIO/api/v1/orders \
 # Estado de un pedido
 curl -H "Authorization: Bearer $API_KEY" "https://TU_DOMINIO/api/v1/orders/%231043"
 
-# Buscar cliente por teléfono y consultar puntos
+# Buscar cliente por teléfono
 curl -H "Authorization: Bearer $API_KEY" "https://TU_DOMINIO/api/v1/customers?phone=+54343555"
-curl -H "Authorization: Bearer $API_KEY" https://TU_DOMINIO/api/v1/customers/c-1/points
 ```

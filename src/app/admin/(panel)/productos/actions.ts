@@ -39,10 +39,13 @@ export async function saveProduct(
   const price = Math.round(Number(formData.get("price")));
   const oldPriceRaw = String(formData.get("oldPrice") ?? "").trim();
   const oldPrice = oldPriceRaw ? Math.round(Number(oldPriceRaw)) : null;
+  const stock = Math.round(Number(formData.get("stock")));
   const available = formData.get("available") === "on";
 
   if (!name) return { error: "El nombre es obligatorio." };
   if (!Number.isFinite(price) || price <= 0) return { error: "El precio debe ser mayor a 0." };
+  if (!Number.isInteger(stock) || stock < 0)
+    return { error: "El stock debe ser un número igual o mayor a 0." };
   if (oldPrice !== null && (!Number.isFinite(oldPrice) || oldPrice <= price))
     return { error: "El precio anterior debe ser mayor al precio actual." };
   if (!CATEGORIES.includes(category)) return { error: "Categoría inválida." };
@@ -57,6 +60,7 @@ export async function saveProduct(
     image,
     badge: badge || null,
     available,
+    stock,
   };
 
   try {

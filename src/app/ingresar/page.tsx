@@ -3,10 +3,11 @@
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, KeyRound, Phone, User, Loader2 } from "lucide-react";
+import { ArrowLeft, FileText, KeyRound, Mail, Phone, User, Loader2 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 
 type Step = "phone" | "code";
+type LoginMethod = "phone" | "document";
 const PHONE_PREFIX = "+549";
 const PHONE_DIGITS_LENGTH = 10;
 
@@ -16,20 +17,30 @@ function IngresarForm() {
   const next = params.get("next");
 
   const [step, setStep] = useState<Step>("phone");
+  const [loginMethod, setLoginMethod] = useState<LoginMethod>("phone");
   const [phoneDigits, setPhoneDigits] = useState("");
+  const [otpPhone, setOtpPhone] = useState("");
+  const [isFirstLogin, setIsFirstLogin] = useState(false);
   const [name, setName] = useState("");
+  const [document, setDocument] = useState("");
+  const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const phone = `${PHONE_PREFIX}${phoneDigits}`;
+  const activePhone = otpPhone || phone;
 
   async function requestCode(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setNotice(null);
-    if (phoneDigits.length !== PHONE_DIGITS_LENGTH) {
+    if (loginMethod === "phone" && phoneDigits.length !== PHONE_DIGITS_LENGTH) {
       setError("Ingresá característica + número, sin 0 ni 15. Ej: 3794525617.");
+      return;
+    }
+    if (loginMethod === "document" && document.trim().length < 3) {
+      setError("Ingresá un documento válido.");
       return;
     }
     setLoading(true);
@@ -37,10 +48,12 @@ function IngresarForm() {
       const res = await fetch("/api/auth/request-otp", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ phone }),
+        body: JSON.stringify(loginMethod === "phone" ? { phone } : { document: document.trim() }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json?.error?.message ?? "No se pudo enviar el código.");
+      setOtpPhone(json?.data?.phone ?? "");
+      setIsFirstLogin(Boolean(json?.data?.isFirstLogin));
       setStep("code");
       setCode("");
       setNotice(
@@ -63,7 +76,17 @@ function IngresarForm() {
       const res = await fetch("/api/auth/verify-otp", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ phone, code, name: name.trim() || undefined }),
+        body: JSON.stringify({
+          phone: activePhone,
+          code,
+          ...(isFirstLogin
+            ? {
+                name: name.trim(),
+                document: document.trim(),
+                email: email.trim(),
+              }
+            : {}),
+        }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json?.error?.message ?? "El código no es válido.");
@@ -87,8 +110,12 @@ function IngresarForm() {
           <h1 className="text-xl font-bold text-brand-ink">Ingresá con tu teléfono</h1>
           <p className="mt-1 text-sm text-brand-ink/55">
             {step === "phone"
-              ? "Poné solo característica + número para recibir el código."
-              : `Ingresá el código de 4 dígitos enviado a ${phone}.`}
+              ? loginMethod === "phone"
+                ? "Poné solo característica + número para recibir el código."
+                : "Ingresá el documento de una cuenta existente."
+              : isFirstLogin
+                ? "Es tu primer ingreso. Completá tus datos y verificá el código."
+                : `Ingresá el código de 4 dígitos enviado al teléfono registrado.`}
           </p>
 
           {error && (
@@ -102,38 +129,95 @@ function IngresarForm() {
 
           {step === "phone" ? (
             <form onSubmit={requestCode} className="mt-5 space-y-3">
-              <Field icon={Phone}>
-                <span className="shrink-0 font-semibold text-brand-ink">{PHONE_PREFIX}</span>
-                <input
-                  type="tel"
-                  autoFocus
-                  required
-                  inputMode="tel"
-                  maxLength={PHONE_DIGITS_LENGTH}
-                  placeholder="3794525617"
-                  value={phoneDigits}
-                  onChange={(e) =>
-                    setPhoneDigits(e.target.value.replace(/\D/g, "").slice(0, PHONE_DIGITS_LENGTH))
-                  }
-                  className="w-full bg-transparent text-brand-ink outline-none placeholder:text-brand-ink/35"
-                />
-              </Field>
-              <p className="px-1 text-xs text-brand-ink/45">
-                Se envía como {PHONE_PREFIX}3794525617. Sin 0 ni 15.
-              </p>
-              <Field icon={User}>
-                <input
-                  type="text"
-                  placeholder="Tu nombre (si es tu primera vez)"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full bg-transparent text-brand-ink outline-none placeholder:text-brand-ink/35"
-                />
-              </Field>
+              {loginMethod === "phone" ? (
+                <>
+                  <Field icon={Phone}>
+                    <span className="shrink-0 font-semibold text-brand-ink">{PHONE_PREFIX}</span>
+                    <input
+                      type="tel"
+                      autoFocus
+                      required
+                      inputMode="tel"
+                      maxLength={PHONE_DIGITS_LENGTH}
+                      placeholder="3794525617"
+                      value={phoneDigits}
+                      onChange={(e) =>
+                        setPhoneDigits(e.target.value.replace(/\D/g, "").slice(0, PHONE_DIGITS_LENGTH))
+                      }
+                      className="w-full bg-transparent text-brand-ink outline-none placeholder:text-brand-ink/35"
+                    />
+                  </Field>
+                  <p className="px-1 text-xs text-brand-ink/45">
+                    Se envía como {PHONE_PREFIX}3794525617. Sin 0 ni 15.
+                  </p>
+                </>
+              ) : (
+                <Field icon={FileText}>
+                  <input
+                    type="text"
+                    autoFocus
+                    required
+                    inputMode="numeric"
+                    placeholder="Documento / DNI"
+                    value={document}
+                    onChange={(e) => setDocument(e.target.value)}
+                    className="w-full bg-transparent text-brand-ink outline-none placeholder:text-brand-ink/35"
+                  />
+                </Field>
+              )}
               <SubmitButton loading={loading}>Enviar código</SubmitButton>
+              <button
+                type="button"
+                onClick={() => {
+                  setLoginMethod((method) => (method === "phone" ? "document" : "phone"));
+                  setError(null);
+                  setNotice(null);
+                }}
+                className="w-full py-2 text-sm font-semibold text-brand-ink/60 hover:text-brand-ink"
+              >
+                {loginMethod === "phone" ? "Ingresar con documento" : "Ingresar con teléfono"}
+              </button>
             </form>
           ) : (
             <form onSubmit={verifyCode} className="mt-5 space-y-3">
+              {isFirstLogin && (
+                <>
+                  <p className="rounded-lg bg-brand-cream/60 px-3 py-2 text-xs text-brand-ink/65">
+                    Solo te los pedimos una vez para crear tu cuenta.
+                  </p>
+                  <Field icon={User}>
+                    <input
+                      type="text"
+                      required
+                      autoFocus
+                      placeholder="Nombre completo"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="w-full bg-transparent text-brand-ink outline-none placeholder:text-brand-ink/35"
+                    />
+                  </Field>
+                  <Field icon={FileText}>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Documento"
+                      value={document}
+                      onChange={(e) => setDocument(e.target.value)}
+                      className="w-full bg-transparent text-brand-ink outline-none placeholder:text-brand-ink/35"
+                    />
+                  </Field>
+                  <Field icon={Mail}>
+                    <input
+                      type="email"
+                      required
+                      placeholder="Correo electrónico"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full bg-transparent text-brand-ink outline-none placeholder:text-brand-ink/35"
+                    />
+                  </Field>
+                </>
+              )}
               <Field icon={KeyRound}>
                 <input
                   type="text"
@@ -153,6 +237,7 @@ function IngresarForm() {
                 type="button"
                 onClick={() => {
                   setStep("phone");
+                  setIsFirstLogin(false);
                   setError(null);
                   setNotice(null);
                 }}

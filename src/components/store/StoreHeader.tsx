@@ -15,7 +15,6 @@ const navLinks = [
   { href: "/productos", label: "Productos" },
   { href: "/ofertas", label: "Ofertas" },
   { href: "/sucursales", label: "Sucursales" },
-  { href: "/club", label: "Club Pollería" },
   { href: "/cuenta", label: "Mi cuenta" },
 ];
 

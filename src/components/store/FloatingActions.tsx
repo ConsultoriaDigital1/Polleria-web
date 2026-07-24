@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Sparkles, X, Send, Loader2 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { WHATSAPP_SOPORTE_TEXTO, WHATSAPP_SOPORTE_URL } from "@/lib/whatsapp";
 
-const WHATSAPP_URL = "https://wa.me/543794525617";
 const SALUDO =
   "¡Hola! Soy el asistente de Entre Ríos 🍗 Preguntame por productos, precios, sucursales o envíos.";
 
@@ -14,7 +14,9 @@ interface Msg {
 }
 
 /**
- * Botones flotantes de la tienda: WhatsApp (abajo) y asistente de IA (arriba).
+ * Botones flotantes de la tienda: WhatsApp de soporte (abajo) y asistente de IA
+ * (arriba). El WhatsApp es SOLO para consultas o problemas: las compras se
+ * cierran en el carrito con Mercado Pago.
  * En mobile se levantan por encima de la BottomNav para no taparla.
  */
 export function FloatingActions() {
@@ -34,13 +36,17 @@ export function FloatingActions() {
         </button>
 
         <a
-          href={WHATSAPP_URL}
+          href={WHATSAPP_SOPORTE_URL}
           target="_blank"
           rel="noopener noreferrer"
-          aria-label="Escribinos por WhatsApp"
-          className="flex h-14 w-14 items-center justify-center rounded-full bg-[#25D366] text-white shadow-card transition hover:scale-105 active:scale-95"
+          title={WHATSAPP_SOPORTE_TEXTO}
+          aria-label={WHATSAPP_SOPORTE_TEXTO}
+          className="flex items-center gap-2 rounded-full bg-[#25D366] py-3 pl-4 pr-5 text-white shadow-card transition hover:scale-105 active:scale-95"
         >
           <WhatsAppIcon />
+          <span className="max-w-[9.5rem] text-left text-xs font-bold leading-tight">
+            {WHATSAPP_SOPORTE_TEXTO}
+          </span>
         </a>
       </div>
 
