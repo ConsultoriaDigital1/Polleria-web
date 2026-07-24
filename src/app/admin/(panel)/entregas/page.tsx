@@ -2,16 +2,23 @@ import { listOrders, listActiveRoute, listRouteHistory, listStaff } from "@/lib/
 import { requirePerm } from "@/lib/auth/permissions";
 import { sucursales } from "@/lib/sucursales";
 import { googleMapsPointUrl, googleMapsRouteUrl, DEFAULT_ROUTE_ORIGIN } from "@/lib/route";
-import { deliverySlotLabel } from "@/lib/entrega";
+import { deliverySlotLabel, DELIVERY_SLOTS } from "@/lib/entrega";
 import type { Order } from "@/lib/types";
 import { EntregasClient, type EnvioPendiente } from "./EntregasClient";
-import { RutaEnCursoClient, type RutaStop } from "./RutaEnCursoClient";
+import type { RutaStop, RutaEnCursoProps } from "./RutaEnCursoClient";
+import { RepartidoresActivos, type RepartidorActivo } from "./RepartidoresActivos";
 import { HistorialRutas } from "./HistorialRutas";
 
 export const dynamic = "force-dynamic";
 
 function sucursalName(id?: string) {
   return sucursales.find((s) => s.id === id)?.name ?? id ?? "—";
+}
+
+/** Posición de la franja horaria para ordenar: primero la mañana, después la tarde. */
+function slotOrder(id?: string) {
+  const i = DELIVERY_SLOTS.findIndex((s) => s.id === id);
+  return i === -1 ? DELIVERY_SLOTS.length : i;
 }
 
 export default async function EntregasPage() {
@@ -29,7 +36,12 @@ export default async function EntregasPage() {
   const staffName = (id?: string) => equipo.find((s) => s.id === id)?.name ?? null;
 
   // Todos los pedidos son envíos a domicilio (no existe el retiro por sucursal).
-  const envios = listos;
+  // Se ordenan por franja horaria (mañana antes que tarde) y, dentro de cada
+  // franja, por antigüedad: arriba queda siempre el que pidió primero.
+  const envios = [...listos].sort(
+    (a, b) =>
+      slotOrder(a.deliverySlot) - slotOrder(b.deliverySlot) || a.date.localeCompare(b.date)
+  );
   const enCamino = ruta.filter((o) => o.status === "en_camino");
 
   const sucursalOptions = sucursales.map((s) => ({ id: s.id, name: s.name }));
@@ -46,12 +58,15 @@ export default async function EntregasPage() {
     items: o.items.map((i) => ({ name: i.name, qty: i.qty })),
     mapUrl: o.lat != null && o.lng != null ? googleMapsPointUrl({ lat: o.lat, lng: o.lng }) : null,
     franjaHoraria: deliverySlotLabel(o.deliverySlot),
+    slotId: o.deliverySlot ?? null,
   }));
 
   // Cada cierre es un bloque independiente, incluso si sale el mismo repartidor.
   const routeKey = (o: Order) =>
     o.routeBatchId ?? `legacy:${o.repartidorId ?? "sin-asignar"}:${o.dispatchedAt ?? ""}`;
-  const rutaActivas = [...new Set(ruta.map(routeKey))].map((key) => {
+  const rutaActivas: (RutaEnCursoProps & { repartidorId: string })[] = [
+    ...new Set(ruta.map(routeKey)),
+  ].map((key) => {
     const pedidos = ruta.filter((o) => routeKey(o) === key);
     const originSucursal = sucursales.find((s) => s.id === pedidos[0]?.originSucursalId);
     const routePoints = pedidos
@@ -72,7 +87,9 @@ export default async function EntregasPage() {
       repartidor: staffName(o.repartidorId),
     }));
     return {
-      key,
+      routeKey: key,
+      batchId: key,
+      repartidorId: pedidos[0]?.repartidorId ?? "sin-asignar",
       repartidor: staffName(pedidos[0]?.repartidorId) ?? "Sin asignar",
       dispatchedAt: pedidos[0]?.dispatchedAt ?? null,
       stops,
@@ -89,6 +106,20 @@ export default async function EntregasPage() {
     };
   });
 
+  // Una tarjeta por repartidor (aunque tenga varios lotes en la calle), para que
+  // la pantalla no sea un choclo de rutas abiertas.
+  const repartidoresActivos: RepartidorActivo[] = [];
+  for (const activa of rutaActivas) {
+    const actual = repartidoresActivos.find((r) => r.id === activa.repartidorId);
+    if (actual) actual.rutas.push(activa);
+    else
+      repartidoresActivos.push({
+        id: activa.repartidorId,
+        name: activa.repartidor,
+        rutas: [activa],
+      });
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -98,19 +129,8 @@ export default async function EntregasPage() {
         </p>
       </div>
 
-      {/* Reparto en curso: tracker en vivo con carga de códigos */}
-      {rutaActivas.map((activa) => (
-        <RutaEnCursoClient
-          key={activa.key}
-          stops={activa.stops}
-          routeMapUrl={activa.routeMapUrl}
-          originName={activa.originName}
-          routeKey={activa.key}
-          batchId={activa.key}
-          repartidor={activa.repartidor}
-          dispatchedAt={activa.dispatchedAt}
-        />
-      ))}
+      {/* Repartidores con rutas activas: tarjetas plegadas, se abre la del que se elige */}
+      <RepartidoresActivos repartidores={repartidoresActivos} />
 
       <div className="flex justify-end">
         <a

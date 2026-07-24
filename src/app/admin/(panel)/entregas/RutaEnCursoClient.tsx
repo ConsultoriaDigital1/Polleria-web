@@ -31,7 +31,7 @@ export interface RutaStop {
   repartidor: string | null;
 }
 
-interface Props {
+export interface RutaEnCursoProps {
   stops: RutaStop[];
   routeMapUrl: string | null;
   originName: string;
@@ -56,7 +56,7 @@ export function RutaEnCursoClient({
   batchId,
   repartidor,
   dispatchedAt,
-}: Props) {
+}: RutaEnCursoProps) {
   const router = useRouter();
   const [code, setCode] = useState("");
   const [state, setState] = useState<ConfirmarEntregaState | null>(null);

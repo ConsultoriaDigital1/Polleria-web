@@ -1128,8 +1128,15 @@ export interface RouteHistory {
   orders: Order[];
 }
 
-/** Historial de lotes ya cerrados, con cada pedido en el orden de su ruta. */
-export async function listRouteHistory(limit = 30): Promise<RouteHistory[]> {
+/**
+ * Historial de lotes ya cerrados, con cada pedido en el orden de su ruta.
+ * Con `repartidorId` devuelve solo los lotes que salieron a cargo de ese
+ * repartidor: es el historial que ve cada uno en su propia página de reparto.
+ */
+export async function listRouteHistory(
+  limit = 30,
+  repartidorId?: string
+): Promise<RouteHistory[]> {
   const grouped = new Map<string, RouteHistory>();
   const add = (order: Order) => {
     if (order.routeSeq == null || !order.routeClosedAt) return;
@@ -1152,10 +1159,17 @@ export async function listRouteHistory(limit = 30): Promise<RouteHistory[]> {
   };
 
   if (!hasDatabase) {
-    for (const order of runtimeOrders.values()) add(order);
+    for (const order of runtimeOrders.values()) {
+      if (repartidorId && order.repartidorId !== repartidorId) continue;
+      add(order);
+    }
   } else {
     const rows = await prisma.order.findMany({
-      where: { routeSeq: { not: null }, routeClosedAt: { not: null } },
+      where: {
+        routeSeq: { not: null },
+        routeClosedAt: { not: null },
+        ...(repartidorId ? { repartidorId } : {}),
+      },
       orderBy: { routeClosedAt: "desc" },
       include: { items: true },
     });

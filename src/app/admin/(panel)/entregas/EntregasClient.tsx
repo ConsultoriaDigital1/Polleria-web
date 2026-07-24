@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { Fragment, useMemo, useState, useTransition } from "react";
 import {
   Bike,
   Check,
   CheckSquare,
   ClipboardList,
+  Clock,
   ExternalLink,
   Loader2,
   MapPin,
@@ -32,6 +33,8 @@ export interface EnvioPendiente {
   mapUrl: string | null;
   /** Rango horario que eligió el cliente ("08:00 a 12:00"), si lo hay. */
   franjaHoraria: string | null;
+  /** Id del rango horario ("08-12"), para agrupar la lista por franja. */
+  slotId: string | null;
 }
 
 interface Props {
@@ -125,10 +128,11 @@ export function EntregasClient({ sucursales, repartidores, envios, enCurso = 0 }
       )}
 
       <p className="mb-3 text-sm text-brand-ink/60">
-        Elegí qué pedidos entran en el reparto y qué repartidor sale con ellos. Antes de armar la
-        ruta te mostramos el total de productos para que confirmes el stock; después avisamos a
-        cada cliente que su pedido salió. El repartidor ve su ruta entrando con su usuario en{" "}
-        <b>/reparto</b>.
+        Elegí qué pedidos entran en el reparto y qué repartidor sale con ellos. La lista está
+        agrupada por franja horaria y, dentro de cada franja, arriba quedan los que pidieron
+        primero. Antes de armar la ruta te mostramos el total de productos para que confirmes el
+        stock; después avisamos a cada cliente que su pedido salió. El repartidor ve su ruta
+        entrando con su usuario en <b>/reparto</b>.
       </p>
 
       {/* Sucursal de salida + repartidor asignado */}
@@ -196,68 +200,82 @@ export function EntregasClient({ sucursales, repartidores, envios, enCurso = 0 }
           </div>
 
           <ul className="divide-y divide-black/5 rounded-xl border border-black/5">
-            {envios.map((e) => {
+            {envios.map((e, i) => {
               const marcado = seleccion.has(e.id);
+              // La lista viene ordenada por franja y, dentro de cada una, por
+              // orden de compra: se corta con un encabezado al cambiar de franja.
+              const abreFranja = i === 0 || envios[i - 1].slotId !== e.slotId;
               return (
-                <li
-                  key={e.id}
-                  className={`flex items-start gap-3 px-3 py-3 text-sm transition ${
-                    marcado ? "bg-brand-cream/40" : "bg-white opacity-60"
-                  }`}
-                >
-                  <label className="flex flex-1 cursor-pointer items-start gap-3">
-                    <input
-                      type="checkbox"
-                      checked={marcado}
-                      onChange={() => toggle(e.id)}
-                      className="mt-1 h-4 w-4 flex-none accent-[rgb(200,16,46)]"
-                    />
-                    <span className="min-w-0 flex-1">
-                      <span className="flex flex-wrap items-center gap-x-2">
-                        <b className="text-brand-ink">{e.code}</b>
-                        <span className="font-medium text-brand-ink">{e.customer}</span>
-                        {e.phone && <span className="text-brand-ink/50">· {e.phone}</span>}
-                        {e.franjaHoraria && (
-                          <span className="chip bg-brand-gold/25 text-brand-ink">
-                            {e.franjaHoraria}
+                <Fragment key={e.id}>
+                  {abreFranja && (
+                    <li className="flex items-center gap-2 bg-brand-cream/70 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-brand-ink/60">
+                      <Clock size={12} className="text-brand-red" />
+                      {e.franjaHoraria ?? "Sin franja horaria"}
+                      <span className="ml-auto font-semibold normal-case tracking-normal text-brand-ink/45">
+                        {envios.filter((o) => o.slotId === e.slotId).length} pedidos · primero el
+                        que pidió antes
+                      </span>
+                    </li>
+                  )}
+                  <li
+                    className={`flex items-start gap-3 px-3 py-3 text-sm transition ${
+                      marcado ? "bg-brand-cream/40" : "bg-white opacity-60"
+                    }`}
+                  >
+                    <label className="flex flex-1 cursor-pointer items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={marcado}
+                        onChange={() => toggle(e.id)}
+                        className="mt-1 h-4 w-4 flex-none accent-[rgb(200,16,46)]"
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="flex flex-wrap items-center gap-x-2">
+                          <b className="text-brand-ink">{e.code}</b>
+                          <span className="font-medium text-brand-ink">{e.customer}</span>
+                          {e.phone && <span className="text-brand-ink/50">· {e.phone}</span>}
+                          {e.franjaHoraria && (
+                            <span className="chip bg-brand-gold/25 text-brand-ink">
+                              {e.franjaHoraria}
+                            </span>
+                          )}
+                          <span className="ml-auto text-xs text-brand-ink/50">
+                            {formatDateTime(e.date)}
                           </span>
+                        </span>
+                        {e.address && (
+                          <span className="block truncate text-brand-ink/60">{e.address}</span>
                         )}
-                        <span className="ml-auto text-xs text-brand-ink/50">
-                          {formatDateTime(e.date)}
+                        <span className="block text-xs text-brand-ink/55">
+                          {e.items.map((i) => `${i.qty}× ${i.name}`).join(", ")} ·{" "}
+                          <b className="text-brand-ink/80">{formatARS(e.total)}</b>
                         </span>
                       </span>
-                      {e.address && (
-                        <span className="block truncate text-brand-ink/60">{e.address}</span>
-                      )}
-                      <span className="block text-xs text-brand-ink/55">
-                        {e.items.map((i) => `${i.qty}× ${i.name}`).join(", ")} ·{" "}
-                        <b className="text-brand-ink/80">{formatARS(e.total)}</b>
-                      </span>
-                    </span>
-                  </label>
-                  <span className="flex flex-none items-center gap-1 pt-0.5">
-                    <a
-                      href={etiquetasUrl([e.id])}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title="Imprimir etiqueta del pedido"
-                      className="rounded-lg border border-black/10 p-1.5 text-brand-ink/60 hover:bg-black/5 hover:text-brand-ink"
-                    >
-                      <Printer size={14} />
-                    </a>
-                    {e.mapUrl && (
+                    </label>
+                    <span className="flex flex-none items-center gap-1 pt-0.5">
                       <a
-                        href={e.mapUrl}
+                        href={etiquetasUrl([e.id])}
                         target="_blank"
                         rel="noopener noreferrer"
-                        title="Ver en el mapa"
-                        className="rounded-lg border border-black/10 p-1.5 text-brand-red hover:bg-black/5"
+                        title="Imprimir etiqueta del pedido"
+                        className="rounded-lg border border-black/10 p-1.5 text-brand-ink/60 hover:bg-black/5 hover:text-brand-ink"
                       >
-                        <MapPin size={14} />
+                        <Printer size={14} />
                       </a>
-                    )}
-                  </span>
-                </li>
+                      {e.mapUrl && (
+                        <a
+                          href={e.mapUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="Ver en el mapa"
+                          className="rounded-lg border border-black/10 p-1.5 text-brand-red hover:bg-black/5"
+                        >
+                          <MapPin size={14} />
+                        </a>
+                      )}
+                    </span>
+                  </li>
+                </Fragment>
               );
             })}
           </ul>

@@ -3,12 +3,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  History,
   Loader2,
   LogIn,
   LogOut,
   MapPin,
   Navigation,
   Package,
+  PackageCheck,
+  Phone,
   RefreshCw,
 } from "lucide-react";
 
@@ -35,11 +40,47 @@ interface RutaResponse {
   repartidor: string | null;
 }
 
+/** Una parada de un lote ya cerrado, tal como la devuelve el historial. */
+interface HistorialStop {
+  code: string;
+  routeSeq: number | null;
+  customer: string;
+  phone: string | null;
+  address: string | null;
+  status: string;
+  deliveredAt: string | null;
+}
+
+/** Reparto ya cerrado del repartidor logueado. */
+interface HistorialLote {
+  batchId: string;
+  dispatchedAt: string | null;
+  closedAt: string | null;
+  origen: string | null;
+  total: number;
+  entregados: number;
+  stops: HistorialStop[];
+}
+
 function horaCorta(iso: string | null): string | null {
   if (!iso) return null;
   return new Intl.DateTimeFormat("es-AR", { hour: "2-digit", minute: "2-digit" }).format(
     new Date(iso)
   );
+}
+
+function fechaCorta(iso: string | null): string {
+  if (!iso) return "—";
+  return new Intl.DateTimeFormat("es-AR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(iso));
+}
+
+function loteLabel(batchId: string): string {
+  return batchId.startsWith("legacy:") ? "Lote anterior" : `Lote ${batchId.slice(0, 8).toUpperCase()}`;
 }
 
 const LOGIN_URL = "/admin/login?next=%2Freparto";
@@ -54,6 +95,13 @@ export default function RepartoPage() {
   const [confirmando, setConfirmando] = useState(false);
   const [feedback, setFeedback] = useState<{ ok: boolean; msg: string } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Historial de lotes cerrados: se pide recién cuando el repartidor lo abre.
+  const [verHistorial, setVerHistorial] = useState(false);
+  const [historial, setHistorial] = useState<HistorialLote[] | null>(null);
+  const [cargandoHistorial, setCargandoHistorial] = useState(false);
+  const [errorHistorial, setErrorHistorial] = useState<string | null>(null);
+  const [loteAbierto, setLoteAbierto] = useState<string | null>(null);
 
   const cargarRuta = useCallback(async () => {
     setError(null);
@@ -74,6 +122,27 @@ export default function RepartoPage() {
       setCargando(false);
     }
   }, []);
+
+  const cargarHistorial = useCallback(async () => {
+    setCargandoHistorial(true);
+    setErrorHistorial(null);
+    try {
+      const res = await fetch("/api/reparto/historial", { cache: "no-store" });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error || "No se pudo cargar el historial.");
+      setHistorial((json?.lotes ?? []) as HistorialLote[]);
+    } catch (e) {
+      setErrorHistorial(e instanceof Error ? e.message : "No se pudo cargar el historial.");
+    } finally {
+      setCargandoHistorial(false);
+    }
+  }, []);
+
+  const toggleHistorial = () => {
+    const abrir = !verHistorial;
+    setVerHistorial(abrir);
+    if (abrir && historial === null && !cargandoHistorial) cargarHistorial();
+  };
 
   useEffect(() => {
     cargarRuta();
@@ -156,6 +225,7 @@ export default function RepartoPage() {
             onClick={() => {
               setCargando(true);
               cargarRuta();
+              if (historial !== null) cargarHistorial();
             }}
             className="inline-flex items-center gap-1 rounded-lg border border-black/10 bg-white px-3 py-1.5 text-xs font-semibold text-brand-ink"
           >
@@ -291,6 +361,14 @@ export default function RepartoPage() {
                       )}
                     </p>
                     <p className="truncate text-sm text-brand-ink/60">{s.address}</p>
+                    {s.phone && (
+                      <a
+                        href={`tel:${s.phone}`}
+                        className="mt-0.5 inline-flex items-center gap-1 text-sm font-semibold text-brand-red"
+                      >
+                        <Phone size={13} /> {s.phone}
+                      </a>
+                    )}
                   </div>
                   {s.mapUrl && !entregado && (
                     <a
@@ -309,6 +387,123 @@ export default function RepartoPage() {
           </ol>
         </>
       )}
+
+      {/* Historial de repartos ya cerrados, agrupado por lote */}
+      <section className="mt-5">
+        <button
+          onClick={toggleHistorial}
+          aria-expanded={verHistorial}
+          className="flex w-full items-center gap-2 rounded-2xl bg-white px-4 py-3 text-left shadow-soft"
+        >
+          <History size={18} className="flex-none text-brand-gold" />
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-bold text-brand-ink">Mi historial de repartos</span>
+            <span className="block text-xs text-brand-ink/55">
+              Lotes cerrados con lo que entregaste en cada uno.
+            </span>
+          </span>
+          {verHistorial ? (
+            <ChevronUp size={18} className="flex-none text-brand-ink/40" />
+          ) : (
+            <ChevronDown size={18} className="flex-none text-brand-ink/40" />
+          )}
+        </button>
+
+        {verHistorial && (
+          <div className="mt-2 space-y-2">
+            {cargandoHistorial ? (
+              <div className="flex items-center justify-center gap-2 py-6 text-sm text-brand-ink/60">
+                <Loader2 size={16} className="animate-spin" /> Cargando historial…
+              </div>
+            ) : errorHistorial ? (
+              <p className="rounded-xl bg-brand-red/10 px-3 py-3 text-center text-sm font-semibold text-brand-red">
+                {errorHistorial}
+              </p>
+            ) : !historial || historial.length === 0 ? (
+              <p className="rounded-xl bg-white px-3 py-4 text-center text-sm text-brand-ink/55 shadow-soft">
+                Todavía no tenés lotes cerrados.
+              </p>
+            ) : (
+              historial.map((lote) => {
+                const abierto = loteAbierto === lote.batchId;
+                return (
+                  <div key={lote.batchId} className="overflow-hidden rounded-2xl bg-white shadow-soft">
+                    <button
+                      onClick={() => setLoteAbierto(abierto ? null : lote.batchId)}
+                      aria-expanded={abierto}
+                      className="flex w-full items-center gap-2 px-4 py-3 text-left"
+                    >
+                      <PackageCheck size={16} className="flex-none text-emerald-600" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-bold text-brand-ink">
+                          {loteLabel(lote.batchId)}
+                        </span>
+                        <span className="block text-xs text-brand-ink/55">
+                          {fechaCorta(lote.closedAt ?? lote.dispatchedAt)}
+                          {lote.origen ? ` · sale de ${lote.origen}` : ""}
+                        </span>
+                      </span>
+                      <span className="chip flex-none bg-emerald-100 text-emerald-700">
+                        {lote.entregados}/{lote.total}
+                      </span>
+                      {abierto ? (
+                        <ChevronUp size={16} className="flex-none text-brand-ink/40" />
+                      ) : (
+                        <ChevronDown size={16} className="flex-none text-brand-ink/40" />
+                      )}
+                    </button>
+
+                    {abierto && (
+                      <ul className="border-t border-black/5 bg-brand-cream/20 px-3 py-2">
+                        {lote.stops.map((s) => (
+                          <li
+                            key={s.code}
+                            className="flex items-start gap-2.5 border-b border-black/5 py-2 last:border-b-0"
+                          >
+                            <span className="mt-0.5 flex h-6 w-6 flex-none items-center justify-center rounded-full bg-brand-cream text-[11px] font-bold text-brand-ink">
+                              {s.routeSeq ?? "–"}
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <p className="flex flex-wrap items-center gap-x-2 text-sm font-semibold text-brand-ink">
+                                {s.customer}
+                                <span className="font-mono text-xs font-normal text-brand-ink/50">
+                                  {s.code}
+                                </span>
+                              </p>
+                              {s.address && (
+                                <p className="truncate text-xs text-brand-ink/55">{s.address}</p>
+                              )}
+                              {s.phone && (
+                                <a
+                                  href={`tel:${s.phone}`}
+                                  className="inline-flex items-center gap-1 text-xs font-semibold text-brand-red"
+                                >
+                                  <Phone size={11} /> {s.phone}
+                                </a>
+                              )}
+                            </div>
+                            <span
+                              className={`chip flex-none ${
+                                s.status === "entregado"
+                                  ? "bg-emerald-100 text-emerald-700"
+                                  : "bg-brand-cream text-brand-ink/60"
+                              }`}
+                            >
+                              {s.status === "entregado"
+                                ? (horaCorta(s.deliveredAt) ?? "Entregado")
+                                : "Sin entregar"}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
