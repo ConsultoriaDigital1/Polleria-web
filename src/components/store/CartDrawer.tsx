@@ -205,9 +205,11 @@ export function CartDrawer() {
                       </button>
                     </div>
                     <span className="text-sm text-brand-ink/60">{formatARS(l.product.price)}</span>
-                    <span className="text-[11px] font-semibold text-brand-ink/45">
-                      {l.product.stock} disponibles
-                    </span>
+                    {(l.product.stock <= 0 || !l.product.available) && (
+                      <span className="text-[11px] font-semibold text-brand-red">
+                        {l.product.stock <= 0 ? "Agotado" : "No disponible"}
+                      </span>
+                    )}
                     <div className="mt-auto flex items-center gap-2">
                       <button
                         onClick={() => setQty(l.product.id, l.qty - 1)}
@@ -219,13 +221,17 @@ export function CartDrawer() {
                       <span className="w-6 text-center text-sm font-semibold">{l.qty}</span>
                       <button
                         onClick={() => setQty(l.product.id, Math.min(l.qty + 1, l.product.stock))}
-                        disabled={l.qty >= l.product.stock}
+                        disabled={
+                          l.qty >= l.product.stock ||
+                          l.product.stock <= 0 ||
+                          !l.product.available
+                        }
                         className="rounded-md border border-black/10 p-1 hover:bg-black/5 disabled:opacity-30"
                         aria-label="Sumar"
                       >
                         <Plus size={14} />
                       </button>
-                      {l.qty >= l.product.stock && (
+                      {l.product.stock > 0 && l.product.available && l.qty >= l.product.stock && (
                         <span className="text-[11px] font-semibold text-brand-red">
                           Máximo disponible
                         </span>

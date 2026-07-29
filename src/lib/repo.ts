@@ -717,6 +717,8 @@ async function quoteOrderMem(
     const p = await getProduct(i.productId);
     const name = p?.name ?? i.name ?? i.productId;
     const price = p?.price ?? i.price ?? 0;
+    if (p && (!p.available || p.stock <= 0)) throw new OutOfStockError(name, 0);
+    if (p && p.stock < i.qty) throw new OutOfStockError(name, p.stock);
     lines.push({ productId: i.productId, name, qty: i.qty, price });
   }
   const total = lines.reduce((a, l) => a + l.qty * l.price, 0);

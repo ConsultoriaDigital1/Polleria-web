@@ -25,17 +25,19 @@ export const useCart = create<CartState>()(
     (set, get) => ({
       lines: [],
       add: (product, qty = 1) => {
+        if (!product.available || product.stock <= 0 || qty <= 0) return;
         track("cart_add", { productId: product.id });
         set((state) => {
           const existing = state.lines.find((l) => l.product.id === product.id);
           if (existing) {
+            const nextQty = Math.min(existing.qty + qty, product.stock);
             return {
               lines: state.lines.map((l) =>
-                l.product.id === product.id ? { ...l, qty: l.qty + qty } : l
+                l.product.id === product.id ? { ...l, product, qty: nextQty } : l
               ),
             };
           }
-          return { lines: [...state.lines, { product, qty }] };
+          return { lines: [...state.lines, { product, qty: Math.min(qty, product.stock) }] };
         });
       },
       remove: (productId) =>
@@ -43,14 +45,18 @@ export const useCart = create<CartState>()(
           lines: state.lines.filter((l) => l.product.id !== productId),
         })),
       setQty: (productId, qty) =>
-        set((state) => ({
-          lines:
-            qty <= 0
-              ? state.lines.filter((l) => l.product.id !== productId)
-              : state.lines.map((l) =>
-                  l.product.id === productId ? { ...l, qty } : l
-                ),
-        })),
+        set((state) => {
+          const line = state.lines.find((l) => l.product.id === productId);
+          const nextQty = line ? Math.min(qty, line.product.stock) : qty;
+          return {
+            lines:
+              nextQty <= 0
+                ? state.lines.filter((l) => l.product.id !== productId)
+                : state.lines.map((l) =>
+                    l.product.id === productId ? { ...l, qty: nextQty } : l
+                  ),
+          };
+        }),
       clear: () => set({ lines: [] }),
       count: () => get().lines.reduce((acc, l) => acc + l.qty, 0),
       total: () => get().lines.reduce((acc, l) => acc + l.qty * l.product.price, 0),

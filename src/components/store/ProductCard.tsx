@@ -11,7 +11,9 @@ export function ProductCard({ product }: { product: Product }) {
   const showToast = useToast((s) => s.show);
   const enCarrito = useCart((s) => s.lines.find((l) => l.product.id === product.id)?.qty ?? 0);
 
-  const sinStock = !product.available || product.stock <= 0;
+  const agotado = product.stock <= 0;
+  const noDisponible = !product.available;
+  const noSePuedeComprar = agotado || noDisponible;
   const alcanzoElTope = enCarrito >= product.stock;
 
   return (
@@ -44,25 +46,23 @@ export function ProductCard({ product }: { product: Product }) {
           )}
         </div>
 
-        <span
-          className={`mt-1 text-xs font-semibold ${
-            sinStock ? "text-brand-red" : "text-emerald-700"
-          }`}
-        >
-          {sinStock ? "Sin stock" : `Stock: ${product.stock} disponibles`}
-        </span>
+        {noSePuedeComprar && (
+          <span className="mt-1 text-xs font-semibold text-brand-red">
+            {agotado ? "Agotado" : "No disponible"}
+          </span>
+        )}
 
         <button
           onClick={() => {
             add(product);
             showToast(product.name, { variant: "cart" });
           }}
-          disabled={sinStock || alcanzoElTope}
+          disabled={noSePuedeComprar || alcanzoElTope}
           className="btn-primary mt-3 w-full disabled:cursor-not-allowed disabled:opacity-40"
           aria-label={`Agregar ${product.name}`}
         >
           <Plus size={16} />
-          {sinStock ? "Sin stock" : alcanzoElTope ? "Máximo disponible" : "Agregar"}
+          {agotado ? "Agotado" : noDisponible ? "No disponible" : alcanzoElTope ? "Máximo disponible" : "Agregar"}
         </button>
       </div>
     </div>

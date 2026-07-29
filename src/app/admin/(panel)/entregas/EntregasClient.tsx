@@ -53,7 +53,9 @@ function etiquetasUrl(ids: string[], autoPrint = false): string {
 }
 
 export function EntregasClient({ sucursales, repartidores, envios, enCurso = 0 }: Props) {
-  const [sucursalId, setSucursalId] = useState(sucursales[0]?.id ?? "");
+  const [sucursalId, setSucursalId] = useState(
+    sucursales.find((s) => s.id === "maipu")?.id ?? sucursales[0]?.id ?? ""
+  );
   const [repartidorId, setRepartidorId] = useState(repartidores[0]?.id ?? "");
   // Por defecto entran todos a la ruta; el encargado destilda los que no salen.
   const [seleccion, setSeleccion] = useState<Set<string>>(() => new Set(envios.map((e) => e.id)));
