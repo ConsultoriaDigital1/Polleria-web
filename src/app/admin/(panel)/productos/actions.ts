@@ -10,7 +10,7 @@ import {
   NoDatabaseError,
   ProductInUseError,
 } from "@/lib/repo";
-import { deleteProductImage, saveProductImage } from "@/lib/product-images";
+import { deleteProductImage, isUploadedFile, saveProductImage } from "@/lib/product-images";
 import { stripImageVersion } from "@/lib/image-url";
 import type { Category } from "@/lib/types";
 
@@ -20,16 +20,6 @@ export interface SaveProductState {
 }
 
 const CATEGORIES: Category[] = ["cortes", "cajones", "rebozados"];
-
-function isUploadedFile(value: FormDataEntryValue | null): value is File {
-  return (
-    value !== null &&
-    typeof value === "object" &&
-    typeof (value as File).arrayBuffer === "function" &&
-    typeof (value as File).type === "string" &&
-    typeof (value as File).size === "number"
-  );
-}
 
 async function requireAdmin(): Promise<string | null> {
   return assertPerm("productos");

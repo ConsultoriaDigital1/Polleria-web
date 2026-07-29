@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { assertPerm } from "@/lib/auth/permissions";
 import { getProduct, updateProduct, upsertSuperOferta, NoDatabaseError, getSuperOferta } from "@/lib/repo";
-import { deleteProductImage, saveProductImage } from "@/lib/product-images";
+import { deleteProductImage, isUploadedFile, saveProductImage } from "@/lib/product-images";
 import { stripImageVersion } from "@/lib/image-url";
 
 export interface SetOfferState {
@@ -61,16 +61,6 @@ export async function setOffer(id: string, offerPrice: number | null): Promise<S
 export interface SaveSuperOfertaState {
   ok?: boolean;
   error?: string;
-}
-
-function isUploadedFile(value: FormDataEntryValue | null): value is File {
-  return (
-    value !== null &&
-    typeof value === "object" &&
-    typeof (value as File).arrayBuffer === "function" &&
-    typeof (value as File).type === "string" &&
-    typeof (value as File).size === "number"
-  );
 }
 
 /**

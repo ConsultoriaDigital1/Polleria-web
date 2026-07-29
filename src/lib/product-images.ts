@@ -8,6 +8,17 @@ import { stripImageVersion } from "./image-url";
 export const PRODUCT_IMAGE_PREFIX = "/uploads/products/";
 export const MAX_PRODUCT_IMAGE_SIZE = 10 * 1024 * 1024;
 
+/** Evita depender de `instanceof File`, que no es confiable entre runtimes. */
+export function isUploadedFile(value: FormDataEntryValue | null): value is File {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    typeof (value as File).arrayBuffer === "function" &&
+    typeof (value as File).type === "string" &&
+    typeof (value as File).size === "number"
+  );
+}
+
 const PRODUCT_IMAGE_DIR = path.join(process.cwd(), "public", "uploads", "products");
 
 const MIME_EXTENSIONS: Record<string, string> = {
