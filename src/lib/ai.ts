@@ -1,7 +1,6 @@
 import "server-only";
 import { listProducts } from "./repo";
 import { sucursales } from "./sucursales";
-import { MIN_ENVIO_TOTAL } from "./geo";
 import { formatARS } from "./format";
 
 /**
@@ -60,7 +59,7 @@ REGLAS:
 
 ENVÍOS:
 - Todos los pedidos son con envío a domicilio, solo dentro de la ciudad de Corrientes. NO existe el retiro por sucursal.
-- La compra mínima es de ${formatARS(MIN_ENVIO_TOTAL)}.
+- No hay monto mínimo de compra.
 - Al comprar se elige un rango horario de entrega: 08:00 a 12:00 o 17:00 a 20:00.
 - Las compras hechas a la mañana se reciben a la tarde; las hechas a la tarde, a la mañana del día siguiente.
 - La dirección se carga con calle y altura solamente (sin piso, depto ni barrio).

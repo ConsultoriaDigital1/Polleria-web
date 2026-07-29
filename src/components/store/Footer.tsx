@@ -1,8 +1,6 @@
 import Link from "next/link";
 import { MapPin, Phone, Clock, Instagram, Facebook } from "lucide-react";
 import { Logo } from "@/components/Logo";
-import { MIN_ENVIO_TOTAL } from "@/lib/geo";
-import { formatARS } from "@/lib/format";
 import { WHATSAPP_VISIBLE } from "@/lib/whatsapp";
 
 export function Footer() {
@@ -13,7 +11,7 @@ export function Footer() {
           <Logo dark />
           <p className="mt-3 text-sm leading-relaxed text-white/60">
             El mejor pollo de Corrientes, fresco todos los días. Hacé tu pedido desde la web y
-            recibilo a domicilio en compras desde {formatARS(MIN_ENVIO_TOTAL)}.
+            recibilo a domicilio.
           </p>
           <div className="mt-4 flex gap-3">
             <a href="#" aria-label="Instagram" className="rounded-lg bg-white/10 p-2 hover:bg-white/20">

@@ -8,7 +8,7 @@
 export const CORRIENTES_CENTER = { lat: -27.4692, lng: -58.8306 };
 
 /** Monto mínimo de compra para poder cerrar el pedido. */
-export const MIN_ENVIO_TOTAL = 50_000;
+export const MIN_ENVIO_TOTAL = 0;
 
 /**
  * Caja que encierra el ejido urbano de Corrientes capital.

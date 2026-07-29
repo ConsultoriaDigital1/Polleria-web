@@ -6,8 +6,6 @@ import { ProductCatalog } from "@/components/store/ProductCatalog";
 import { SuperOfertaHero } from "@/components/store/SuperOfertaHero";
 import { AvisoTurnos } from "@/components/store/AvisoTurnos";
 import { sucursales } from "@/lib/sucursales";
-import { MIN_ENVIO_TOTAL } from "@/lib/geo";
-import { formatARS } from "@/lib/format";
 import {
   WHATSAPP_SOPORTE_TEXTO,
   WHATSAPP_SOPORTE_URL,
@@ -112,7 +110,7 @@ export default async function HomePage() {
             </h3>
             <p className="mt-1 text-xs text-brand-ink/70 md:mt-2 md:text-base">
               📱 {WHATSAPP_VISIBLE} · Estamos para ayudarte con tu pedido. Las compras se hacen
-              desde la web, con envío a domicilio desde {formatARS(MIN_ENVIO_TOTAL)}.
+              desde la web, con envío a domicilio.
             </p>
           </div>
           <span className="text-4xl md:text-6xl" aria-hidden>
@@ -137,7 +135,7 @@ export default async function HomePage() {
           <Feature
             icon={Truck}
             title="Envíos"
-            subtitle={`Desde ${formatARS(MIN_ENVIO_TOTAL)}`}
+            subtitle="A domicilio"
             compact
           />
         </div>
