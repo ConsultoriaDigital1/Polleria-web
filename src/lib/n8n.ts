@@ -46,7 +46,7 @@ function messageForOrderEvent(event: OrderEvent, order: Order): string {
     case "pedido_confirmado":
       return `✅ Recibimos tu pedido ${order.id}. Ya estamos preparándolo.`;
     case "pedido_en_camino":
-      return `🔐 Este es el código de entrega de tu pedido ${order.id}: ${order.deliveryCode ?? ""}. Dáselo al repartidor al recibirlo. No lo compartas antes.`;
+      return `🚚 Tu pedido está saliendo de la sucursal.\n🔐 Este es tu código: ${order.deliveryCode ?? ""}. Debés dárselo al repartidor cuando te entregue tu pedido.`;
     case "pedido_entregado":
       return `🙌 Tu pedido ${order.id} fue entregado. ¡Gracias por tu compra!`;
     case "pedido_cancelado":

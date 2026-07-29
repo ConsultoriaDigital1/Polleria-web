@@ -22,8 +22,8 @@ armás el flujo de mensajes al cliente y la ruta optimizada del repartidor.
 {
   "event": "pedido_en_camino",
   "at": "2026-07-03T14:05:00.000Z",
-  "message": "🔐 Este es el código de entrega de tu pedido #1042: 4821. Dáselo al repartidor al recibirlo. No lo compartas antes.",
-  "mensaje": "🔐 Este es el código de entrega de tu pedido #1042: 4821. Dáselo al repartidor al recibirlo. No lo compartas antes.",
+  "message": "🚚 Tu pedido está saliendo de la sucursal.\n🔐 Este es tu código: 4821. Debés dárselo al repartidor cuando te entregue tu pedido.",
+  "mensaje": "🚚 Tu pedido está saliendo de la sucursal.\n🔐 Este es tu código: 4821. Debés dárselo al repartidor cuando te entregue tu pedido.",
   "order": {
     "id": "#1042",
     "internalId": "cmc...",
@@ -48,7 +48,7 @@ Eventos posibles:
 | Evento | Cuándo se dispara | Mensaje sugerido al cliente |
 | --- | --- | --- |
 | `pedido_confirmado` | El pago de MP fue aprobado (estado `en_preparacion`). | "✅ ¡Recibimos tu pago! Ya estamos preparando tu pedido `{{id}}`." |
-| `pedido_en_camino` | El panel cierra el lote (o el bot vía API pasa a `en_camino`). | "🔐 Este es el código de entrega de tu pedido: *{{deliveryCode}}*. Dáselo al repartidor al recibirlo. No lo compartas antes." |
+| `pedido_en_camino` | El panel cierra el lote (o el bot vía API pasa a `en_camino`). | "🚚 Tu pedido está saliendo de la sucursal.\n🔐 Este es tu código: *{{deliveryCode}}*. Debés dárselo al repartidor cuando te entregue tu pedido." |
 | `pedido_entregado` | El repartidor validó el código de entrega. | "🙌 ¡Gracias por tu compra! Tu pedido `{{id}}` fue entregado." |
 | `pedido_cancelado` | Pago rechazado o cancelación manual. | "❌ Tu pedido fue cancelado. Escribinos si querés reintentarlo." |
 
