@@ -12,13 +12,21 @@ const nextConfig = {
     // muy justo y causó cargas fallidas en producción sin motivo aparente.
     serverActions: { bodySizeLimit: "2mb" },
   },
-  async headers() {
-    return [
-      {
-        source: "/uploads/:path*",
-        headers: [{ key: "Cache-Control", value: "public, max-age=0, must-revalidate" }],
-      },
-    ];
+  async rewrites() {
+    return {
+      // `next start` solo conoce los archivos de /public que existían al
+      // arrancar el proceso: una imagen subida en caliente devuelve 404 hasta
+      // el próximo restart. Forzamos que TODA request a /uploads/products/*
+      // pase por la ruta dinámica que lee el disco en vivo (ver
+      // src/app/api/uploads/products/[filename]/route.ts), en vez de dejar
+      // que Next intente resolverla como estático primero.
+      beforeFiles: [
+        {
+          source: "/uploads/products/:filename",
+          destination: "/api/uploads/products/:filename",
+        },
+      ],
+    };
   },
   images: {
     remotePatterns: [

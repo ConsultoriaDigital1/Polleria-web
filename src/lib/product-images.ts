@@ -1,7 +1,7 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
-import { mkdir, unlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { stripImageVersion } from "./image-url";
 
@@ -30,6 +30,10 @@ const MIME_EXTENSIONS: Record<string, string> = {
   "image/bmp": "bmp",
   "image/tiff": "tiff",
 };
+
+const EXTENSION_CONTENT_TYPES: Record<string, string> = Object.fromEntries(
+  Object.entries(MIME_EXTENSIONS).map(([mime, extension]) => [extension, mime])
+);
 
 function hasImageSignature(buffer: Buffer, mimeType: string): boolean {
   if (mimeType === "image/jpeg") {
@@ -78,6 +82,32 @@ export async function saveProductImage(file: File): Promise<string> {
   const filename = `${randomUUID()}.${extension}`;
   await writeFile(path.join(PRODUCT_IMAGE_DIR, filename), buffer, { flag: "wx" });
   return `${PRODUCT_IMAGE_PREFIX}${filename}`;
+}
+
+export interface ProductImageFile {
+  buffer: Buffer;
+  contentType: string;
+}
+
+/**
+ * Lee un archivo subido directamente del disco, nunca del snapshot estático
+ * que arma `next start` al arrancar: ese snapshot es fijo, así que un archivo
+ * subido con el proceso ya corriendo devolvería 404 vía `/uploads/...` hasta
+ * el próximo restart. Ver `src/app/api/uploads/products/[filename]/route.ts`.
+ */
+export async function readProductImage(filename: string): Promise<ProductImageFile | null> {
+  if (!filename || filename !== path.basename(filename) || filename.includes("..")) return null;
+  const extension = filename.split(".").pop()?.toLowerCase() ?? "";
+  const contentType = EXTENSION_CONTENT_TYPES[extension];
+  if (!contentType) return null;
+
+  try {
+    const buffer = await readFile(path.join(PRODUCT_IMAGE_DIR, filename));
+    return { buffer, contentType };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
+  }
 }
 
 export function isProductUpload(image: string): boolean {
