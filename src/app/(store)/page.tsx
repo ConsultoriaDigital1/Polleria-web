@@ -24,7 +24,7 @@ export default async function HomePage() {
 
   const esOferta = (p: (typeof productos)[number]) =>
     (p.oldPrice != null && p.oldPrice > p.price) || p.badge === "Promo del día";
-  const ofertasDeLaSemana = productos.filter(
+  const ofertasDelDia = productos.filter(
     (p) => p.id !== SUPER_OFERTA_PRODUCT_ID && esOferta(p)
   );
 
@@ -35,14 +35,14 @@ export default async function HomePage() {
       {superOferta.active ? <SuperOfertaHero oferta={superOferta} /> : <HeroClasico />}
 
       {/* Ofertas de la semana: promos comunes, sin repetir la super oferta del día */}
-      {ofertasDeLaSemana.length > 0 && (
+      {ofertasDelDia.length > 0 && (
         <section className="px-4 md:px-6">
           <div className="mb-3 flex items-center justify-between md:mb-6">
             <h2 className="relative flex items-center gap-2 pb-1 text-lg font-bold uppercase text-brand-ink md:text-2xl">
               <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-gold text-brand-ink md:h-10 md:w-10">
                 <Flame size={20} />
               </span>
-              Ofertas de la semana
+              Ofertas del día
               <span className="absolute bottom-0 left-0 h-0.5 w-12 rounded bg-brand-gold md:h-1 md:w-16" />
             </h2>
             <Link href="/ofertas" className="text-sm font-semibold text-brand-red md:text-base">
@@ -50,7 +50,7 @@ export default async function HomePage() {
             </Link>
           </div>
           <div className="rounded-2xl bg-gradient-to-r from-brand-gold/15 via-brand-gold/5 to-transparent p-2 ring-1 ring-brand-gold/30 md:rounded-3xl md:p-4">
-            <PromoCarousel products={ofertasDeLaSemana} />
+            <PromoCarousel products={ofertasDelDia} />
           </div>
         </section>
       )}

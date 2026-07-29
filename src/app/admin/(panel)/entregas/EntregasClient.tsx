@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import {
   Bike,
   Check,
@@ -199,86 +199,96 @@ export function EntregasClient({ sucursales, repartidores, envios, enCurso = 0 }
             </span>
           </div>
 
-          <ul className="divide-y divide-black/5 rounded-xl border border-black/5">
-            {envios.map((e, i) => {
-              const marcado = seleccion.has(e.id);
-              // La lista viene ordenada por franja y, dentro de cada una, por
-              // orden de compra: se corta con un encabezado al cambiar de franja.
-              const abreFranja = i === 0 || envios[i - 1].slotId !== e.slotId;
+          <div className="grid gap-4 md:grid-cols-2">
+            {[
+              { id: "08-12", label: "08:00 a 12:00" },
+              { id: "17-20", label: "17:00 a 20:00" },
+            ].map((franja) => {
+              const pedidos = envios.filter((e) => e.slotId === franja.id);
               return (
-                <Fragment key={e.id}>
-                  {abreFranja && (
-                    <li className="flex items-center gap-2 bg-brand-cream/70 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-brand-ink/60">
-                      <Clock size={12} className="text-brand-red" />
-                      {e.franjaHoraria ?? "Sin franja horaria"}
-                      <span className="ml-auto font-semibold normal-case tracking-normal text-brand-ink/45">
-                        {envios.filter((o) => o.slotId === e.slotId).length} pedidos · primero el
-                        que pidió antes
-                      </span>
-                    </li>
-                  )}
-                  <li
-                    className={`flex items-start gap-3 px-3 py-3 text-sm transition ${
-                      marcado ? "bg-brand-cream/40" : "bg-white opacity-60"
-                    }`}
-                  >
-                    <label className="flex flex-1 cursor-pointer items-start gap-3">
-                      <input
-                        type="checkbox"
-                        checked={marcado}
-                        onChange={() => toggle(e.id)}
-                        className="mt-1 h-4 w-4 flex-none accent-[rgb(200,16,46)]"
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="flex flex-wrap items-center gap-x-2">
-                          <b className="text-brand-ink">{e.code}</b>
-                          <span className="font-medium text-brand-ink">{e.customer}</span>
-                          {e.phone && <span className="text-brand-ink/50">· {e.phone}</span>}
-                          {e.franjaHoraria && (
-                            <span className="chip bg-brand-gold/25 text-brand-ink">
-                              {e.franjaHoraria}
-                            </span>
-                          )}
-                          <span className="ml-auto text-xs text-brand-ink/50">
-                            {formatDateTime(e.date)}
-                          </span>
-                        </span>
-                        {e.address && (
-                          <span className="block truncate text-brand-ink/60">{e.address}</span>
-                        )}
-                        <span className="block text-xs text-brand-ink/55">
-                          {e.items.map((i) => `${i.qty}× ${i.name}`).join(", ")} ·{" "}
-                          <b className="text-brand-ink/80">{formatARS(e.total)}</b>
-                        </span>
-                      </span>
-                    </label>
-                    <span className="flex flex-none items-center gap-1 pt-0.5">
-                      <a
-                        href={etiquetasUrl([e.id])}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title="Imprimir etiqueta del pedido"
-                        className="rounded-lg border border-black/10 p-1.5 text-brand-ink/60 hover:bg-black/5 hover:text-brand-ink"
-                      >
-                        <Printer size={14} />
-                      </a>
-                      {e.mapUrl && (
-                        <a
-                          href={e.mapUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          title="Ver en el mapa"
-                          className="rounded-lg border border-black/10 p-1.5 text-brand-red hover:bg-black/5"
-                        >
-                          <MapPin size={14} />
-                        </a>
-                      )}
+                <div key={franja.id} className="overflow-hidden rounded-xl border border-black/5">
+                  <div className="flex items-center gap-2 bg-brand-cream/70 px-3 py-2 text-xs font-bold uppercase tracking-wide text-brand-ink/60">
+                    <Clock size={12} className="text-brand-red" />
+                    {franja.label}
+                    <span className="ml-auto font-semibold normal-case tracking-normal text-brand-ink/45">
+                      {pedidos.length} pedidos
                     </span>
-                  </li>
-                </Fragment>
+                  </div>
+                  <ul className="divide-y divide-black/5">
+                    {pedidos.length === 0 && (
+                      <li className="px-3 py-4 text-center text-xs text-brand-ink/45">
+                        No hay pedidos en esta franja.
+                      </li>
+                    )}
+                    {pedidos.map((e) => {
+                      const marcado = seleccion.has(e.id);
+                      return (
+                        <li
+                          key={e.id}
+                          className={`flex items-start gap-3 px-3 py-3 text-sm transition ${
+                            marcado ? "bg-brand-cream/40" : "bg-white opacity-60"
+                          }`}
+                        >
+                          <label className="flex flex-1 cursor-pointer items-start gap-3">
+                            <input
+                              type="checkbox"
+                              checked={marcado}
+                              onChange={() => toggle(e.id)}
+                              className="mt-1 h-4 w-4 flex-none accent-[rgb(200,16,46)]"
+                            />
+                            <span className="min-w-0 flex-1">
+                              <span className="flex flex-wrap items-center gap-x-2">
+                                <b className="text-brand-ink">{e.code}</b>
+                                <span className="font-medium text-brand-ink">{e.customer}</span>
+                                {e.phone && <span className="text-brand-ink/50">· {e.phone}</span>}
+                                <span className="ml-auto text-xs text-brand-ink/50">
+                                  {formatDateTime(e.date)}
+                                </span>
+                              </span>
+                              {e.address && (
+                                <span className="block truncate text-brand-ink/60">{e.address}</span>
+                              )}
+                              <span className="block text-xs text-brand-ink/55">
+                                {e.items.map((i) => `${i.qty}× ${i.name}`).join(", ")} ·{" "}
+                                <b className="text-brand-ink/80">{formatARS(e.total)}</b>
+                              </span>
+                            </span>
+                          </label>
+                          <span className="flex flex-none items-center gap-1 pt-0.5">
+                            <a
+                              href={etiquetasUrl([e.id])}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title="Imprimir etiqueta del pedido"
+                              className="rounded-lg border border-black/10 p-1.5 text-brand-ink/60 hover:bg-black/5 hover:text-brand-ink"
+                            >
+                              <Printer size={14} />
+                            </a>
+                            {e.mapUrl && (
+                              <a
+                                href={e.mapUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title="Ver en el mapa"
+                                className="rounded-lg border border-black/10 p-1.5 text-brand-red hover:bg-black/5"
+                              >
+                                <MapPin size={14} />
+                              </a>
+                            )}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
               );
             })}
-          </ul>
+          </div>
+          {envios.some((e) => e.slotId !== "08-12" && e.slotId !== "17-20") && (
+            <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">
+              Hay pedidos sin franja horaria asignada; revisalos antes de cerrar el reparto.
+            </p>
+          )}
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <button

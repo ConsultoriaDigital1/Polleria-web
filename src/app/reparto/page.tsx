@@ -15,6 +15,7 @@ import {
   PackageCheck,
   Phone,
   RefreshCw,
+  XCircle,
 } from "lucide-react";
 
 interface Stop {
@@ -94,6 +95,8 @@ export default function RepartoPage() {
   const [code, setCode] = useState("");
   const [confirmando, setConfirmando] = useState(false);
   const [feedback, setFeedback] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [cancelacion, setCancelacion] = useState<{ id: string; segundos: number } | null>(null);
+  const [cancelandoId, setCancelandoId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Historial de lotes cerrados: se pide recién cuando el repartidor lo abre.
@@ -186,6 +189,46 @@ export default function RepartoPage() {
       inputRef.current?.focus();
     }
   };
+
+  const cancelarPedido = useCallback(
+    async (id: string) => {
+      setCancelacion(null);
+      setCancelandoId(id);
+      setFeedback(null);
+      try {
+        const res = await fetch("/api/reparto/cancelar", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id }),
+        });
+        const json = await res.json().catch(() => null);
+        if (res.ok && json?.ok) {
+          setFeedback({ ok: true, msg: `Pedido ${json.pedido} cancelado correctamente.` });
+          await cargarRuta();
+        } else {
+          setFeedback({ ok: false, msg: json?.error || "No se pudo cancelar el pedido." });
+        }
+      } catch {
+        setFeedback({ ok: false, msg: "Error de conexión. Probá de nuevo." });
+      } finally {
+        setCancelandoId(null);
+      }
+    },
+    [cargarRuta]
+  );
+
+  useEffect(() => {
+    if (!cancelacion) return;
+    if (cancelacion.segundos <= 0) {
+      void cancelarPedido(cancelacion.id);
+      return;
+    }
+    const timer = window.setTimeout(
+      () => setCancelacion((actual) => (actual ? { ...actual, segundos: actual.segundos - 1 } : null)),
+      1000
+    );
+    return () => window.clearTimeout(timer);
+  }, [cancelacion, cancelarPedido]);
 
   // Sin sesión: invitación a entrar con el usuario del equipo.
   if (!cargando && sinSesion) {
@@ -368,6 +411,34 @@ export default function RepartoPage() {
                       >
                         <Phone size={13} /> {s.phone}
                       </a>
+                    )}
+                    {!entregado && (
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={cancelandoId === (s.id ?? s.code)}
+                          onClick={() =>
+                            setCancelacion({ id: s.id ?? s.code, segundos: 5 })
+                          }
+                          className="inline-flex items-center gap-1 rounded-lg border border-brand-red/30 px-2 py-1 text-xs font-bold text-brand-red disabled:opacity-50"
+                        >
+                          <XCircle size={13} />
+                          {cancelandoId === (s.id ?? s.code)
+                            ? "Cancelando…"
+                            : cancelacion?.id === (s.id ?? s.code)
+                              ? `Cancelando en ${cancelacion.segundos}s`
+                              : "Cancelar pedido"}
+                        </button>
+                        {cancelacion?.id === (s.id ?? s.code) && !cancelandoId && (
+                          <button
+                            type="button"
+                            onClick={() => setCancelacion(null)}
+                            className="text-xs font-semibold text-brand-ink/60 underline"
+                          >
+                            Deshacer
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                   {s.mapUrl && !entregado && (

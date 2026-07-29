@@ -25,6 +25,9 @@ export type OrderEvent =
   | "pedido_entregado"
   | "pedido_cancelado";
 
+const DELIVERY_CANCEL_WEBHOOK_URL =
+  "https://n8n.srv1224751.hstgr.cloud/webhook/pollerianoentregado";
+
 /** Traduce un estado del pedido al evento que le avisamos a n8n. */
 export function eventForStatus(status: OrderStatus): OrderEvent | null {
   switch (status) {
@@ -70,5 +73,38 @@ export async function notifyOrderEvent(event: OrderEvent, order: Order): Promise
     }
   } catch (e) {
     console.error(`[n8n] no se pudo notificar ${event} de ${order.id}:`, e);
+  }
+}
+
+/** Avisa la cancelación hecha desde la pantalla del repartidor. */
+export async function notifyDeliveryCancellation(order: Order): Promise<void> {
+  const url =
+    process.env.N8N_DELIVERY_CANCEL_WEBHOOK_URL?.trim() || DELIVERY_CANCEL_WEBHOOK_URL;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const secret =
+    process.env.N8N_DELIVERY_CANCEL_WEBHOOK_SECRET?.trim() ||
+    process.env.N8N_ORDER_WEBHOOK_SECRET?.trim();
+  if (secret) headers.Authorization = `Bearer ${secret}`;
+
+  const message = `El pedido ${order.id} fue cancelado por el repartidor.`;
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers,
+      cache: "no-store",
+      signal: AbortSignal.timeout(5000),
+      body: JSON.stringify({
+        event: "pedido_cancelado",
+        message,
+        mensaje: message,
+        at: new Date().toISOString(),
+        order,
+      }),
+    });
+    if (!res.ok) {
+      console.error(`[n8n] webhook de cancelación respondió ${res.status} para ${order.id}`);
+    }
+  } catch (e) {
+    console.error(`[n8n] no se pudo notificar la cancelación de ${order.id}:`, e);
   }
 }

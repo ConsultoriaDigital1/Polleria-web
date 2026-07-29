@@ -87,7 +87,7 @@ export const products: Product[] = [
 export const REGALO_BIENVENIDA_PRODUCT_ID = "p-patitas-1kg";
 
 /** Código que el cliente tiene que escribir para llevarse el regalo. */
-export const CODIGO_BIENVENIDA = "BIENVENIDA";
+export const CODIGO_BIENVENIDA = "PATITAS50";
 
 export const categories: { id: Product["category"] | "todos"; label: string }[] = [
   { id: "todos", label: "Todos" },

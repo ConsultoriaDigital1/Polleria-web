@@ -31,7 +31,7 @@ import {
 import { OTP_RESEND_MS, OTP_MAX_ATTEMPTS, isAdminPhone } from "./auth/otp";
 import type { Role } from "./auth/session";
 import { hashPassword, verifyPassword } from "./auth/password";
-import { eventForStatus, notifyOrderEvent } from "./n8n";
+import { eventForStatus, notifyDeliveryCancellation, notifyOrderEvent } from "./n8n";
 import { sucursales } from "./sucursales";
 import { optimizeRoute, googleMapsRouteUrl, DEFAULT_ROUTE_ORIGIN } from "./route";
 
@@ -1072,6 +1072,55 @@ export async function confirmDeliveryByCode(
   const order = await updateOrderStatus(match.id, "entregado");
   if (!order) return { ok: false, reason: "not_found" };
   await notifyNextAfterDelivery(match);
+  return { ok: true, order };
+}
+
+export type CancelDeliveryResult =
+  | { ok: true; order: Order }
+  | {
+      ok: false;
+      reason: "not_found" | "not_assigned" | "not_in_progress" | "already_delivered" | "already_cancelled";
+    };
+
+/** Cancela un envío todavía en camino, limitado al repartidor asignado. */
+export async function cancelDelivery(
+  idOrCode: string,
+  repartidorId?: string
+): Promise<CancelDeliveryResult> {
+  const trimmed = idOrCode.trim();
+  if (!trimmed) return { ok: false, reason: "not_found" };
+
+  if (!hasDatabase) {
+    const existing = findMemOrder(trimmed);
+    if (!existing) return { ok: false, reason: "not_found" };
+    if (repartidorId && existing.repartidorId !== repartidorId) {
+      return { ok: false, reason: "not_assigned" };
+    }
+    if (existing.status === "entregado") return { ok: false, reason: "already_delivered" };
+    if (existing.status === "cancelado") return { ok: false, reason: "already_cancelled" };
+    if (existing.status !== "en_camino") return { ok: false, reason: "not_in_progress" };
+    const order = await updateOrderStatus(existing.internalId ?? existing.id, "cancelado");
+    if (!order) return { ok: false, reason: "not_found" };
+    await notifyDeliveryCancellation(order);
+    return { ok: true, order };
+  }
+
+  ensureDb();
+  const existing = await prisma.order.findFirst({
+    where: { OR: [{ code: trimmed }, { id: trimmed }] },
+    include: { items: true },
+  });
+  if (!existing) return { ok: false, reason: "not_found" };
+  if (repartidorId && existing.repartidorId !== repartidorId) {
+    return { ok: false, reason: "not_assigned" };
+  }
+  if (existing.status === "entregado") return { ok: false, reason: "already_delivered" };
+  if (existing.status === "cancelado") return { ok: false, reason: "already_cancelled" };
+  if (existing.status !== "en_camino") return { ok: false, reason: "not_in_progress" };
+
+  const order = await updateOrderStatus(existing.id, "cancelado");
+  if (!order) return { ok: false, reason: "not_found" };
+  await notifyDeliveryCancellation(order);
   return { ok: true, order };
 }
 

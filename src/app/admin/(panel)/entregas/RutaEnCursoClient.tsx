@@ -70,6 +70,7 @@ export function RutaEnCursoClient({
   const entregados = stops.filter((s) => s.status === "entregado").length;
   const pct = total > 0 ? Math.round((entregados / total) * 100) : 0;
   const nextId = stops.find((s) => s.status === "en_camino")?.id ?? null;
+  const pedidoActual = stops.find((s) => s.id === nextId) ?? null;
   const visibleStops = mostrarTodo || nextId === null ? stops : stops.filter((s) => s.status !== "entregado");
   const loteLabel = batchId.startsWith("legacy:")
     ? "Lote anterior"
@@ -122,6 +123,11 @@ export function RutaEnCursoClient({
         </div>
         <span className="chip bg-violet-100 text-violet-700">Sale de {originName}</span>
         <span className="chip bg-brand-cream text-brand-ink/70">{loteLabel}</span>
+        {pedidoActual && (
+          <span className="chip bg-brand-red/10 text-brand-red">
+            Pedido actual: {pedidoActual.code} · {pedidoActual.customer}
+          </span>
+        )}
         <div className="ml-auto flex gap-2">
           {entregados > 0 && nextId !== null && (
             <button
