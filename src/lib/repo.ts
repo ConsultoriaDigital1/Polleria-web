@@ -935,51 +935,9 @@ export type DeliveryResult =
   | { ok: false; reason: "not_found" | "no_code" | "invalid_code" | "already_delivered" };
 
 /**
- * Avisa al SIGUIENTE cliente de la ruta que es el próximo. "Siguiente" es la
- * orden que sigue `en_camino` (no entregada) con menor `routeSeq`. Se llama
- * después de despachar el lote y después de confirmar cada entrega.
- */
-async function notifyNextAfterDelivery(delivered: {
-  originSucursalId?: string | null;
-  repartidorId?: string | null;
-  dispatchedAt?: string | Date | null;
-}): Promise<void> {
-  const dispatchedAt = delivered.dispatchedAt
-    ? new Date(delivered.dispatchedAt).getTime()
-    : null;
-  if (!hasDatabase) {
-    const next = [...runtimeOrders.values()]
-      .filter(
-        (o) =>
-          o.status === "en_camino" &&
-          o.routeSeq != null &&
-          (!delivered.originSucursalId || o.originSucursalId === delivered.originSucursalId) &&
-          (!delivered.repartidorId || o.repartidorId === delivered.repartidorId) &&
-          (dispatchedAt == null ||
-            (o.dispatchedAt != null && new Date(o.dispatchedAt).getTime() === dispatchedAt))
-      )
-      .sort((a, b) => (a.routeSeq ?? 0) - (b.routeSeq ?? 0))[0];
-    if (next) await notifyOrderEvent("pedido_proximo", next);
-    return;
-  }
-  const next = await prisma.order.findFirst({
-    where: {
-      status: "en_camino",
-      routeSeq: { not: null },
-      ...(delivered.originSucursalId ? { originSucursalId: delivered.originSucursalId } : {}),
-      ...(delivered.repartidorId ? { repartidorId: delivered.repartidorId } : {}),
-      ...(dispatchedAt != null ? { dispatchedAt: new Date(dispatchedAt) } : {}),
-    },
-    orderBy: { routeSeq: "asc" },
-    include: { items: true },
-  });
-  if (next) await notifyOrderEvent("pedido_proximo", mapOrder(next));
-}
-
-/**
  * Confirma la entrega de un pedido validando el código que el cliente le dio
  * al repartidor. Si es correcto, el pedido pasa a "entregado" (dispara el
- * evento pedido_entregado) y se avisa al siguiente cliente de la ruta.
+ * evento pedido_entregado).
  */
 export async function confirmDelivery(idOrCode: string, code: string): Promise<DeliveryResult> {
   if (!hasDatabase) {
@@ -990,7 +948,6 @@ export async function confirmDelivery(idOrCode: string, code: string): Promise<D
     if (existing.deliveryCode !== code.trim()) return { ok: false, reason: "invalid_code" };
     const order = await updateOrderStatus(existing.internalId ?? existing.id, "entregado");
     if (!order) return { ok: false, reason: "not_found" };
-    await notifyNextAfterDelivery(existing);
     return { ok: true, order };
   }
   ensureDb();
@@ -1005,7 +962,6 @@ export async function confirmDelivery(idOrCode: string, code: string): Promise<D
 
   const order = await updateOrderStatus(existing.id, "entregado");
   if (!order) return { ok: false, reason: "not_found" };
-  await notifyNextAfterDelivery(existing);
   return { ok: true, order };
 }
 
@@ -1044,7 +1000,6 @@ export async function confirmDeliveryByCode(
     }
     const order = await updateOrderStatus(match.internalId ?? match.id, "entregado");
     if (!order) return { ok: false, reason: "not_found" };
-    await notifyNextAfterDelivery(match);
     return { ok: true, order };
   }
   ensureDb();
@@ -1071,7 +1026,6 @@ export async function confirmDeliveryByCode(
 
   const order = await updateOrderStatus(match.id, "entregado");
   if (!order) return { ok: false, reason: "not_found" };
-  await notifyNextAfterDelivery(match);
   return { ok: true, order };
 }
 
@@ -1241,7 +1195,7 @@ export async function listRouteHistory(
  * Si `orderIds` viene con ids (internos o códigos #), solo despacha esos:
  * el encargado elige qué pedidos entran en la ruta. `repartidorId` (Staff)
  * queda asignado a cada envío: es lo que blinda la vista del repartidor.
- * Avisa a n8n: "salió de la sucursal" a todos y "sos el próximo" al primero.
+ * Avisa a n8n que cada pedido salió de la sucursal junto con su código de entrega.
  */
 export async function dispatchDeliveries(
   sucursalId: string,
@@ -1280,7 +1234,6 @@ export async function dispatchDeliveries(
     });
     const routeOrders = ordered.map((s) => s.order);
     for (const o of routeOrders) await notifyOrderEvent("pedido_en_camino", o);
-    if (routeOrders[0]) await notifyOrderEvent("pedido_proximo", routeOrders[0]);
     const mapsUrl = googleMapsRouteUrl(
       origin,
       ordered.map((s) => ({ lat: s.lat, lng: s.lng }))
@@ -1337,7 +1290,6 @@ export async function dispatchDeliveries(
   for (const o of routeOrders) {
     await notifyOrderEvent("pedido_en_camino", o);
   }
-  if (routeOrders[0]) await notifyOrderEvent("pedido_proximo", routeOrders[0]);
 
   const mapsUrl = googleMapsRouteUrl(
     origin,

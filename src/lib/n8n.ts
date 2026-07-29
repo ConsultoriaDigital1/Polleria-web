@@ -7,10 +7,8 @@ import type { Order, OrderStatus } from "./types";
  * de entrega, etc.). Desde ese flujo n8n manda los WhatsApp al cliente:
  *
  *   pedido_confirmado → "Recibimos tu pago, estamos preparando tu pedido."
- *   pedido_en_camino  → "🛵 ¡Tu pedido salió de la sucursal!" (a todo el lote al despachar)
- *   pedido_proximo    → "¡Sos el próximo! Dale este código al repartidor: NNNN."
- *                       (al primero de la ruta al despachar, y al siguiente cada
- *                        vez que se confirma una entrega)
+ *   pedido_en_camino  → código de entrega y aviso de que debe entregarse al
+ *                       repartidor al recibir el pedido (a todo el lote al despachar)
  *   pedido_entregado  → confirmación de entrega recibida.
  *   pedido_cancelado  → aviso de cancelación.
  *
@@ -21,7 +19,6 @@ export type OrderEvent =
   | "pedido_creado"
   | "pedido_confirmado"
   | "pedido_en_camino"
-  | "pedido_proximo"
   | "pedido_entregado"
   | "pedido_cancelado";
 
@@ -44,17 +41,37 @@ export function eventForStatus(status: OrderStatus): OrderEvent | null {
   }
 }
 
+function messageForOrderEvent(event: OrderEvent, order: Order): string {
+  switch (event) {
+    case "pedido_confirmado":
+      return `✅ Recibimos tu pedido ${order.id}. Ya estamos preparándolo.`;
+    case "pedido_en_camino":
+      return `🔐 Este es el código de entrega de tu pedido ${order.id}: ${order.deliveryCode ?? ""}. Dáselo al repartidor al recibirlo. No lo compartas antes.`;
+    case "pedido_entregado":
+      return `🙌 Tu pedido ${order.id} fue entregado. ¡Gracias por tu compra!`;
+    case "pedido_cancelado":
+      return `❌ Tu pedido ${order.id} fue cancelado. Escribinos si necesitás ayuda.`;
+    default:
+      return `Recibimos una actualización de tu pedido ${order.id}.`;
+  }
+}
+
 /**
  * Notifica un evento de pedido a n8n. Nunca lanza: si el webhook falla se
  * loguea y la operación original (cambio de estado, alta) sigue adelante.
  */
 export async function notifyOrderEvent(event: OrderEvent, order: Order): Promise<void> {
-  const url = process.env.N8N_ORDER_WEBHOOK_URL?.trim();
+  const url =
+    event === "pedido_en_camino"
+      ? process.env.N8N_ORDER_DISPATCH_WEBHOOK_URL?.trim() ||
+        process.env.N8N_ORDER_WEBHOOK_URL?.trim()
+      : process.env.N8N_ORDER_WEBHOOK_URL?.trim();
   if (!url) return;
 
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   const secret = process.env.N8N_ORDER_WEBHOOK_SECRET?.trim();
   if (secret) headers.Authorization = `Bearer ${secret}`;
+  const message = messageForOrderEvent(event, order);
 
   try {
     const res = await fetch(url, {
@@ -65,10 +82,14 @@ export async function notifyOrderEvent(event: OrderEvent, order: Order): Promise
       body: JSON.stringify({
         event,
         at: new Date().toISOString(),
+        message,
+        mensaje: message,
         order,
       }),
     });
+    const responseBody = await res.text().catch(() => "");
     if (!res.ok) {
+      console.error(`[n8n] respuesta para ${event} ${order.id}: ${responseBody.slice(0, 300)}`);
       console.error(`[n8n] webhook de pedidos respondió ${res.status} para ${event} ${order.id}`);
     }
   } catch (e) {

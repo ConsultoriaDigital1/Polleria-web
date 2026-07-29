@@ -83,14 +83,12 @@ Puntos a aclarar:
 > *"El cliente no nos llama para preguntar dónde está su pedido, porque el sistema
 > le avisa solo. Ustedes no mandan nada a mano."*
 
-- Al **cerrar el lote** → a todos los clientes del lote les llega *"tu pedido salió"*.
-- Al mismo tiempo → al **primero de la ruta** le llega *"sos el próximo"*.
-- Cada vez que se **confirma una entrega** → al **siguiente de la ruta** le llega
-  *"sos el próximo"*.
+- Al **cerrar el lote** → a todos los clientes del lote les llega su código de
+  entrega, con la indicación de dárselo al repartidor al recibir el pedido y no
+  compartirlo antes.
 
-**Conclusión para el equipo:** confirmar cada entrega en el momento no es
-burocracia, es lo que dispara el aviso al vecino que sigue. Si el repartidor
-confirma 5 entregas juntas al final, 5 clientes se quedaron sin aviso.
+**Conclusión para el equipo:** confirmar cada entrega en el momento mantiene
+actualizado el estado del reparto y evita errores al validar los códigos.
 
 ---
 
@@ -361,8 +359,7 @@ Ahí ves y hacés:
      pagado, no cobres nada**.
 4. **Cargá el código en el celular y apretá "Confirmar".**
    - Sale en verde: *"✅ Entregado a María González (#1043)"*.
-   - **Confirmá en la puerta, no al final del recorrido.** Eso es lo que le avisa
-     al próximo cliente que sos el siguiente.
+   - **Confirmá en la puerta, no al final del recorrido.**
 
 ### 4.4 Situaciones en la calle
 

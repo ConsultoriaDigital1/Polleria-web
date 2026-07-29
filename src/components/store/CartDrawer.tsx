@@ -243,44 +243,6 @@ export function CartDrawer() {
             <AvisoTurnos className="mb-3" />
 
             <div className="space-y-1 text-sm">
-              <div className="mb-3 rounded-xl border border-dashed border-brand-red/30 bg-brand-cream/60 p-3">
-                <p className="mb-2 flex items-start gap-1.5 text-xs font-semibold text-brand-ink">
-                  <Gift size={14} className="mt-0.5 shrink-0 text-brand-red" />
-                  <span>
-                    ¿Es tu primera compra? Escribí el código{" "}
-                    <span className="font-extrabold text-brand-red">{CODIGO_BIENVENIDA}</span> y te
-                    regalamos una bolsa de patitas de 1 kg.
-                  </span>
-                </p>
-                <label className="mb-1 flex items-center gap-1 text-xs font-semibold text-brand-ink/70">
-                  <TicketPercent size={14} className="text-brand-red" /> Código de descuento
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    value={couponCode}
-                    onChange={(e) => {
-                      setCouponCode(e.target.value.toUpperCase());
-                      setCoupon(null);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") applyCoupon();
-                    }}
-                    placeholder="Ingresá el código"
-                    className="min-w-0 flex-1 rounded-lg border border-black/10 bg-white px-3 py-2 text-sm uppercase"
-                  />
-                  <button
-                    type="button"
-                    onClick={applyCoupon}
-                    disabled={!couponCode.trim() || validatingCoupon}
-                    className="rounded-lg bg-brand-ink px-3 py-2 text-xs font-bold text-white disabled:opacity-40"
-                  >
-                    {validatingCoupon ? "…" : "Aplicar"}
-                  </button>
-                </div>
-                {coupon && <p className="mt-2 text-xs font-semibold text-emerald-700">✓ {coupon.description}</p>}
-                {couponError && <p className="mt-2 text-xs font-semibold text-brand-red">{couponError}</p>}
-              </div>
-
               {coupon && coupon.discount > 0 && (
                 <>
                   <div className="flex justify-between text-brand-ink/60">
@@ -411,6 +373,44 @@ export function CartDrawer() {
                     <span>Confirmo que la ubicación marcada en el mapa es la correcta.</span>
                   </label>
                 </div>
+              </div>
+
+              <div className="rounded-xl border border-dashed border-brand-red/30 bg-brand-cream/60 p-3">
+                <p className="mb-2 flex items-start gap-1.5 text-xs font-semibold text-brand-ink">
+                  <Gift size={14} className="mt-0.5 shrink-0 text-brand-red" />
+                  <span>
+                    ¿Es tu primera compra? Escribí el código{" "}
+                    <span className="font-extrabold text-brand-red">{CODIGO_BIENVENIDA}</span> y te
+                    regalamos una bolsa de patitas de 1 kg.
+                  </span>
+                </p>
+                <label className="mb-1 flex items-center gap-1 text-xs font-semibold text-brand-ink/70">
+                  <TicketPercent size={14} className="text-brand-red" /> Código de descuento
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    value={couponCode}
+                    onChange={(e) => {
+                      setCouponCode(e.target.value.toUpperCase());
+                      setCoupon(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") applyCoupon();
+                    }}
+                    placeholder="Ingresá el código"
+                    className="min-w-0 flex-1 rounded-lg border border-black/10 bg-white px-3 py-2 text-sm uppercase"
+                  />
+                  <button
+                    type="button"
+                    onClick={applyCoupon}
+                    disabled={!couponCode.trim() || validatingCoupon}
+                    className="rounded-lg bg-brand-ink px-3 py-2 text-xs font-bold text-white disabled:opacity-40"
+                  >
+                    {validatingCoupon ? "…" : "Aplicar"}
+                  </button>
+                </div>
+                {coupon && <p className="mt-2 text-xs font-semibold text-emerald-700">✓ {coupon.description}</p>}
+                {couponError && <p className="mt-2 text-xs font-semibold text-brand-red">{couponError}</p>}
               </div>
 
               <button

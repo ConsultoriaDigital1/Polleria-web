@@ -1,14 +1,14 @@
 # Seguimiento de pedidos por WhatsApp con n8n
 
 La web avisa a n8n cada vez que un pedido cambia de estado. Con esos eventos
-armás el flujo de mensajes al cliente ("tu pedido salió del local", "sos el
-siguiente", etc.) y la ruta optimizada del repartidor.
+armás el flujo de mensajes al cliente y la ruta optimizada del repartidor.
 
 ## 1. Variables de entorno (lado web)
 
 | Variable | Qué hace |
 | --- | --- |
 | `N8N_ORDER_WEBHOOK_URL` | URL del webhook de n8n que recibe los eventos de pedido. |
+| `N8N_ORDER_DISPATCH_WEBHOOK_URL` | (Opcional) Webhook exclusivo para `pedido_en_camino`, disparado al cerrar el lote. Si queda vacío usa el general. |
 | `N8N_ORDER_WEBHOOK_SECRET` | (Opcional) La web manda `Authorization: Bearer <valor>`; validalo en n8n. |
 | `MP_ACCESS_TOKEN` | Access token de Mercado Pago (Checkout Pro). |
 | `NEXT_PUBLIC_BASE_URL` | URL pública del sitio; necesaria para que MP llame al webhook de pagos. |
@@ -22,6 +22,8 @@ siguiente", etc.) y la ruta optimizada del repartidor.
 {
   "event": "pedido_en_camino",
   "at": "2026-07-03T14:05:00.000Z",
+  "message": "🔐 Este es el código de entrega de tu pedido #1042: 4821. Dáselo al repartidor al recibirlo. No lo compartas antes.",
+  "mensaje": "🔐 Este es el código de entrega de tu pedido #1042: 4821. Dáselo al repartidor al recibirlo. No lo compartas antes.",
   "order": {
     "id": "#1042",
     "internalId": "cmc...",
@@ -46,18 +48,16 @@ Eventos posibles:
 | Evento | Cuándo se dispara | Mensaje sugerido al cliente |
 | --- | --- | --- |
 | `pedido_confirmado` | El pago de MP fue aprobado (estado `en_preparacion`). | "✅ ¡Recibimos tu pago! Ya estamos preparando tu pedido `{{id}}`." |
-| `pedido_en_camino` | El panel cierra el lote (o el bot vía API pasa a `en_camino`). | "🛵 ¡Tu pedido salió de la sucursal! Tu código de entrega es *{{deliveryCode}}*. Dáselo al repartidor al recibirlo." |
-| `pedido_proximo` | Al despachar (al 1º de la ruta) y cada vez que se entrega un pedido (al siguiente en camino). | "📦 ¡Sos el próximo! Tené a mano tu código *{{deliveryCode}}* y dáselo al repartidor." |
+| `pedido_en_camino` | El panel cierra el lote (o el bot vía API pasa a `en_camino`). | "🔐 Este es el código de entrega de tu pedido: *{{deliveryCode}}*. Dáselo al repartidor al recibirlo. No lo compartas antes." |
 | `pedido_entregado` | El repartidor validó el código de entrega. | "🙌 ¡Gracias por tu compra! Tu pedido `{{id}}` fue entregado." |
 | `pedido_cancelado` | Pago rechazado o cancelación manual. | "❌ Tu pedido fue cancelado. Escribinos si querés reintentarlo." |
 
 > **La ruta ya la arma la web.** Desde `/admin/entregas`, el botón "Cerrar
 > pedidos para enviar" optimiza el recorrido, pasa los envíos a `en_camino` y
-> dispara `pedido_en_camino` (a todos) + `pedido_proximo` (al primero). El
+> dispara `pedido_en_camino` a todos, incluyendo el código de entrega. El
 > repartidor entra a la página móvil `/reparto` con su usuario y contraseña
 > (creados en /admin/equipo con rol "repartidor") y ve solo su ruta asignada,
-> donde ingresa el código de cada cliente; cada entrega dispara
-> `pedido_proximo` al siguiente. En n8n sólo necesitás el **Flujo B** (mandar el
+> donde ingresa el código de cada cliente. En n8n sólo necesitás el **Flujo B** (mandar el
 > WhatsApp según el evento). Los Flujos A y C de abajo quedan como alternativa
 > si preferís manejar la ruta desde el bot.
 
@@ -91,9 +91,6 @@ Eventos posibles:
    - `pedido_confirmado` → WhatsApp al cliente (`order.phone`): pago recibido.
    - `pedido_en_camino` → WhatsApp al cliente con el **código de entrega**
      (`order.deliveryCode`) y aviso de que salió el pedido.
-   - `pedido_proximo` → WhatsApp a `order.phone`: "sos el próximo, tené a mano
-     tu código `{{order.deliveryCode}}`". (La web ya calcula quién es el
-     siguiente; sólo mandás el mensaje.)
    - `pedido_entregado` → (opcional) agradecimiento al cliente.
    - `pedido_cancelado` → aviso de cancelación.
 
@@ -101,8 +98,8 @@ Eventos posibles:
 1. El repartidor le pide el código al cliente y se lo manda a tu bot
    ("entregado 1042 4821" o como prefieras).
 2. El bot llama `POST /api/v1/orders/#1042/deliver` con `{ "code": "4821" }`.
-3. Si responde OK, la web dispara `pedido_entregado` → el Flujo B avisa
-   automáticamente al siguiente cliente de la ruta.
+3. Si responde OK, la web dispara `pedido_entregado` → el Flujo B puede enviar
+   un agradecimiento al cliente.
 
 > Nota: el `deliveryCode` solo existe en pedidos con `entrega: "envio"`.
 > Los retiros en sucursal no lo llevan.

@@ -131,9 +131,13 @@ export async function sendOtp(phone: string, code: string): Promise<OtpDelivery>
     signal: AbortSignal.timeout(10_000),
   });
 
+  const responseBody = await res.text().catch(() => "");
   if (!res.ok) {
+    console.error(`[OTP] webhook respondió ${res.status}: ${responseBody.slice(0, 300)}`);
     throw new Error(`El webhook de WhatsApp respondió ${res.status}.`);
   }
+
+  console.info(`[OTP] webhook aceptó el envío para ${phone} (${res.status}).`);
 
   return "whatsapp";
 }
