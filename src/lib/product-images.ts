@@ -14,6 +14,10 @@ const MIME_EXTENSIONS: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/png": "png",
   "image/webp": "webp",
+  "image/gif": "gif",
+  "image/avif": "avif",
+  "image/bmp": "bmp",
+  "image/tiff": "tiff",
 };
 
 function hasImageSignature(buffer: Buffer, mimeType: string): boolean {
@@ -23,17 +27,35 @@ function hasImageSignature(buffer: Buffer, mimeType: string): boolean {
   if (mimeType === "image/png") {
     return buffer.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
   }
+  if (mimeType === "image/webp") {
+    return (
+      buffer.length >= 12 &&
+      buffer.subarray(0, 4).toString("ascii") === "RIFF" &&
+      buffer.subarray(8, 12).toString("ascii") === "WEBP"
+    );
+  }
+  if (mimeType === "image/gif") {
+    const signature = buffer.subarray(0, 6).toString("ascii");
+    return signature === "GIF87a" || signature === "GIF89a";
+  }
+  if (mimeType === "image/avif") return hasIsoBaseMediaSignature(buffer, ["avif", "avis"]);
+  if (mimeType === "image/bmp") return buffer.subarray(0, 2).toString("ascii") === "BM";
   return (
-    mimeType === "image/webp" &&
-    buffer.length >= 12 &&
-    buffer.subarray(0, 4).toString("ascii") === "RIFF" &&
-    buffer.subarray(8, 12).toString("ascii") === "WEBP"
+    mimeType === "image/tiff" &&
+    (buffer.subarray(0, 4).equals(Buffer.from([73, 73, 42, 0])) ||
+      buffer.subarray(0, 4).equals(Buffer.from([77, 77, 0, 42])))
   );
+}
+
+function hasIsoBaseMediaSignature(buffer: Buffer, brands: string[]): boolean {
+  if (buffer.length < 12 || buffer.subarray(4, 8).toString("ascii") !== "ftyp") return false;
+  const fileBrands = buffer.subarray(8).toString("ascii");
+  return brands.some((brand) => fileBrands.includes(brand));
 }
 
 export async function saveProductImage(file: File): Promise<string> {
   const extension = MIME_EXTENSIONS[file.type];
-  if (!extension) throw new Error("Solo se admiten imágenes JPG, PNG o WEBP.");
+  if (!extension) throw new Error("Solo se admiten imágenes JPG, PNG, WEBP, GIF, AVIF, BMP o TIFF.");
   if (file.size === 0 || file.size > MAX_PRODUCT_IMAGE_SIZE) {
     throw new Error("La imagen debe pesar menos de 10 MB.");
   }

@@ -10,7 +10,7 @@ import {
   NoDatabaseError,
   ProductInUseError,
 } from "@/lib/repo";
-import { deleteProductImage } from "@/lib/product-images";
+import { deleteProductImage, saveProductImage } from "@/lib/product-images";
 import { stripImageVersion } from "@/lib/image-url";
 import type { Category } from "@/lib/types";
 
@@ -20,6 +20,16 @@ export interface SaveProductState {
 }
 
 const CATEGORIES: Category[] = ["cortes", "cajones", "rebozados"];
+
+function isUploadedFile(value: FormDataEntryValue | null): value is File {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    typeof (value as File).arrayBuffer === "function" &&
+    typeof (value as File).type === "string" &&
+    typeof (value as File).size === "number"
+  );
+}
 
 async function requireAdmin(): Promise<string | null> {
   return assertPerm("productos");
@@ -42,7 +52,9 @@ export async function saveProduct(
   const id = String(formData.get("id") ?? "").trim();
   const name = String(formData.get("name") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
-  const image = stripImageVersion(String(formData.get("image") ?? "").trim());
+  const imageInput = stripImageVersion(String(formData.get("image") ?? "").trim());
+  const fileValue = formData.get("file");
+  const uploadedFile = isUploadedFile(fileValue) && fileValue.size > 0 ? fileValue : null;
   const badge = String(formData.get("badge") ?? "").trim();
   const category = String(formData.get("category") ?? "") as Category;
   const price = Math.round(Number(formData.get("price")));
@@ -58,20 +70,24 @@ export async function saveProduct(
   if (oldPrice !== null && (!Number.isFinite(oldPrice) || oldPrice <= price))
     return { error: "El precio anterior debe ser mayor al precio actual." };
   if (!CATEGORIES.includes(category)) return { error: "Categoría inválida." };
-  const data = {
+  const dataWithoutImage = {
     name,
     description,
     price,
     oldPrice,
     category,
-    image,
     badge: badge || null,
     available,
     stock,
   };
 
+  let uploadedImage = "";
   try {
     const previous = id ? await getProduct(id) : null;
+    if (id && !previous) return { error: "Producto no encontrado." };
+    uploadedImage = uploadedFile ? await saveProductImage(uploadedFile) : "";
+    const image = uploadedImage || imageInput;
+    const data = { ...dataWithoutImage, image };
     if (id) {
       const updated = await updateProduct(id, data);
       if (!updated) return { error: "Producto no encontrado." };
@@ -79,7 +95,7 @@ export async function saveProduct(
       await createProduct(data);
     }
 
-    if (previous && previous.image !== image) {
+    if (previous && stripImageVersion(previous.image) !== image) {
       try {
         await deleteProductImage(previous.image);
       } catch {
@@ -87,6 +103,13 @@ export async function saveProduct(
       }
     }
   } catch (e) {
+    if (uploadedImage) {
+      try {
+        await deleteProductImage(uploadedImage);
+      } catch {
+        // La limpieza no debe ocultar el error original.
+      }
+    }
     if (e instanceof NoDatabaseError) return { error: e.message };
     return { error: "No se pudo guardar el producto." };
   }

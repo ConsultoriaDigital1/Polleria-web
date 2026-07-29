@@ -145,45 +145,26 @@ export function ProductsManager({ products }: { products: Product[] }) {
 function ProductModal({ product, onClose }: { product?: Product; onClose: () => void }) {
   const [state, formAction, pending] = useActionState<SaveProductState, FormData>(saveProduct, {});
   const [imagePreview, setImagePreview] = useState(product?.image ?? "");
-  const [pendingUpload, setPendingUpload] = useState("");
   const [imageError, setImageError] = useState("");
   const [processingImage, setProcessingImage] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
-
-  async function deleteUploadedImage(url: string) {
-    if (!url.startsWith("/uploads/products/")) return;
-    await fetch(`/api/admin/products/images?url=${encodeURIComponent(url)}`, { method: "DELETE" });
-  }
-
-  async function discardPendingUpload() {
-    if (!pendingUpload) return;
-    const upload = pendingUpload;
-    setPendingUpload("");
-    try {
-      await deleteUploadedImage(upload);
-    } catch {
-      // Un archivo huérfano no impide cerrar o seguir editando el producto.
-    }
-  }
 
   async function handleImageFile(file: File) {
     setImageError("");
     setProcessingImage(true);
 
     try {
-      await discardPendingUpload();
-      const formData = new FormData();
-      formData.append("file", await compressProductImage(file));
-      const response = await fetch("/api/admin/products/images", { method: "POST", body: formData });
-      const contentType = response.headers.get("content-type") ?? "";
-      const result = contentType.includes("application/json")
-        ? ((await response.json()) as { url?: string; error?: string })
-        : { error: `El servidor rechazó la carga (HTTP ${response.status}).` };
-      if (!response.ok || !result.url) throw new Error(result.error ?? "No se pudo subir la imagen.");
-      setPendingUpload(result.url);
-      setImagePreview(result.url);
+      const preparedFile = await compressProductImage(file);
+      const input = imageInputRef.current;
+      if (!input) throw new Error("No se pudo preparar la imagen.");
+      const transfer = new DataTransfer();
+      transfer.items.add(preparedFile);
+      input.files = transfer.files;
+      if (imagePreview.startsWith("blob:")) URL.revokeObjectURL(imagePreview);
+      setImagePreview(URL.createObjectURL(preparedFile));
     } catch (error) {
+      if (imageInputRef.current) imageInputRef.current.value = "";
       setImageError(error instanceof Error ? error.message : "No se pudo subir la imagen.");
     } finally {
       setProcessingImage(false);
@@ -193,7 +174,6 @@ function ProductModal({ product, onClose }: { product?: Product; onClose: () => 
   function handleImageChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (file) void handleImageFile(file);
-    event.target.value = "";
   }
 
   function handleImageDrop(event: DragEvent<HTMLDivElement>) {
@@ -205,12 +185,13 @@ function ProductModal({ product, onClose }: { product?: Product; onClose: () => 
 
   function handleRemoveImage() {
     setImageError("");
+    if (imagePreview.startsWith("blob:")) URL.revokeObjectURL(imagePreview);
+    if (imageInputRef.current) imageInputRef.current.value = "";
     setImagePreview("");
-    void discardPendingUpload();
   }
 
   function handleClose() {
-    void discardPendingUpload();
+    if (imagePreview.startsWith("blob:")) URL.revokeObjectURL(imagePreview);
     onClose();
   }
 
@@ -313,7 +294,8 @@ function ProductModal({ product, onClose }: { product?: Product; onClose: () => 
             <input
               ref={imageInputRef}
               type="file"
-              accept="image/*"
+              name="file"
+              accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/bmp,image/tiff"
               className="sr-only"
               onChange={handleImageChange}
             />
@@ -354,10 +336,10 @@ function ProductModal({ product, onClose }: { product?: Product; onClose: () => 
               )}
               <div className="min-w-0">
                 <p className="font-semibold text-brand-ink">
-                  {processingImage ? "Subiendo imagen…" : "Arrastrá una imagen acá"}
+                  {processingImage ? "Procesando imagen…" : "Arrastrá una imagen acá"}
                 </p>
                 <p className="text-xs text-brand-ink/55">
-                  o hacé clic para elegir un archivo · JPG, PNG o WEBP
+                  o hacé clic para elegir un archivo · JPG, PNG, WEBP, GIF, AVIF, BMP o TIFF
                 </p>
               </div>
             </div>
@@ -375,7 +357,8 @@ function ProductModal({ product, onClose }: { product?: Product; onClose: () => 
               value={imagePreview}
               onChange={(event) => {
                 setImageError("");
-                if (pendingUpload && event.target.value !== pendingUpload) void discardPendingUpload();
+                if (imageInputRef.current?.files?.length) imageInputRef.current.value = "";
+                if (imagePreview.startsWith("blob:")) URL.revokeObjectURL(imagePreview);
                 setImagePreview(event.target.value);
               }}
               placeholder="También podés pegar una URL o ruta (ej. /img/pollo.jpg)"
@@ -447,27 +430,34 @@ async function compressProductImage(file: File): Promise<File> {
     context.drawImage(source, 0, 0, canvas.width, canvas.height);
 
     let quality = 0.84;
-    let result = await canvasToBlob(canvas, quality);
+    let result = await canvasToBlob(canvas, "image/webp", quality);
+    let outputType = "image/webp";
+    if (result.type !== "image/webp") {
+      result = await canvasToBlob(canvas, "image/jpeg", quality);
+      outputType = "image/jpeg";
+    }
     while (result.size > MAX_IMAGE_UPLOAD_SIZE && quality > 0.5) {
       quality -= 0.08;
-      result = await canvasToBlob(canvas, quality);
+      result = await canvasToBlob(canvas, outputType, quality);
     }
     if (result.size > MAX_IMAGE_UPLOAD_SIZE) {
       throw new Error("La imagen sigue siendo demasiado pesada. Elegí otra más chica.");
     }
     const baseName = file.name.replace(/\.[^.]+$/, "") || "producto";
-    return new File([result], `${baseName}.webp`, { type: "image/webp" });
+    return new File([result], `${baseName}.${outputType === "image/webp" ? "webp" : "jpg"}`, {
+      type: outputType,
+    });
   } finally {
     URL.revokeObjectURL(objectUrl);
   }
 }
 
-function canvasToBlob(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
+function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number): Promise<Blob> {
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => {
       if (blob) resolve(blob);
       else reject(new Error("No se pudo preparar la imagen."));
-    }, "image/webp", quality);
+    }, type, quality);
   });
 }
 
