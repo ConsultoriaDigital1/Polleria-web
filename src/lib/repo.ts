@@ -1,5 +1,6 @@
 import { prisma, hasDatabase } from "./prisma";
 import { normalizePhone } from "./phone";
+import { Prisma } from "@prisma/client";
 import type {
   Product as DbProduct,
   Order as DbOrder,
@@ -287,6 +288,30 @@ export async function updateProduct(
     },
   });
   return mapProduct(p);
+}
+
+export class ProductInUseError extends Error {
+  constructor() {
+    super("El producto tiene pedidos o cupones asociados.");
+    this.name = "ProductInUseError";
+  }
+}
+
+/** Elimina un producto si no está referenciado por pedidos o cupones. */
+export async function deleteProduct(id: string): Promise<Product | null> {
+  ensureDb();
+  const existing = await prisma.product.findUnique({ where: { id } });
+  if (!existing) return null;
+
+  try {
+    const deleted = await prisma.product.delete({ where: { id } });
+    return mapProduct(deleted);
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003") {
+      throw new ProductInUseError();
+    }
+    throw error;
+  }
 }
 
 // ---------- Cupones ----------

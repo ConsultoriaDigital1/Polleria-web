@@ -2,7 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { assertPerm } from "@/lib/auth/permissions";
-import { createProduct, getProduct, updateProduct, NoDatabaseError } from "@/lib/repo";
+import {
+  createProduct,
+  deleteProduct,
+  getProduct,
+  updateProduct,
+  NoDatabaseError,
+  ProductInUseError,
+} from "@/lib/repo";
 import { deleteProductImage } from "@/lib/product-images";
 import type { Category } from "@/lib/types";
 
@@ -96,4 +103,32 @@ export async function toggleProductAvailability(id: string, available: boolean):
     return;
   }
   revalidateCatalog();
+}
+
+export async function deleteProductAction(id: string): Promise<SaveProductState> {
+  const denied = await requireAdmin();
+  if (denied) return { error: denied };
+
+  try {
+    const product = await getProduct(id);
+    if (!product) return { error: "Producto no encontrado." };
+
+    const deleted = await deleteProduct(id);
+    if (!deleted) return { error: "Producto no encontrado." };
+
+    try {
+      await deleteProductImage(product.image);
+    } catch {
+      // El registro ya fue eliminado; la limpieza del archivo no debe bloquearlo.
+    }
+  } catch (error) {
+    if (error instanceof NoDatabaseError) return { error: error.message };
+    if (error instanceof ProductInUseError) {
+      return { error: "No se puede eliminar: tiene pedidos o cupones asociados. Podés pausarlo." };
+    }
+    return { error: "No se pudo eliminar el producto." };
+  }
+
+  revalidateCatalog();
+  return { ok: true };
 }

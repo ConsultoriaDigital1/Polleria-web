@@ -6,7 +6,12 @@ import { Pencil, Plus, Trash2, X } from "lucide-react";
 import type { Product } from "@/lib/types";
 import { formatARS } from "@/lib/format";
 import { cn } from "@/lib/cn";
-import { saveProduct, toggleProductAvailability, type SaveProductState } from "./actions";
+import {
+  deleteProductAction,
+  saveProduct,
+  toggleProductAvailability,
+  type SaveProductState,
+} from "./actions";
 
 const categoryLabels: Record<string, string> = {
   cortes: "Cortes",
@@ -17,6 +22,19 @@ const categoryLabels: Record<string, string> = {
 export function ProductsManager({ products }: { products: Product[] }) {
   // null = cerrado, undefined = crear nuevo, Product = editar
   const [editing, setEditing] = useState<Product | undefined | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  function handleDelete(product: Product) {
+    if (!window.confirm(`¿Eliminar el producto “${product.name}”?`)) return;
+
+    setDeletingId(product.id);
+    void deleteProductAction(product.id)
+      .then((result) => {
+        if (result.error) window.alert(result.error);
+        else window.location.reload();
+      })
+      .finally(() => setDeletingId(null));
+  }
 
   return (
     <div className="space-y-5">
@@ -95,12 +113,22 @@ export function ProductsManager({ products }: { products: Product[] }) {
                     </button>
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <button
-                      onClick={() => setEditing(p)}
-                      className="inline-flex items-center gap-1 rounded-lg border border-black/10 px-2.5 py-1.5 text-xs font-semibold text-brand-ink/70 hover:bg-black/5"
-                    >
-                      <Pencil size={14} /> Editar
-                    </button>
+                    <div className="flex justify-end gap-2">
+                      <button
+                        onClick={() => setEditing(p)}
+                        className="inline-flex items-center gap-1 rounded-lg border border-black/10 px-2.5 py-1.5 text-xs font-semibold text-brand-ink/70 hover:bg-black/5"
+                      >
+                        <Pencil size={14} /> Editar
+                      </button>
+                      <button
+                        onClick={() => handleDelete(p)}
+                        disabled={deletingId === p.id}
+                        title="Eliminar producto"
+                        className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:cursor-wait disabled:opacity-50"
+                      >
+                        <Trash2 size={14} /> {deletingId === p.id ? "Eliminando…" : "Eliminar"}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
