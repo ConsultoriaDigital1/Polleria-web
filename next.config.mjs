@@ -5,6 +5,14 @@ const nextConfig = {
   // Windows + pnpm el copiado de "standalone" requiere permisos de symlink.
   output: process.env.BUILD_STANDALONE === "true" ? "standalone" : undefined,
   reactStrictMode: true,
+  async headers() {
+    return [
+      {
+        source: "/uploads/:path*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=0, must-revalidate" }],
+      },
+    ];
+  },
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "images.unsplash.com" },

@@ -6,6 +6,7 @@ import { ProductCatalog } from "@/components/store/ProductCatalog";
 import { SuperOfertaHero } from "@/components/store/SuperOfertaHero";
 import { AvisoTurnos } from "@/components/store/AvisoTurnos";
 import { sucursales } from "@/lib/sucursales";
+import { versionImageUrl } from "@/lib/image-url";
 import {
   WHATSAPP_SOPORTE_TEXTO,
   WHATSAPP_SOPORTE_URL,
@@ -150,7 +151,7 @@ function HeroClasico() {
     <section className="relative mx-4 mt-3 overflow-hidden rounded-2xl md:mx-6 md:mt-6 md:rounded-3xl">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src="/fondo-polleria.png"
+        src={versionImageUrl("/fondo-polleria.png")}
         alt="El mejor pollo, siempre fresco y al mejor precio — Pollería Entre Ríos"
         className="h-56 w-full object-cover object-top sm:h-72 md:h-[420px]"
       />

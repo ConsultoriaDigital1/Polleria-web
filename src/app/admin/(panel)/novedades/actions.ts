@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { assertPerm } from "@/lib/auth/permissions";
 import { createNovedad, updateNovedad, deleteNovedad, NoDatabaseError } from "@/lib/repo";
+import { stripImageVersion } from "@/lib/image-url";
 
 export interface SaveNovedadState {
   ok?: boolean;
@@ -27,7 +28,7 @@ export async function saveNovedad(
 
   const id = String(formData.get("id") ?? "").trim();
   const title = String(formData.get("title") ?? "").trim();
-  const image = String(formData.get("image") ?? "").trim();
+  const image = stripImageVersion(String(formData.get("image") ?? "").trim());
   const link = String(formData.get("link") ?? "").trim();
   const positionRaw = String(formData.get("position") ?? "").trim();
   const position = positionRaw ? Math.round(Number(positionRaw)) : 0;

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { assertPerm } from "@/lib/auth/permissions";
 import { getProduct, updateProduct, upsertSuperOferta, NoDatabaseError } from "@/lib/repo";
+import { stripImageVersion } from "@/lib/image-url";
 
 export interface SetOfferState {
   ok?: boolean;
@@ -75,7 +76,7 @@ export async function saveSuperOferta(
 
   const title = String(formData.get("title") ?? "").trim();
   const subtitle = String(formData.get("subtitle") ?? "").trim();
-  const image = String(formData.get("image") ?? "").trim();
+  const image = stripImageVersion(String(formData.get("image") ?? "").trim());
   const video = String(formData.get("video") ?? "").trim();
   const link = String(formData.get("link") ?? "").trim();
   const active = formData.get("active") === "on";

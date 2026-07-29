@@ -35,6 +35,7 @@ import { hashPassword, verifyPassword } from "./auth/password";
 import { eventForStatus, notifyDeliveryCancellation, notifyOrderEvent } from "./n8n";
 import { sucursales } from "./sucursales";
 import { optimizeRoute, googleMapsRouteUrl, DEFAULT_ROUTE_ORIGIN } from "./route";
+import { versionImageUrl } from "./image-url";
 
 /** Se lanza cuando una operación de escritura necesita base de datos y no hay. */
 export class NoDatabaseError extends Error {
@@ -92,7 +93,7 @@ function mapProduct(p: DbProduct): Product {
     price: p.price,
     oldPrice: p.oldPrice ?? undefined,
     category: p.category as Category,
-    image: p.image,
+    image: versionImageUrl(p.image),
     badge: p.badge ?? undefined,
     available: p.available,
     stock: p.stock,
@@ -199,7 +200,7 @@ export async function listProducts(f: ProductFilter = {}): Promise<Product[]> {
         return false;
     }
     return true;
-  });
+  }).map((p) => ({ ...p, image: versionImageUrl(p.image) }));
 }
 
 export async function getProduct(id: string): Promise<Product | null> {
@@ -207,7 +208,8 @@ export async function getProduct(id: string): Promise<Product | null> {
     const p = await prisma.product.findUnique({ where: { id } });
     return p ? mapProduct(p) : null;
   }
-  return mockProducts.find((p) => p.id === id) ?? null;
+  const product = mockProducts.find((p) => p.id === id);
+  return product ? { ...product, image: versionImageUrl(product.image) } : null;
 }
 
 export async function listOffers(): Promise<Product[]> {
@@ -218,7 +220,9 @@ export async function listOffers(): Promise<Product[]> {
     });
     return rows.map(mapProduct);
   }
-  return mockProducts.filter((p) => p.oldPrice != null || p.badge === "Promo del día");
+  return mockProducts
+    .filter((p) => p.oldPrice != null || p.badge === "Promo del día")
+    .map((p) => ({ ...p, image: versionImageUrl(p.image) }));
 }
 
 export function listCategories() {
@@ -465,7 +469,7 @@ function mapNovedad(n: {
   return {
     id: n.id,
     title: n.title ?? undefined,
-    image: n.image,
+    image: versionImageUrl(n.image),
     link: n.link ?? undefined,
     active: n.active,
     position: n.position,
@@ -480,7 +484,8 @@ export async function listNovedades(onlyActive = false): Promise<Novedad[]> {
     });
     return rows.map(mapNovedad);
   }
-  return onlyActive ? defaultNovedades.filter((n) => n.active) : defaultNovedades;
+  const novedades = onlyActive ? defaultNovedades.filter((n) => n.active) : defaultNovedades;
+  return novedades.map((n) => ({ ...n, image: versionImageUrl(n.image) }));
 }
 
 export interface NovedadInput {
@@ -569,7 +574,7 @@ function mapSuperOferta(s: {
     subtitle: s.subtitle ?? undefined,
     price: s.price,
     oldPrice: s.oldPrice ?? undefined,
-    image: s.image,
+    image: versionImageUrl(s.image),
     video: s.video ?? undefined,
     link: s.link ?? undefined,
     active: s.active,
@@ -581,7 +586,7 @@ export async function getSuperOferta(): Promise<SuperOferta> {
     const row = await prisma.superOferta.findUnique({ where: { id: "main" } });
     if (row) return mapSuperOferta(row);
   }
-  return defaultSuperOferta;
+  return { ...defaultSuperOferta, image: versionImageUrl(defaultSuperOferta.image) };
 }
 
 export interface SuperOfertaInput {

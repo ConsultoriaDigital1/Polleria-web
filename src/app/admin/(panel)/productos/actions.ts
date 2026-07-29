@@ -11,6 +11,7 @@ import {
   ProductInUseError,
 } from "@/lib/repo";
 import { deleteProductImage } from "@/lib/product-images";
+import { stripImageVersion } from "@/lib/image-url";
 import type { Category } from "@/lib/types";
 
 export interface SaveProductState {
@@ -41,7 +42,7 @@ export async function saveProduct(
   const id = String(formData.get("id") ?? "").trim();
   const name = String(formData.get("name") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
-  const image = String(formData.get("image") ?? "").trim();
+  const image = stripImageVersion(String(formData.get("image") ?? "").trim());
   const badge = String(formData.get("badge") ?? "").trim();
   const category = String(formData.get("category") ?? "") as Category;
   const price = Math.round(Number(formData.get("price")));

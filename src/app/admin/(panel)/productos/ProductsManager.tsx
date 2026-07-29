@@ -174,7 +174,7 @@ function ProductModal({ product, onClose }: { product?: Product; onClose: () => 
     try {
       await discardPendingUpload();
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("file", await compressProductImage(file));
       const response = await fetch("/api/admin/products/images", { method: "POST", body: formData });
       const result = (await response.json()) as { url?: string; error?: string };
       if (!response.ok || !result.url) throw new Error(result.error ?? "No se pudo subir la imagen.");
@@ -416,9 +416,9 @@ function ProductModal({ product, onClose }: { product?: Product; onClose: () => 
 
 const MAX_IMAGE_FILE_SIZE = 10 * 1024 * 1024;
 const MAX_IMAGE_DIMENSION = 1200;
-const MAX_IMAGE_DATA_LENGTH = 750_000;
+const MAX_IMAGE_UPLOAD_SIZE = 600_000;
 
-async function compressProductImage(file: File): Promise<string> {
+async function compressProductImage(file: File): Promise<File> {
   if (!file.type.startsWith("image/")) {
     throw new Error("Elegí un archivo de imagen.");
   }
@@ -444,18 +444,28 @@ async function compressProductImage(file: File): Promise<string> {
     context.drawImage(source, 0, 0, canvas.width, canvas.height);
 
     let quality = 0.84;
-    let result = canvas.toDataURL("image/webp", quality);
-    while (result.length > MAX_IMAGE_DATA_LENGTH && quality > 0.5) {
+    let result = await canvasToBlob(canvas, quality);
+    while (result.size > MAX_IMAGE_UPLOAD_SIZE && quality > 0.5) {
       quality -= 0.08;
-      result = canvas.toDataURL("image/webp", quality);
+      result = await canvasToBlob(canvas, quality);
     }
-    if (result.length > MAX_IMAGE_DATA_LENGTH) {
+    if (result.size > MAX_IMAGE_UPLOAD_SIZE) {
       throw new Error("La imagen sigue siendo demasiado pesada. Elegí otra más chica.");
     }
-    return result;
+    const baseName = file.name.replace(/\.[^.]+$/, "") || "producto";
+    return new File([result], `${baseName}.webp`, { type: "image/webp" });
   } finally {
     URL.revokeObjectURL(objectUrl);
   }
+}
+
+function canvasToBlob(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+      else reject(new Error("No se pudo preparar la imagen."));
+    }, "image/webp", quality);
+  });
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

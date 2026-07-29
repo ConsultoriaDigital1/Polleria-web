@@ -3,6 +3,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { mkdir, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { stripImageVersion } from "./image-url";
 
 export const PRODUCT_IMAGE_PREFIX = "/uploads/products/";
 export const MAX_PRODUCT_IMAGE_SIZE = 10 * 1024 * 1024;
@@ -47,6 +48,7 @@ export async function saveProductImage(file: File): Promise<string> {
 }
 
 export function isProductUpload(image: string): boolean {
+  image = stripImageVersion(image);
   const filename = image.startsWith(PRODUCT_IMAGE_PREFIX)
     ? image.slice(PRODUCT_IMAGE_PREFIX.length)
     : "";
@@ -54,6 +56,7 @@ export function isProductUpload(image: string): boolean {
 }
 
 export async function deleteProductImage(image: string): Promise<void> {
+  image = stripImageVersion(image);
   if (!isProductUpload(image)) return;
   const filename = image.slice(PRODUCT_IMAGE_PREFIX.length);
   try {
