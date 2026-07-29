@@ -1,9 +1,12 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import { Flame } from "lucide-react";
+import { useActionState, useEffect, useRef, useState } from "react";
+import type { ChangeEvent, DragEvent } from "react";
+import { Flame, Trash2 } from "lucide-react";
 import type { SuperOferta } from "@/lib/types";
 import { formatARS } from "@/lib/format";
+import { cn } from "@/lib/cn";
+import { prepareImageFile } from "@/lib/image-client";
 import { saveSuperOferta, type SaveSuperOfertaState } from "./actions";
 
 /**
@@ -15,6 +18,10 @@ export function SuperOfertaEditor({ oferta }: { oferta: SuperOferta }) {
     saveSuperOferta,
     {}
   );
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const [processingImage, setProcessingImage] = useState(false);
+  const [imageError, setImageError] = useState("");
+  const [dragActive, setDragActive] = useState(false);
   const [preview, setPreview] = useState({
     title: oferta.title,
     price: String(oferta.price),
@@ -29,6 +36,51 @@ export function SuperOfertaEditor({ oferta }: { oferta: SuperOferta }) {
     previewOld > previewPrice && previewPrice > 0
       ? Math.round((1 - previewPrice / previewOld) * 100)
       : null;
+
+  async function handleImageFile(file: File) {
+    setImageError("");
+    setProcessingImage(true);
+    try {
+      const preparedFile = await prepareImageFile(file);
+      const input = imageInputRef.current;
+      if (!input) throw new Error("No se pudo preparar la imagen.");
+      const transfer = new DataTransfer();
+      transfer.items.add(preparedFile);
+      input.files = transfer.files;
+      if (preview.image.startsWith("blob:")) URL.revokeObjectURL(preview.image);
+      setPreview((current) => ({ ...current, image: URL.createObjectURL(preparedFile) }));
+    } catch (error) {
+      if (imageInputRef.current) imageInputRef.current.value = "";
+      setImageError(error instanceof Error ? error.message : "No se pudo preparar la imagen.");
+    } finally {
+      setProcessingImage(false);
+    }
+  }
+
+  function handleImageChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (file) void handleImageFile(file);
+  }
+
+  function handleImageDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setDragActive(false);
+    const file = event.dataTransfer.files?.[0];
+    if (file) void handleImageFile(file);
+  }
+
+  function handleRemoveImage() {
+    setImageError("");
+    if (imageInputRef.current) imageInputRef.current.value = "";
+    if (preview.image.startsWith("blob:")) URL.revokeObjectURL(preview.image);
+    setPreview((current) => ({ ...current, image: "" }));
+  }
+
+  useEffect(() => {
+    return () => {
+      if (preview.image.startsWith("blob:")) URL.revokeObjectURL(preview.image);
+    };
+  }, [preview.image]);
 
   return (
     <section className="overflow-hidden rounded-2xl bg-white shadow-soft">
@@ -83,14 +135,81 @@ export function SuperOfertaEditor({ oferta }: { oferta: SuperOferta }) {
             </Field>
           </div>
 
-          <Field label="Imagen / póster del banner (URL o ruta, ej. /super-oferta-patamuslo-10kg.png)">
+          <Field label="Imagen / póster del banner">
+            <input
+              ref={imageInputRef}
+              name="file"
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/bmp,image/tiff"
+              className="sr-only"
+              onChange={handleImageChange}
+            />
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => imageInputRef.current?.click()}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") imageInputRef.current?.click();
+              }}
+              onDragEnter={(event) => {
+                event.preventDefault();
+                setDragActive(true);
+              }}
+              onDragOver={(event) => event.preventDefault()}
+              onDragLeave={() => setDragActive(false)}
+              onDrop={handleImageDrop}
+              className={cn(
+                "flex cursor-pointer items-center gap-3 rounded-xl border-2 border-dashed p-3 transition-colors",
+                dragActive
+                  ? "border-brand-red bg-brand-red/5"
+                  : "border-brand-ink/15 hover:border-brand-red/50 hover:bg-brand-cream/40"
+              )}
+            >
+              {preview.image ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={preview.image}
+                  alt="Vista previa"
+                  className="h-16 w-16 shrink-0 rounded-lg object-cover"
+                  onError={(e) => ((e.target as HTMLImageElement).style.visibility = "hidden")}
+                  onLoad={(e) => ((e.target as HTMLImageElement).style.visibility = "visible")}
+                />
+              ) : (
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-brand-cream text-2xl">
+                  🖼️
+                </div>
+              )}
+              <div className="min-w-0">
+                <p className="font-semibold text-brand-ink">
+                  {processingImage ? "Procesando imagen…" : "Elegí o arrastrá una imagen"}
+                </p>
+                <p className="text-xs text-brand-ink/55">
+                  JPG, JPEG, PNG, WEBP, GIF, AVIF, BMP o TIFF · hasta 10 MB
+                </p>
+              </div>
+            </div>
+            {preview.image && (
+              <button
+                type="button"
+                onClick={handleRemoveImage}
+                className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50"
+              >
+                <Trash2 size={14} /> Quitar imagen
+              </button>
+            )}
             <input
               name="image"
-              defaultValue={oferta.image}
+              value={preview.image}
               required
               className="input-admin"
-              onChange={(e) => setPreview((p) => ({ ...p, image: e.target.value }))}
+              onChange={(e) => {
+                if (imageInputRef.current?.files?.length) imageInputRef.current.value = "";
+                if (preview.image.startsWith("blob:")) URL.revokeObjectURL(preview.image);
+                setPreview((p) => ({ ...p, image: e.target.value }));
+              }}
+              placeholder="También podés pegar una URL o ruta (ej. /banner.jpg)"
             />
+            {imageError && <p className="mt-1 text-xs text-red-700">{imageError}</p>}
           </Field>
 
           <Field label="Video mp4 (opcional para animación)">
@@ -127,8 +246,8 @@ export function SuperOfertaEditor({ oferta }: { oferta: SuperOferta }) {
           )}
 
           <div className="flex justify-end pt-1">
-            <button type="submit" disabled={pending} className="btn-primary">
-              {pending ? "Guardando…" : "Guardar super oferta"}
+            <button type="submit" disabled={pending || processingImage} className="btn-primary">
+              {processingImage ? "Procesando imagen…" : pending ? "Guardando…" : "Guardar super oferta"}
             </button>
           </div>
         </form>

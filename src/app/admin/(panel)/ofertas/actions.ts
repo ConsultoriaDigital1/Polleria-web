@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { assertPerm } from "@/lib/auth/permissions";
-import { getProduct, updateProduct, upsertSuperOferta, NoDatabaseError } from "@/lib/repo";
+import { getProduct, updateProduct, upsertSuperOferta, NoDatabaseError, getSuperOferta } from "@/lib/repo";
+import { deleteProductImage, saveProductImage } from "@/lib/product-images";
 import { stripImageVersion } from "@/lib/image-url";
 
 export interface SetOfferState {
@@ -62,6 +63,16 @@ export interface SaveSuperOfertaState {
   error?: string;
 }
 
+function isUploadedFile(value: FormDataEntryValue | null): value is File {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    typeof (value as File).arrayBuffer === "function" &&
+    typeof (value as File).type === "string" &&
+    typeof (value as File).size === "number"
+  );
+}
+
 /**
  * Guarda el banner "Super Oferta" de la home (fila única).
  * La imagen es obligatoria; el video mp4 es opcional y, si está, se usa como
@@ -76,7 +87,9 @@ export async function saveSuperOferta(
 
   const title = String(formData.get("title") ?? "").trim();
   const subtitle = String(formData.get("subtitle") ?? "").trim();
-  const image = stripImageVersion(String(formData.get("image") ?? "").trim());
+  const imageInput = stripImageVersion(String(formData.get("image") ?? "").trim());
+  const fileValue = formData.get("file");
+  const uploadedFile = isUploadedFile(fileValue) && fileValue.size > 0 ? fileValue : null;
   const video = String(formData.get("video") ?? "").trim();
   const link = String(formData.get("link") ?? "").trim();
   const active = formData.get("active") === "on";
@@ -85,7 +98,9 @@ export async function saveSuperOferta(
   const oldPrice = oldPriceRaw ? Math.round(Number(oldPriceRaw)) : null;
 
   if (!title) return { error: "El título es obligatorio." };
-  if (!image) return { error: "La imagen es obligatoria (URL o ruta, ej. /5.jpeg)." };
+  if (!uploadedFile && (!imageInput || imageInput.startsWith("blob:"))) {
+    return { error: "Elegí una imagen o ingresá una URL/ruta válida." };
+  }
   if (video) {
     const cleanVideo = video.split(/[?#]/)[0]?.toLowerCase() ?? "";
     if (!cleanVideo.endsWith(".mp4")) return { error: "El video debe ser un archivo mp4." };
@@ -95,7 +110,11 @@ export async function saveSuperOferta(
   if (oldPrice !== null && (!Number.isFinite(oldPrice) || oldPrice <= price))
     return { error: "El precio anterior debe ser mayor al precio de oferta." };
 
+  let uploadedImage = "";
   try {
+    const previous = await getSuperOferta();
+    uploadedImage = uploadedFile ? await saveProductImage(uploadedFile) : "";
+    const image = uploadedImage || imageInput;
     await upsertSuperOferta({
       title,
       subtitle: subtitle || null,
@@ -106,7 +125,22 @@ export async function saveSuperOferta(
       link: link || null,
       active,
     });
+
+    if (stripImageVersion(previous.image) !== image) {
+      try {
+        await deleteProductImage(previous.image);
+      } catch {
+        // La limpieza del archivo anterior no debe ocultar el guardado exitoso.
+      }
+    }
   } catch (e) {
+    if (uploadedImage) {
+      try {
+        await deleteProductImage(uploadedImage);
+      } catch {
+        // La limpieza no debe ocultar el error original.
+      }
+    }
     if (e instanceof NoDatabaseError) return { error: e.message };
     return { error: "No se pudo guardar la super oferta." };
   }
