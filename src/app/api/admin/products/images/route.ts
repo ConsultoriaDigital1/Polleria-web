@@ -4,6 +4,16 @@ import { deleteProductImage, saveProductImage } from "@/lib/product-images";
 
 export const runtime = "nodejs";
 
+function isUploadedFile(value: FormDataEntryValue | null): value is File {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    typeof (value as File).arrayBuffer === "function" &&
+    typeof (value as File).type === "string" &&
+    typeof (value as File).size === "number"
+  );
+}
+
 export async function POST(request: Request) {
   const denied = await assertPerm("productos");
   if (denied) return NextResponse.json({ error: denied }, { status: 403 });
@@ -11,7 +21,8 @@ export async function POST(request: Request) {
   try {
     const formData = await request.formData();
     const file = formData.get("file");
-    if (!(file instanceof File)) {
+    // Evita depender de instanceof entre runtimes distintos.
+    if (!isUploadedFile(file)) {
       return NextResponse.json({ error: "Seleccioná una imagen." }, { status: 400 });
     }
 

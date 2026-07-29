@@ -176,7 +176,10 @@ function ProductModal({ product, onClose }: { product?: Product; onClose: () => 
       const formData = new FormData();
       formData.append("file", await compressProductImage(file));
       const response = await fetch("/api/admin/products/images", { method: "POST", body: formData });
-      const result = (await response.json()) as { url?: string; error?: string };
+      const contentType = response.headers.get("content-type") ?? "";
+      const result = contentType.includes("application/json")
+        ? ((await response.json()) as { url?: string; error?: string })
+        : { error: `El servidor rechazó la carga (HTTP ${response.status}).` };
       if (!response.ok || !result.url) throw new Error(result.error ?? "No se pudo subir la imagen.");
       setPendingUpload(result.url);
       setImagePreview(result.url);
