@@ -1,0 +1,188 @@
+﻿Diagnose log at 2026-07-29T03:37:26Z
+
+AppPath: D:\Git\mingw64\bin\git-credential-manager.exe
+InstallDir: D:\Git\mingw64\bin\
+Version: 2.9.0+194ba290ce533465310d50f811684ab180536ae7
+
+------------
+Diagnostic: Environment
+Skipped: False
+Success: True
+Exception: None
+Log:
+OSType: Windows
+OSVersion: 10.0 (build 26200)
+Reading environment variables... OK
+ Variables:
+SystemDrive=C:
+ProgramFiles(x86)=C:\Program Files (x86)
+MSYSTEM=MINGW64
+ProgramW6432=C:\Program Files
+PROCESSOR_IDENTIFIER=AMD64 Family 25 Model 80 Stepping 0, AuthenticAMD
+TMP=C:\Users\Invitado a usar\AppData\Local\Temp
+CODEX_INTERNAL_ORIGINATOR_OVERRIDE=Codex Desktop
+DriverData=C:\Windows\System32\Drivers\DriverData
+Path=D:/Git/mingw64/libexec/git-core;D:\Git\mingw64\bin;D:\Git\usr\bin;C:\Users\Invitado a usar\bin;C:\Users\Invitado a usar\.codex\tmp\arg0\codex-arg0UJvZnb;C:\Users\Invitado a usar\.cache\codex-runtimes\codex-primary-runtime\dependencies\bin\override;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\dotnet\;C:\Users\Invitado a usar\AppData\Local\nvm;C:\nvm4w\nodejs;C:\Program Files\PuTTY\;C:\Program Files (x86)\Windows Kits\10\Windows Performance Toolkit\;C:\Program Files\CMake\bin;C:\Strawberry\c\bin;C:\Strawberry\perl\site\bin;C:\Strawberry\perl\bin;D:\Git\cmd;C:\Program Files\Tailscale\;C:\Users\Invitado a usar\AppData\Local\Programs\Python\Launcher\;C:\Users\Invitado a usar\AppData\Local\nvm\v24.13.1;C:\Users\Invitado a usar\AppData\Local\Microsoft\WindowsApps;C:\Users\Invitado a usar\AppData\Roaming\npm;C:\Users\Invitado a usar\AppData\Local\Python\bin;D:\Visual Studio Code\Microsoft VS Code\bin;C:\Users\Invitado a usar\AppData\Local\nvm;C:\Users\Invitado a usar\AppData\Local\GitHubDesktop\bin;C:\Users\Invitado a usar\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-8.1.2-full_build\bin;C:\Users\Invitado a usar\AppData\Local\higgsfield\bin;C:\Users\Invitado a usar\AppData\Local\Programs\Higgsfield\bin;C:\Users\Invitado a usar\.cache\codex-runtimes\codex-primary-runtime\dependencies\bin\fallback;C:\Users\Invitado a usar\.cache\codex-runtimes\codex-primary-runtime\dependencies\native\git\cmd;C:\Users\Invitado a usar\AppData\Local\OpenAI\Codex\bin\3e42d49ad3e35a50;C:\Program Files\WindowsApps\OpenAI.Codex_26.721.4979.0_x64__2p2nqsd0c76g0\app\resources
+EXPO_PUBLIC_API_URL=http://localhost:3002
+PROCESSOR_REVISION=5000
+TMPDIR=C:\Users\Invitado a usar\AppData\Local\Temp
+TEMP=C:\Users\Invitado a usar\AppData\Local\Temp
+USERPROFILE=C:\Users\Invitado a usar
+LOGONSERVER=\\GONZA-DELL
+TERM=xterm-256color
+USERNAME=Invitado a usar
+SystemRoot=C:\WINDOWS
+CODEX_THREAD_ID=019fabe7-ed99-7ed1-8623-00eba47fe434
+PLINK_PROTOCOL=ssh
+OneDrive=C:\Users\Invitado a usar\OneDrive
+PROCESSOR_ARCHITECTURE=AMD64
+CommonProgramFiles=C:\Program Files\Common Files
+RUST_LOG=warn
+NODE_REPL_TRUSTED_BROWSER_CLIENT_SHA256S=7ed52dae165c3bc22b6d24f282e2c1fbc87f6949fbbe037767a7418d8f517f01,e13fd947e846d3d306e9249dd3c73d14931b6494803dbafb16cef85e6add9506
+ProgramData=C:\ProgramData
+LC_CTYPE=C.UTF-8
+HOMEPATH=\Users\Invitado a usar
+COMPUTERNAME=GONZA-DELL
+ALLUSERSPROFILE=C:\ProgramData
+NODE_REPL_TRUSTED_CODE_PATHS=C:\Users\Invitado a usar\.codex
+__PSLockDownPolicy=0
+GIT_EXEC_PATH=D:/Git/mingw64/libexec/git-core
+NVM_HOME=C:\Users\Invitado a usar\AppData\Local\nvm
+CommonProgramFiles(x86)=C:\Program Files (x86)\Common Files
+HOMEDRIVE=C:
+windir=C:\WINDOWS
+GIT_TRACE2_PARENT_SID=f6d292f2-d628-41c8-9b01-6b301c2910c2
+NUMBER_OF_PROCESSORS=12
+OS=Windows_NT
+CODEX_PERMISSION_PROFILE=:danger-full-access
+ProgramFiles=C:\Program Files
+ComSpec=C:\WINDOWS\system32\cmd.exe
+PATHEXT=.COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC;.CPL
+HOME=C:\Users\Invitado a usar
+PSModulePath=C:\Users\Invitado a usar\Documents\WindowsPowerShell\Modules;C:\Program Files\WindowsPowerShell\Modules;C:\WINDOWS\system32\WindowsPowerShell\v1.0\Modules
+NVM_SYMLINK=C:\nvm4w\nodejs
+APPDATA=C:\Users\Invitado a usar\AppData\Roaming
+USERDOMAIN=Gonza-Dell
+PROCESSOR_LEVEL=25
+LOCALAPPDATA=C:\Users\Invitado a usar\AppData\Local
+BROWSER_USE_AVAILABLE_BACKENDS=chrome,iab
+CommonProgramW6432=C:\Program Files\Common Files
+USERDOMAIN_ROAMINGPROFILE=Gonza-Dell
+COLORTERM=truecolor
+PUBLIC=C:\Users\Public
+LOG_FORMAT=json
+
+
+------------
+Diagnostic: File system
+Skipped: False
+Success: True
+Exception: None
+Log:
+Temporary directory is 'C:\Users\Invitado a usar\AppData\Local\Temp\'...
+Checking basic file I/O...
+Writing to temporary file 'C:\Users\Invitado a usar\AppData\Local\Temp\6b374b0fad26b321ab673f66'... OK
+Reading from temporary file 'C:\Users\Invitado a usar\AppData\Local\Temp\6b374b0fad26b321ab673f66'... OK
+Deleting temporary file 'C:\Users\Invitado a usar\AppData\Local\Temp\6b374b0fad26b321ab673f66'... OK
+Testing IFileSystem instance...
+UserHomePath: C:\Users\Invitado a usar
+UserDataDirectoryPath: C:\Users\Invitado a usar\.gcm
+GetCurrentDirectory(): D:\dev\polleria-web
+
+------------
+Diagnostic: Networking
+Skipped: False
+Success: True
+Exception: None
+Log:
+Checking networking and HTTP stack...
+Creating HTTP client... OK
+IsNetworkAvailable: True
+Sending HEAD request to http://example.com... OK
+Sending HEAD request to https://example.com... OK
+Acquiring free TCP port... OK
+Testing local HTTP loopback connections...
+Creating new HTTP listener for http://localhost:52627/... OK
+Waiting for loopback connection... OK
+Writing response... OK
+Waiting for response data... OK
+Loopback connection data OK
+
+------------
+Diagnostic: Git
+Skipped: False
+Success: True
+Exception: None
+Log:
+Getting Git version... OK
+Git version is '2.55.0.windows.3'
+Locating current repository...Git repository at 'D:/dev/polleria-web/.git'
+ OK
+Listing all Git configuration... OK
+Git configuration:
+file:D:/Git/etc/gitconfig	diff.astextplain.textconv=astextplain
+file:D:/Git/etc/gitconfig	filter.lfs.clean=git-lfs clean -- %f
+file:D:/Git/etc/gitconfig	filter.lfs.smudge=git-lfs smudge -- %f
+file:D:/Git/etc/gitconfig	filter.lfs.process=git-lfs filter-process
+file:D:/Git/etc/gitconfig	filter.lfs.required=true
+file:D:/Git/etc/gitconfig	http.sslbackend=schannel
+file:D:/Git/etc/gitconfig	core.autocrlf=true
+file:D:/Git/etc/gitconfig	core.fscache=true
+file:D:/Git/etc/gitconfig	core.symlinks=false
+file:D:/Git/etc/gitconfig	pull.rebase=false
+file:D:/Git/etc/gitconfig	credential.helper=manager
+file:D:/Git/etc/gitconfig	credential.https://dev.azure.com.usehttppath=true
+file:D:/Git/etc/gitconfig	init.defaultbranch=master
+file:C:/Users/Invitado a usar/.gitconfig	safe.directory=*
+file:C:/Users/Invitado a usar/.gitconfig	user.name=Nicolas Mendez
+file:C:/Users/Invitado a usar/.gitconfig	user.email=niko.moto@hotmail.com.ar
+file:C:/Users/Invitado a usar/.gitconfig	filter.lfs.smudge=git-lfs smudge -- %f
+file:C:/Users/Invitado a usar/.gitconfig	filter.lfs.process=git-lfs filter-process
+file:C:/Users/Invitado a usar/.gitconfig	filter.lfs.required=true
+file:C:/Users/Invitado a usar/.gitconfig	filter.lfs.clean=git-lfs clean -- %f
+file:.git/config	core.repositoryformatversion=0
+file:.git/config	core.filemode=false
+file:.git/config	core.bare=false
+file:.git/config	core.logallrefupdates=true
+file:.git/config	core.symlinks=false
+file:.git/config	core.ignorecase=true
+file:.git/config	remote.origin.url=https://github.com/ConsultoriaDigital1/Polleria-web.git
+file:.git/config	remote.origin.fetch=+refs/heads/*:refs/remotes/origin/*
+file:.git/config	branch.main.remote=origin
+file:.git/config	branch.main.merge=refs/heads/main
+
+
+------------
+Diagnostic: Credential storage
+Skipped: False
+Success: True
+Exception: None
+Log:
+ICredentialStore instance is of type: CredentialStore
+Writing test credential... OK
+Reading test credential... OK
+Deleting test credential... OK
+
+------------
+Diagnostic: Microsoft authentication (AAD/MSA)
+Skipped: False
+Success: True
+Exception: None
+Log:
+Broker is not enabled.
+Gathering MSAL token cache data... OK
+CacheDirectory: C:\Users\Invitado a usar\AppData\Local\.IdentityService
+CacheFileName: msal.cache
+CacheFilePath: C:\Users\Invitado a usar\AppData\Local\.IdentityService\msal.cache
+Creating cache helper... OK
+Verifying MSAL token cache persistence... OK
+
+------------
+Diagnostic: GitHub API
+Skipped: False
+Success: True
+Exception: None
+Log:
+Using 'https://github.com/' as API target.
+Querying '/meta' endpoint... OK
+
