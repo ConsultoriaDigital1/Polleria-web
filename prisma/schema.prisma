@@ -53,6 +53,8 @@ model Product {
   category    Category
   image       String
   badge       String?
+  // Producto que aparece en la sección "Ofertas del día" de la home.
+  dailyOffer  Boolean  @default(false)
   available   Boolean  @default(true)
   // Unidades disponibles. Se descuenta al crear el pedido y se devuelve si el
   // pedido se cancela. Un producto se vende solo si available && stock > 0.

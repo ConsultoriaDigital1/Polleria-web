@@ -58,6 +58,23 @@ export async function setOffer(id: string, offerPrice: number | null): Promise<S
   return { ok: true };
 }
 
+/** Marca si el producto aparece en la sección "Ofertas del día" de la home. */
+export async function setDailyOffer(id: string, dailyOffer: boolean): Promise<SetOfferState> {
+  const denied = await assertPerm("ofertas");
+  if (denied) return { error: denied };
+
+  try {
+    const updated = await updateProduct(id, { dailyOffer });
+    if (!updated) return { error: "Producto no encontrado." };
+  } catch (e) {
+    if (e instanceof NoDatabaseError) return { error: e.message };
+    return { error: "No se pudo actualizar la selección de ofertas del día." };
+  }
+
+  revalidateCatalog();
+  return { ok: true };
+}
+
 export interface SaveSuperOfertaState {
   ok?: boolean;
   error?: string;

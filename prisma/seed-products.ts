@@ -22,7 +22,7 @@ async function main() {
       where: { id: p.id },
       // El stock solo se define al crear el producto: si ya existe se respeta
       // el que venga cargado desde el panel (puede haber ventas en el medio).
-      create: { id: p.id, ...data, stock: p.stock },
+      create: { id: p.id, ...data, dailyOffer: p.dailyOffer, stock: p.stock },
       update: data,
     });
     console.log(`  ✔ ${p.name}`);

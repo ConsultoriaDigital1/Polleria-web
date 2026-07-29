@@ -26,7 +26,7 @@ export default async function OfertasPage() {
       {superOferta.active && <SuperOfertaHero oferta={superOferta} tone="gold" />}
 
       <div className="space-y-6 px-4 md:px-6">
-        {/* 2º: las ofertas de la semana */}
+        {/* 2º: las ofertas seleccionadas desde el panel */}
         <div className="flex items-center gap-2 rounded-2xl bg-brand-red p-4 text-white shadow-soft">
           <Tag size={28} />
           <div>

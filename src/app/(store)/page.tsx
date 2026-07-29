@@ -21,10 +21,8 @@ export default async function HomePage() {
   const productos = await listProducts();
   const superOferta = await getSuperOferta();
 
-  const esOferta = (p: (typeof productos)[number]) =>
-    (p.oldPrice != null && p.oldPrice > p.price) || p.badge === "Promo del día";
   const ofertasDelDia = productos.filter(
-    (p) => p.id !== SUPER_OFERTA_PRODUCT_ID && esOferta(p)
+    (p) => p.id !== SUPER_OFERTA_PRODUCT_ID && p.dailyOffer
   );
 
   return (

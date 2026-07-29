@@ -95,6 +95,7 @@ function mapProduct(p: DbProduct): Product {
     category: p.category as Category,
     image: versionImageUrl(p.image),
     badge: p.badge ?? undefined,
+    dailyOffer: p.dailyOffer,
     available: p.available,
     stock: p.stock,
   };
@@ -215,13 +216,15 @@ export async function getProduct(id: string): Promise<Product | null> {
 export async function listOffers(): Promise<Product[]> {
   if (hasDatabase) {
     const rows = await prisma.product.findMany({
-      where: { oldPrice: { not: null } },
+      where: {
+        OR: [{ oldPrice: { not: null } }, { dailyOffer: true }],
+      },
       orderBy: { createdAt: "asc" },
     });
     return rows.map(mapProduct);
   }
   return mockProducts
-    .filter((p) => p.oldPrice != null || p.badge === "Promo del día")
+    .filter((p) => p.dailyOffer || p.oldPrice != null || p.badge === "Promo del día")
     .map((p) => ({ ...p, image: versionImageUrl(p.image) }));
 }
 
@@ -237,6 +240,7 @@ export interface ProductInput {
   category: Category;
   image: string;
   badge?: string | null;
+  dailyOffer?: boolean;
   available?: boolean;
   stock?: number;
 }
@@ -262,6 +266,7 @@ export async function createProduct(input: ProductInput & { id?: string }): Prom
       category: input.category,
       image: input.image,
       badge: input.badge ?? null,
+      dailyOffer: input.dailyOffer ?? false,
       available: input.available ?? true,
       stock: input.stock ?? 0,
     },
@@ -287,6 +292,7 @@ export async function updateProduct(
       category: input.category,
       image: input.image,
       badge: input.badge === undefined ? undefined : input.badge,
+      dailyOffer: input.dailyOffer,
       available: input.available,
       stock: input.stock,
     },

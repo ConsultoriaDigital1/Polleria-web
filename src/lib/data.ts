@@ -22,6 +22,7 @@ export const products: Product[] = [
     category: "cortes",
     image: IMG.suprema,
     badge: "Promo del día",
+    dailyOffer: true,
     available: true,
     stock: STOCK_INICIAL,
   },
@@ -33,6 +34,7 @@ export const products: Product[] = [
     category: "cajones",
     image: IMG.pataMuslo10,
     badge: "Promo del día",
+    dailyOffer: true,
     available: true,
     stock: STOCK_INICIAL,
   },
@@ -44,6 +46,7 @@ export const products: Product[] = [
     category: "cajones",
     image: IMG.pataMuslo15,
     badge: "Promo del día",
+    dailyOffer: true,
     available: true,
     stock: STOCK_INICIAL,
   },
@@ -54,6 +57,7 @@ export const products: Product[] = [
     price: 9500,
     category: "cortes",
     image: IMG.cuartosTraseros,
+    dailyOffer: false,
     available: true,
     stock: STOCK_INICIAL,
   },
@@ -65,6 +69,7 @@ export const products: Product[] = [
     category: "rebozados",
     image: IMG.medallones,
     badge: "Más vendido",
+    dailyOffer: false,
     available: true,
     stock: STOCK_INICIAL,
   },
@@ -75,6 +80,7 @@ export const products: Product[] = [
     price: 8500,
     category: "rebozados",
     image: IMG.patitas,
+    dailyOffer: false,
     available: true,
     stock: STOCK_INICIAL,
   },
@@ -96,7 +102,9 @@ export const categories: { id: Product["category"] | "todos"; label: string }[] 
   { id: "rebozados", label: "Rebozados" },
 ];
 
-export const offers: Product[] = products.filter((p) => p.oldPrice || p.badge === "Promo del día");
+export const offers: Product[] = products.filter(
+  (p) => p.dailyOffer || p.oldPrice || p.badge === "Promo del día"
+);
 
 // ---------- Pedidos (admin) ----------
 export const orders: Order[] = [

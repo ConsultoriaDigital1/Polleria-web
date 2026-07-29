@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export default async function Page() {
   await requirePerm("ofertas");
   const [products, superOferta] = await Promise.all([
-    listProducts({ available: true }),
+    listProducts(),
     getSuperOferta(),
   ]);
   return (

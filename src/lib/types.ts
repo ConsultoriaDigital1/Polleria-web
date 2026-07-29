@@ -38,6 +38,8 @@ export interface Product {
   badge?: string;
   /** Precio anterior, para mostrar ofertas */
   oldPrice?: number;
+  /** Se muestra en la sección "Ofertas del día" de la home. */
+  dailyOffer: boolean;
   available: boolean;
   /** Unidades disponibles. Se vende solo si `available` y `stock > 0`. */
   stock: number;
