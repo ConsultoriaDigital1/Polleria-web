@@ -11,6 +11,7 @@ next-env.d.ts
 
 # producción
 /dist
+/public/uploads/
 
 # misc
 .DS_Store

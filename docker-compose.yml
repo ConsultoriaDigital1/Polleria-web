@@ -58,6 +58,8 @@ services:
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
     ports:
       - "${WEB_PORT:-3000}:3000"
+    volumes:
+      - product_uploads:/app/public/uploads
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 15s
@@ -66,3 +68,4 @@ services:
 
 volumes:
   pgdata:
+  product_uploads:

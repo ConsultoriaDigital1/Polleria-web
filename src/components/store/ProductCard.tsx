@@ -19,13 +19,17 @@ export function ProductCard({ product }: { product: Product }) {
   return (
     <div className="flex flex-col overflow-hidden rounded-2xl bg-white shadow-soft">
       <div className="relative aspect-[4/3] overflow-hidden bg-brand-cream">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={product.image}
-          alt={product.name}
-          className="h-full w-full object-cover"
-          loading="lazy"
-        />
+        {product.image ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={product.image}
+            alt={product.name}
+            className="h-full w-full object-cover"
+            loading="lazy"
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center text-4xl text-brand-ink/25">📷</div>
+        )}
         {product.badge && (
           <span className="chip absolute left-2 top-2 bg-brand-gold text-brand-ink shadow">
             {product.badge}

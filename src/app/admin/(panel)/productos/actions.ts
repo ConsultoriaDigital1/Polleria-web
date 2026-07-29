@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { assertPerm } from "@/lib/auth/permissions";
-import { createProduct, updateProduct, NoDatabaseError } from "@/lib/repo";
+import { createProduct, getProduct, updateProduct, NoDatabaseError } from "@/lib/repo";
+import { deleteProductImage } from "@/lib/product-images";
 import type { Category } from "@/lib/types";
 
 export interface SaveProductState {
@@ -49,8 +50,6 @@ export async function saveProduct(
   if (oldPrice !== null && (!Number.isFinite(oldPrice) || oldPrice <= price))
     return { error: "El precio anterior debe ser mayor al precio actual." };
   if (!CATEGORIES.includes(category)) return { error: "Categoría inválida." };
-  if (!image) return { error: "La imagen es obligatoria (URL o ruta)." };
-
   const data = {
     name,
     description,
@@ -64,11 +63,20 @@ export async function saveProduct(
   };
 
   try {
+    const previous = id ? await getProduct(id) : null;
     if (id) {
       const updated = await updateProduct(id, data);
       if (!updated) return { error: "Producto no encontrado." };
     } else {
       await createProduct(data);
+    }
+
+    if (previous && previous.image !== image) {
+      try {
+        await deleteProductImage(previous.image);
+      } catch {
+        // No se revierte el producto si falla la limpieza del archivo anterior.
+      }
     }
   } catch (e) {
     if (e instanceof NoDatabaseError) return { error: e.message };

@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent } from "react";
-import { Pencil, Plus, X } from "lucide-react";
+import { Pencil, Plus, Trash2, X } from "lucide-react";
 import type { Product } from "@/lib/types";
 import { formatARS } from "@/lib/format";
 import { cn } from "@/lib/cn";
@@ -48,8 +48,12 @@ export function ProductsManager({ products }: { products: Product[] }) {
                 <tr key={p.id} className="border-t border-black/5 hover:bg-brand-cream/50">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={p.image} alt={p.name} className="h-10 w-10 rounded-lg object-cover" />
+                      {p.image ? (
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <img src={p.image} alt={p.name} className="h-10 w-10 rounded-lg object-cover" />
+                      ) : (
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-cream text-lg">📷</div>
+                      )}
                       <div>
                         <p className="font-semibold text-brand-ink">{p.name}</p>
                         <p className="text-xs text-brand-ink/50">{p.description}</p>
@@ -113,20 +117,43 @@ export function ProductsManager({ products }: { products: Product[] }) {
 function ProductModal({ product, onClose }: { product?: Product; onClose: () => void }) {
   const [state, formAction, pending] = useActionState<SaveProductState, FormData>(saveProduct, {});
   const [imagePreview, setImagePreview] = useState(product?.image ?? "");
+  const [pendingUpload, setPendingUpload] = useState("");
   const [imageError, setImageError] = useState("");
   const [processingImage, setProcessingImage] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
+
+  async function deleteUploadedImage(url: string) {
+    if (!url.startsWith("/uploads/products/")) return;
+    await fetch(`/api/admin/products/images?url=${encodeURIComponent(url)}`, { method: "DELETE" });
+  }
+
+  async function discardPendingUpload() {
+    if (!pendingUpload) return;
+    const upload = pendingUpload;
+    setPendingUpload("");
+    try {
+      await deleteUploadedImage(upload);
+    } catch {
+      // Un archivo huérfano no impide cerrar o seguir editando el producto.
+    }
+  }
 
   async function handleImageFile(file: File) {
     setImageError("");
     setProcessingImage(true);
 
     try {
-      const image = await compressProductImage(file);
-      setImagePreview(image);
+      await discardPendingUpload();
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await fetch("/api/admin/products/images", { method: "POST", body: formData });
+      const result = (await response.json()) as { url?: string; error?: string };
+      if (!response.ok || !result.url) throw new Error(result.error ?? "No se pudo subir la imagen.");
+      setPendingUpload(result.url);
+      setImagePreview(result.url);
     } catch (error) {
-      setImageError(error instanceof Error ? error.message : "No se pudo procesar la imagen.");
+      setImageError(error instanceof Error ? error.message : "No se pudo subir la imagen.");
     } finally {
       setProcessingImage(false);
     }
@@ -145,12 +172,23 @@ function ProductModal({ product, onClose }: { product?: Product; onClose: () => 
     if (file) void handleImageFile(file);
   }
 
+  function handleRemoveImage() {
+    setImageError("");
+    setImagePreview("");
+    void discardPendingUpload();
+  }
+
+  function handleClose() {
+    void discardPendingUpload();
+    onClose();
+  }
+
   useEffect(() => {
     if (state.ok) onClose();
   }, [state.ok, onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={handleClose}>
       <div
         className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-soft"
         onClick={(e) => e.stopPropagation()}
@@ -159,7 +197,7 @@ function ProductModal({ product, onClose }: { product?: Product; onClose: () => 
           <h2 className="text-lg font-bold text-brand-ink">
             {product ? `Editar: ${product.name}` : "Nuevo producto"}
           </h2>
-          <button onClick={onClose} className="rounded-lg p-1.5 text-brand-ink/50 hover:bg-black/5">
+          <button onClick={handleClose} className="rounded-lg p-1.5 text-brand-ink/50 hover:bg-black/5">
             <X size={18} />
           </button>
         </div>
@@ -285,26 +323,35 @@ function ProductModal({ product, onClose }: { product?: Product; onClose: () => 
               )}
               <div className="min-w-0">
                 <p className="font-semibold text-brand-ink">
-                  {processingImage ? "Procesando imagen…" : "Arrastrá una imagen acá"}
+                  {processingImage ? "Subiendo imagen…" : "Arrastrá una imagen acá"}
                 </p>
                 <p className="text-xs text-brand-ink/55">
                   o hacé clic para elegir un archivo · JPG, PNG o WEBP
                 </p>
               </div>
             </div>
+            {imagePreview && (
+              <button
+                type="button"
+                onClick={handleRemoveImage}
+                className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50"
+              >
+                <Trash2 size={14} /> Quitar imagen
+              </button>
+            )}
             <input
               name="image"
               value={imagePreview}
               onChange={(event) => {
                 setImageError("");
+                if (pendingUpload && event.target.value !== pendingUpload) void discardPendingUpload();
                 setImagePreview(event.target.value);
               }}
               placeholder="También podés pegar una URL o ruta (ej. /img/pollo.jpg)"
-              required
               className="input-admin mt-2"
             />
             {imageError && <p className="mt-1 text-xs text-red-700">{imageError}</p>}
-            <p className="mt-1 text-xs text-brand-ink/45">La imagen se ajusta automáticamente para que cargue rápido.</p>
+            <p className="mt-1 text-xs text-brand-ink/45">Podés quitarla y guardar para dejar el producto sin imagen.</p>
           </Field>
 
           <label className="flex items-center gap-2 font-semibold text-brand-ink">
@@ -324,7 +371,7 @@ function ProductModal({ product, onClose }: { product?: Product; onClose: () => 
           <div className="flex justify-end gap-2 pt-2">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="rounded-lg border border-black/10 px-4 py-2 font-semibold text-brand-ink/70 hover:bg-black/5"
             >
               Cancelar

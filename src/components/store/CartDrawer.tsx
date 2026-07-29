@@ -187,12 +187,16 @@ export function CartDrawer() {
             <ul className="space-y-3">
               {lines.map((l) => (
                 <li key={l.product.id} className="flex gap-3 rounded-xl border border-black/5 p-2">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={l.product.image}
-                    alt={l.product.name}
-                    className="h-16 w-16 rounded-lg object-cover"
-                  />
+                  {l.product.image ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={l.product.image}
+                      alt={l.product.name}
+                      className="h-16 w-16 rounded-lg object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-brand-cream text-2xl">📷</div>
+                  )}
                   <div className="flex flex-1 flex-col">
                     <div className="flex items-start justify-between gap-2">
                       <span className="text-sm font-semibold">{l.product.name}</span>
