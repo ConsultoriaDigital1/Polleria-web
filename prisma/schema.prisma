@@ -79,6 +79,8 @@ model Customer {
   updatedAt DateTime @updatedAt
 
   orders Order[]
+
+  @@index([joinedAt])
 }
 
 model Order {
@@ -98,8 +100,7 @@ model Order {
   lat              Float?
   lng              Float?
   // Código que el cliente le da al repartidor al recibir el pedido; al
-  // validarlo se marca como entregado y n8n dispara el aviso al siguiente
-  // cliente de la ruta.
+  // validarlo se marca como entregado y n8n recibe el aviso de confirmación.
   deliveryCode     String?
   // Momento exacto en que el repartidor confirmó la entrega.
   deliveredAt      DateTime?
@@ -129,6 +130,7 @@ model Order {
 
   @@index([status])
   @@index([customerId])
+  @@index([createdAt])
   @@index([repartidorId, status])
   @@index([routeBatchId, routeClosedAt])
   @@index([couponId])

@@ -10,7 +10,12 @@ import crypto from "crypto";
  */
 
 function adminUser(): string {
-  return process.env.ADMIN_USER || "admin";
+  const user = process.env.ADMIN_USER;
+  if (user) return user;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("ADMIN_USER no está configurado.");
+  }
+  return "admin";
 }
 
 function adminPassword(): string {

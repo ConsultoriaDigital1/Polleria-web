@@ -67,6 +67,12 @@ async function quoteFromMocks(
     if (!name || !Number.isFinite(price) || (price as number) <= 0) {
       throw new Error(`Datos inválidos del producto: ${i.productId}`);
     }
+    if (p && (!p.available || p.stock <= 0)) {
+      throw new OutOfStockError(name, 0);
+    }
+    if (p && p.stock < i.qty) {
+      throw new OutOfStockError(name, p.stock);
+    }
     lines.push({ productId: i.productId, name, qty: i.qty, price: price as number });
   }
   const total = lines.reduce((a, l) => a + l.qty * l.price, 0);

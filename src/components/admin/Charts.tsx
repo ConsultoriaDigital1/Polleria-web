@@ -14,29 +14,12 @@ import {
   CartesianGrid,
 } from "recharts";
 
-const salesData = [
-  { day: "Lun", ventas: 320000 },
-  { day: "Mar", ventas: 410000 },
-  { day: "Mié", ventas: 380000 },
-  { day: "Jue", ventas: 520000 },
-  { day: "Vie", ventas: 690000 },
-  { day: "Sáb", ventas: 840000 },
-  { day: "Dom", ventas: 760000 },
-];
-
-const paymentData = [
-  { name: "MercadoPago", value: 42 },
-  { name: "Tarjeta", value: 28 },
-  { name: "Efectivo", value: 22 },
-  { name: "Transferencia", value: 8 },
-];
-
 const COLORS = ["#C8102E", "#F6B40A", "#1F1A17", "#9CA3AF"];
 
-export function SalesChart() {
+export function SalesChart({ data }: { data: { day: string; ventas: number }[] }) {
   return (
     <ResponsiveContainer width="100%" height={260}>
-      <AreaChart data={salesData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+      <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
         <defs>
           <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#C8102E" stopOpacity={0.35} />
@@ -69,12 +52,16 @@ export function SalesChart() {
   );
 }
 
-export function PaymentPie() {
+export function PaymentPie({ data }: { data: { name: string; value: number }[] }) {
+  if (data.length === 0) {
+    return <p className="flex h-[260px] items-center justify-center text-sm text-brand-ink/50">No hay ventas en el período.</p>;
+  }
+
   return (
     <ResponsiveContainer width="100%" height={260}>
       <PieChart>
         <Pie
-          data={paymentData}
+          data={data}
           dataKey="value"
           nameKey="name"
           cx="50%"
@@ -83,7 +70,7 @@ export function PaymentPie() {
           outerRadius={90}
           paddingAngle={2}
         >
-          {paymentData.map((_, i) => (
+          {data.map((_, i) => (
             <Cell key={i} fill={COLORS[i % COLORS.length]} />
           ))}
         </Pie>

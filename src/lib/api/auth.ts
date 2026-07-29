@@ -13,8 +13,14 @@ import { fail } from "./respond";
 export function requireApiKey(req: NextRequest) {
   const expected = process.env.API_KEY;
 
-  // Modo desarrollo sin clave configurada: acceso abierto.
-  if (!expected) return null;
+  // Modo desarrollo sin clave configurada: acceso abierto. En producción
+  // nunca dejamos la API expuesta por un error de configuración.
+  if (!expected) {
+    if (process.env.NODE_ENV === "production") {
+      return fail("API key no configurada en el servidor.", 503, "API_NOT_CONFIGURED");
+    }
+    return null;
+  }
 
   const auth = req.headers.get("authorization");
   const bearer = auth?.toLowerCase().startsWith("bearer ")
