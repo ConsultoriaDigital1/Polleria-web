@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
+import type { ChangeEvent, DragEvent } from "react";
 import { Pencil, Plus, X } from "lucide-react";
 import type { Product } from "@/lib/types";
 import { formatARS } from "@/lib/format";
@@ -112,6 +113,37 @@ export function ProductsManager({ products }: { products: Product[] }) {
 function ProductModal({ product, onClose }: { product?: Product; onClose: () => void }) {
   const [state, formAction, pending] = useActionState<SaveProductState, FormData>(saveProduct, {});
   const [imagePreview, setImagePreview] = useState(product?.image ?? "");
+  const [imageError, setImageError] = useState("");
+  const [processingImage, setProcessingImage] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+
+  async function handleImageFile(file: File) {
+    setImageError("");
+    setProcessingImage(true);
+
+    try {
+      const image = await compressProductImage(file);
+      setImagePreview(image);
+    } catch (error) {
+      setImageError(error instanceof Error ? error.message : "No se pudo procesar la imagen.");
+    } finally {
+      setProcessingImage(false);
+    }
+  }
+
+  function handleImageChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (file) void handleImageFile(file);
+    event.target.value = "";
+  }
+
+  function handleImageDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setDragActive(false);
+    const file = event.dataTransfer.files?.[0];
+    if (file) void handleImageFile(file);
+  }
 
   useEffect(() => {
     if (state.ok) onClose();
@@ -208,26 +240,71 @@ function ProductModal({ product, onClose }: { product?: Product; onClose: () => 
             </Field>
           </div>
 
-          <Field label="Imagen (URL o ruta, ej. /img/pollo.jpg)">
-            <div className="flex items-center gap-3">
-              <input
-                name="image"
-                defaultValue={product?.image}
-                required
-                className="input-admin flex-1"
-                onChange={(e) => setImagePreview(e.target.value)}
-              />
-              {imagePreview && (
+          <Field label="Imagen del producto">
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept="image/*"
+              className="sr-only"
+              onChange={handleImageChange}
+            />
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => imageInputRef.current?.click()}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") imageInputRef.current?.click();
+              }}
+              onDragEnter={(event) => {
+                event.preventDefault();
+                setDragActive(true);
+              }}
+              onDragOver={(event) => event.preventDefault()}
+              onDragLeave={() => setDragActive(false)}
+              onDrop={handleImageDrop}
+              className={cn(
+                "flex cursor-pointer items-center gap-3 rounded-xl border-2 border-dashed p-3 transition-colors",
+                dragActive
+                  ? "border-brand-red bg-brand-red/5"
+                  : "border-brand-ink/15 hover:border-brand-red/50 hover:bg-brand-cream/40"
+              )}
+            >
+              {imagePreview ? (
                 /* eslint-disable-next-line @next/next/no-img-element */
                 <img
                   src={imagePreview}
                   alt="Vista previa"
-                  className="h-12 w-12 rounded-lg object-cover"
+                  className="h-16 w-16 shrink-0 rounded-lg object-cover"
                   onError={(e) => ((e.target as HTMLImageElement).style.visibility = "hidden")}
                   onLoad={(e) => ((e.target as HTMLImageElement).style.visibility = "visible")}
                 />
+              ) : (
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-brand-cream text-2xl">
+                  📷
+                </div>
               )}
+              <div className="min-w-0">
+                <p className="font-semibold text-brand-ink">
+                  {processingImage ? "Procesando imagen…" : "Arrastrá una imagen acá"}
+                </p>
+                <p className="text-xs text-brand-ink/55">
+                  o hacé clic para elegir un archivo · JPG, PNG o WEBP
+                </p>
+              </div>
             </div>
+            <input
+              name="image"
+              value={imagePreview}
+              onChange={(event) => {
+                setImageError("");
+                setImagePreview(event.target.value);
+              }}
+              placeholder="También podés pegar una URL o ruta (ej. /img/pollo.jpg)"
+              required
+              className="input-admin mt-2"
+            />
+            {imageError && <p className="mt-1 text-xs text-red-700">{imageError}</p>}
+            <p className="mt-1 text-xs text-brand-ink/45">La imagen se ajusta automáticamente para que cargue rápido.</p>
           </Field>
 
           <label className="flex items-center gap-2 font-semibold text-brand-ink">
@@ -252,7 +329,7 @@ function ProductModal({ product, onClose }: { product?: Product; onClose: () => 
             >
               Cancelar
             </button>
-            <button type="submit" disabled={pending} className="btn-primary">
+            <button type="submit" disabled={pending || processingImage} className="btn-primary">
               {pending ? "Guardando…" : "Guardar"}
             </button>
           </div>
@@ -260,6 +337,50 @@ function ProductModal({ product, onClose }: { product?: Product; onClose: () => 
       </div>
     </div>
   );
+}
+
+const MAX_IMAGE_FILE_SIZE = 10 * 1024 * 1024;
+const MAX_IMAGE_DIMENSION = 1200;
+const MAX_IMAGE_DATA_LENGTH = 750_000;
+
+async function compressProductImage(file: File): Promise<string> {
+  if (!file.type.startsWith("image/")) {
+    throw new Error("Elegí un archivo de imagen.");
+  }
+  if (file.size > MAX_IMAGE_FILE_SIZE) {
+    throw new Error("La imagen debe pesar menos de 10 MB.");
+  }
+
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const source = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error("No se pudo leer la imagen."));
+      image.src = objectUrl;
+    });
+
+    const scale = Math.min(1, MAX_IMAGE_DIMENSION / Math.max(source.naturalWidth, source.naturalHeight));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(source.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(source.naturalHeight * scale));
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("No se pudo preparar la imagen.");
+    context.drawImage(source, 0, 0, canvas.width, canvas.height);
+
+    let quality = 0.84;
+    let result = canvas.toDataURL("image/webp", quality);
+    while (result.length > MAX_IMAGE_DATA_LENGTH && quality > 0.5) {
+      quality -= 0.08;
+      result = canvas.toDataURL("image/webp", quality);
+    }
+    if (result.length > MAX_IMAGE_DATA_LENGTH) {
+      throw new Error("La imagen sigue siendo demasiado pesada. Elegí otra más chica.");
+    }
+    return result;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

@@ -2,6 +2,7 @@ import "server-only";
 import { listProducts } from "./repo";
 import { sucursales } from "./sucursales";
 import { formatARS } from "./format";
+import { MIN_ENVIO_TOTAL } from "./geo";
 
 /**
  * Asistente de atención de la tienda, sobre la API de DeepSeek.
@@ -59,7 +60,7 @@ REGLAS:
 
 ENVÍOS:
 - Todos los pedidos son con envío a domicilio, solo dentro de la ciudad de Corrientes. NO existe el retiro por sucursal.
-- No hay monto mínimo de compra.
+- La compra mínima es de ${formatARS(MIN_ENVIO_TOTAL)}.
 - Al comprar se elige un rango horario de entrega: 08:00 a 12:00 o 17:00 a 20:00.
 - Las compras hechas a la mañana se reciben a la tarde; las hechas a la tarde, a la mañana del día siguiente.
 - La dirección se carga con calle y altura solamente (sin piso, depto ni barrio).
