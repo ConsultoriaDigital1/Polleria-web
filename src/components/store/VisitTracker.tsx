@@ -9,14 +9,33 @@ import { track } from "@/lib/track";
  */
 export function VisitTracker() {
   useEffect(() => {
-    const key = `er-visit-${new Date().toLocaleDateString("en-CA")}`;
+    const visitKey = `er-visit-${new Date().toLocaleDateString("en-CA")}`;
+    const sessionKey = "er-presence-session";
+    let sessionId = "";
     try {
-      if (sessionStorage.getItem(key)) return;
-      sessionStorage.setItem(key, "1");
+      sessionId = localStorage.getItem(sessionKey) ?? crypto.randomUUID();
+      localStorage.setItem(sessionKey, sessionId);
+      if (!sessionStorage.getItem(visitKey)) {
+        sessionStorage.setItem(visitKey, "1");
+        track("visit", { path: window.location.pathname });
+      }
     } catch {
-      // sin sessionStorage (modo privado estricto): registrar igual
+      sessionId = crypto.randomUUID();
+      track("visit", { path: window.location.pathname });
     }
-    track("visit", { path: window.location.pathname });
+
+    const heartbeat = () => {
+      if (document.visibilityState === "visible") {
+        track("presence", { sessionId, path: window.location.pathname });
+      }
+    };
+    heartbeat();
+    const timer = window.setInterval(heartbeat, 15_000);
+    document.addEventListener("visibilitychange", heartbeat);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", heartbeat);
+    };
   }, []);
 
   return null;

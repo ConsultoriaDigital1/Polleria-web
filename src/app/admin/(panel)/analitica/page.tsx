@@ -1,5 +1,9 @@
 import { Eye, ShoppingCart, Clock, TrendingUp } from "lucide-react";
-import { getAnalyticsSummary, type DateRange } from "@/lib/analytics";
+import {
+  countOnlineVisitors,
+  getAnalyticsSummary,
+  type DateRange,
+} from "@/lib/analytics";
 import { requirePerm } from "@/lib/auth/permissions";
 import {
   VisitsAreaChart,
@@ -7,6 +11,7 @@ import {
   TopCartChart,
 } from "@/components/admin/AnalyticsCharts";
 import { AnalyticsRangeControls } from "@/components/admin/AnalyticsRangeControls";
+import { OnlineVisitorsCard } from "@/components/admin/OnlineVisitorsCard";
 
 export const dynamic = "force-dynamic";
 
@@ -67,7 +72,10 @@ export default async function AnalyticsPage({
   await requirePerm("analitica");
   const params = await searchParams;
   const { range, preset, fromInput, toInput } = resolveRange(params);
-  const s = await getAnalyticsSummary(range);
+  const [s, onlineVisitors] = await Promise.all([
+    getAnalyticsSummary(range),
+    countOnlineVisitors(),
+  ]);
 
   const periodLabel =
     preset && PRESET_LABELS[preset]
@@ -101,7 +109,8 @@ export default async function AnalyticsPage({
       <AnalyticsRangeControls preset={preset} from={fromInput} to={toInput} />
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+        <OnlineVisitorsCard initialCount={onlineVisitors} />
         {stats.map((st) => (
           <div key={st.label} className="rounded-2xl bg-white p-4 shadow-soft">
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-red/10 text-brand-red">

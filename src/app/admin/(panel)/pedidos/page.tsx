@@ -16,15 +16,15 @@ const paymentLabels: Record<string, string> = {
 export default async function PedidosPage() {
   await requirePerm("pedidos");
   // Los intentos todavía pendientes quedan fuera de la vista operativa. Los
-  // cancelados sí se muestran para poder auditar qué pasó y cuándo.
-  const orders = (await listOrders()).filter((order) => order.status !== "pendiente");
+  // no pagados y cancelados sí se muestran para poder auditar qué pasó.
+  const orders = await listOrders({ statusNot: "pendiente" });
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-brand-ink">Pedidos</h1>
           <p className="text-sm text-brand-ink/55">
-            {orders.length} pedidos confirmados o cancelados
+            {orders.length} pedidos confirmados, no pagados o cancelados
           </p>
         </div>
         <button className="btn-primary">Nuevo pedido</button>
@@ -73,7 +73,11 @@ export default async function PedidosPage() {
                   <td className="px-4 py-3 whitespace-nowrap text-brand-ink/60">
                     {o.paidAt ? formatDateTime(o.paidAt) : "—"}
                   </td>
-                  <td className="px-4 py-3 whitespace-nowrap font-medium text-brand-red">
+                  <td
+                    className={`px-4 py-3 whitespace-nowrap font-medium ${
+                      o.status === "no_pagado" ? "text-orange-600" : "text-brand-red"
+                    }`}
+                  >
                     {o.cancelledAt ? formatDateTime(o.cancelledAt) : "—"}
                   </td>
                   <td className="px-4 py-3 font-medium text-brand-ink">{formatARS(o.total)}</td>

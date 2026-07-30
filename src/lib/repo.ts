@@ -120,6 +120,8 @@ function mapOrder(o: DbOrder & { items: DbOrderItem[] }): Order {
     mpPreferenceId: o.mpPreferenceId ?? undefined,
     mpInitPoint: o.mpInitPoint ?? undefined,
     mpPaymentId: o.mpPaymentId ?? undefined,
+    couponReservedUntil: o.couponReservedUntil?.toISOString(),
+    couponUsedAt: o.couponUsedAt?.toISOString(),
     routeSeq: o.routeSeq ?? undefined,
     dispatchedAt: o.dispatchedAt?.toISOString(),
     routeBatchId: o.routeBatchId ?? undefined,
@@ -397,6 +399,110 @@ export class CouponError extends Error {
 }
 
 type QuoteLine = { productId: string; name: string; qty: number; price: number };
+const COUPON_RESERVATION_MS = 60_000;
+const PAID_ORDER_STATUSES: OrderStatus[] = ["en_preparacion", "en_camino", "entregado"];
+
+async function countActiveCouponReservations(couponId: string, now = new Date()): Promise<number> {
+  return prisma.order.count({
+    where: {
+      couponId,
+      status: "pendiente",
+      couponUsedAt: null,
+      couponReservedUntil: { gt: now },
+    },
+  });
+}
+
+async function reserveCouponSlot(
+  tx: Prisma.TransactionClient,
+  couponId: string,
+  phone: string | undefined,
+  now: Date
+): Promise<void> {
+  // Todas las altas de reservas de este cupón pasan por el mismo bloqueo, así
+  // dos checkouts simultáneos no pueden quedarse con el último uso.
+  await tx.$queryRaw`SELECT "id" FROM "Coupon" WHERE "id" = ${couponId} FOR UPDATE`;
+  const coupon = await tx.coupon.findUnique({ where: { id: couponId } });
+  if (!coupon || !coupon.active) {
+    throw new CouponError("El cupón no existe o no está activo.");
+  }
+
+  const reservations = await tx.order.count({
+    where: {
+      couponId,
+      status: "pendiente",
+      couponUsedAt: null,
+      couponReservedUntil: { gt: now },
+    },
+  });
+  if (coupon.usedCount + reservations >= coupon.maxUses) {
+    throw new CouponError("Este cupón ya agotó sus usos disponibles.");
+  }
+
+  if (coupon.firstPurchaseOnly) {
+    if (!phone) {
+      throw new CouponError("Completá tu WhatsApp para usar el código de bienvenida.");
+    }
+    const previousOrReserved = await tx.order.count({
+      where: {
+        phone,
+        OR: [
+          { status: { in: PAID_ORDER_STATUSES } },
+          {
+            couponId,
+            status: "pendiente",
+            couponUsedAt: null,
+            couponReservedUntil: { gt: now },
+          },
+        ],
+      },
+    });
+    if (previousOrReserved > 0) {
+      throw new CouponError("El código de bienvenida es solo para tu primera compra.");
+    }
+  }
+}
+
+async function releaseExpiredCouponReservations(): Promise<void> {
+  if (!hasDatabase) return;
+  const now = new Date();
+  const expired = await prisma.order.findMany({
+    where: {
+      status: "pendiente",
+      mpPaymentId: null,
+      couponUsedAt: null,
+      couponReservedUntil: { lte: now },
+    },
+    include: { items: true },
+    take: 100,
+  });
+
+  for (const order of expired) {
+    await prisma.$transaction(async (tx) => {
+      const released = await tx.order.updateMany({
+        where: {
+          id: order.id,
+          status: "pendiente",
+          mpPaymentId: null,
+          couponUsedAt: null,
+          couponReservedUntil: { lte: now },
+        },
+        data: {
+          status: "no_pagado",
+          cancelledAt: now,
+          couponReservedUntil: null,
+        },
+      });
+      if (released.count !== 1) return;
+      for (const item of order.items) {
+        await tx.product.update({
+          where: { id: item.productId },
+          data: { stock: { increment: item.qty } },
+        });
+      }
+    });
+  }
+}
 
 /**
  * Resuelve un cupón contra los renglones del pedido. `phone` (ya normalizado)
@@ -408,7 +514,10 @@ async function resolveCoupon(code: string, lines: QuoteLine[], phone?: string) {
   const normalized = code.trim().toUpperCase();
   const coupon = await prisma.coupon.findUnique({ where: { code: normalized }, include: couponInclude });
   if (!coupon || !coupon.active) throw new CouponError("El cupón no existe o no está activo.");
-  if (coupon.usedCount >= coupon.maxUses) throw new CouponError("Este cupón ya agotó sus usos disponibles.");
+  const reservations = await countActiveCouponReservations(coupon.id);
+  if (coupon.usedCount + reservations >= coupon.maxUses) {
+    throw new CouponError("Este cupón ya agotó sus usos disponibles.");
+  }
 
   if (coupon.firstPurchaseOnly) {
     if (!phone) {
@@ -417,7 +526,7 @@ async function resolveCoupon(code: string, lines: QuoteLine[], phone?: string) {
     const previas = await prisma.order.count({
       // Un intento de checkout pendiente no es una compra. Solo bloqueamos el
       // cupón cuando Mercado Pago ya confirmó el pedido.
-      where: { phone, status: { in: ["en_preparacion", "en_camino", "entregado"] } },
+      where: { phone, status: { in: PAID_ORDER_STATUSES } },
     });
     if (previas > 0) {
       throw new CouponError("El código de bienvenida es solo para tu primera compra.");
@@ -459,6 +568,7 @@ export async function quoteCoupon(
   items: { productId: string; qty: number }[],
   phone?: string
 ): Promise<CouponQuote> {
+  await releaseExpiredCouponReservations();
   const { lines } = await quoteOrder(items);
   const normalizado = phone?.trim() ? normalizePhone(phone) : undefined;
   return (await resolveCoupon(code, lines, normalizado)).quote;
@@ -637,14 +747,19 @@ export async function upsertSuperOferta(input: SuperOfertaInput): Promise<SuperO
 // ---------- Pedidos ----------
 export interface OrderFilter {
   status?: OrderStatus;
+  statusNot?: OrderStatus;
   customerId?: string;
   limit?: number;
 }
 
 export async function listOrders(f: OrderFilter = {}): Promise<Order[]> {
   if (hasDatabase) {
+    await releaseExpiredCouponReservations();
     const rows = await prisma.order.findMany({
-      where: { status: f.status, customerId: f.customerId },
+      where: {
+        status: f.status ?? (f.statusNot ? { not: f.statusNot } : undefined),
+        customerId: f.customerId,
+      },
       include: { items: true },
       orderBy: { createdAt: "desc" },
       take: f.limit,
@@ -655,6 +770,7 @@ export async function listOrders(f: OrderFilter = {}): Promise<Order[]> {
   const runtime = [...runtimeOrders.values()].sort((a, b) => b.date.localeCompare(a.date));
   let list = [...runtime, ...mockOrders];
   if (f.status) list = list.filter((o) => o.status === f.status);
+  if (f.statusNot) list = list.filter((o) => o.status !== f.statusNot);
   if (f.limit) list = list.slice(0, f.limit);
   return list;
 }
@@ -814,6 +930,7 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
     if (existing) return mapOrder(existing);
   }
 
+  await releaseExpiredCouponReservations();
   const { lines, total: subtotal } = await quoteOrder(input.items);
 
   // Resolver / crear cliente. El teléfono se normaliza SIEMPRE antes del
@@ -860,6 +977,9 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
   const orderLines = couponResult?.quote.gift
     ? [...lines, { ...couponResult.quote.gift, price: 0 }]
     : lines;
+  const couponReservedUntil = couponResult
+    ? new Date(Date.now() + COUPON_RESERVATION_MS)
+    : null;
 
   const createData = {
       checkoutId: input.checkoutId ?? null,
@@ -878,17 +998,22 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
       discount,
       couponId: couponResult?.coupon.id ?? null,
       couponCode: couponResult?.coupon.code ?? null,
+      couponReservedUntil,
       payment: input.payment,
       items: { create: orderLines },
   };
 
-  // Todo junto y atómico: descontar stock (incluido el regalo), consumir el
-  // cupón y crear el pedido. Si algo no da, no se crea nada y no se pierde
+  // Todo junto y atómico: descontar stock (incluido el regalo), reservar el
+  // cupón por un minuto y crear el pedido. Si algo no da, no se crea nada y no se pierde
   // stock. El `where` con `stock: { gte: qty }` es lo que evita sobrevender
   // cuando dos personas compran la última unidad a la vez.
   let created: DbOrder & { items: DbOrderItem[] };
   try {
     created = await prisma.$transaction(async (tx) => {
+      if (couponResult) {
+        await reserveCouponSlot(tx, couponResult.coupon.id, customerPhone, new Date());
+      }
+
       for (const line of orderLines) {
         const claimed = await tx.product.updateMany({
           where: { id: line.productId, available: true, stock: { gte: line.qty } },
@@ -901,18 +1026,6 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
           });
           throw new OutOfStockError(line.name, actual?.stock ?? 0);
         }
-      }
-
-      if (couponResult) {
-        const claimed = await tx.coupon.updateMany({
-          where: {
-            id: couponResult.coupon.id,
-            active: true,
-            usedCount: { lt: couponResult.coupon.maxUses },
-          },
-          data: { usedCount: { increment: 1 } },
-        });
-        if (claimed.count !== 1) throw new CouponError("Este cupón ya agotó sus usos disponibles.");
       }
 
       return tx.order.create({ data: createData, include: { items: true } });
@@ -988,7 +1101,7 @@ export interface VerifiedMercadoPagoPayment {
 /**
  * Aplica un pago ya verificado contra Mercado Pago.
  *
- * - Un pago rechazado solo cancela un checkout todavía pendiente.
+ * - Un pago rechazado marca como no pagado un checkout todavía pendiente.
  * - Un segundo pago nunca pisa el pago aprobado que ya quedó ligado.
  * - Un webhook viejo no hace retroceder un pedido confirmado.
  * - Reintentos del mismo evento son idempotentes y no duplican stock/avisos.
@@ -1013,13 +1126,17 @@ export async function applyVerifiedMercadoPagoPayment(
       }
       order.mpPaymentId = payment.id;
       order.paidAt ??= now;
-      if (order.status !== "cancelado") order.cancelledAt = undefined;
+      order.cancelledAt = undefined;
+      order.couponReservedUntil = undefined;
+      if (order.couponCode) order.couponUsedAt ??= now;
     } else if (
       (failed && !order.mpPaymentId && order.status === "pendiente") ||
       (reversed && order.mpPaymentId === payment.id && order.status !== "cancelado")
     ) {
-      order.status = "cancelado";
+      order.status = failed ? "no_pagado" : "cancelado";
       order.cancelledAt ??= now;
+      order.couponReservedUntil = undefined;
+      if (reversed) order.couponUsedAt = undefined;
     }
 
     if (order.status !== previousStatus) {
@@ -1033,8 +1150,16 @@ export async function applyVerifiedMercadoPagoPayment(
   ensureDb();
   let statusChanged = false;
   const updated = await prisma.$transaction(async (tx) => {
-    const current = await tx.order.findFirst({
-      where: { OR: [{ id: idOrCode }, { code: idOrCode }] },
+    const locked = await tx.$queryRaw<{ id: string }[]>`
+      SELECT "id"
+      FROM "Order"
+      WHERE "id" = ${idOrCode} OR "code" = ${idOrCode}
+      LIMIT 1
+      FOR UPDATE
+    `;
+    if (!locked[0]) return null;
+    const current = await tx.order.findUnique({
+      where: { id: locked[0].id },
       include: { items: true },
     });
     if (!current) return null;
@@ -1047,7 +1172,9 @@ export async function applyVerifiedMercadoPagoPayment(
       if (current.mpPaymentId === payment.id) return current;
 
       const nextStatus =
-        current.status === "pendiente" || current.status === "cancelado"
+        current.status === "pendiente" ||
+        current.status === "no_pagado" ||
+        current.status === "cancelado"
           ? "en_preparacion"
           : current.status;
       const claimed = await tx.order.updateMany({
@@ -1061,6 +1188,8 @@ export async function applyVerifiedMercadoPagoPayment(
           mpPaymentId: payment.id,
           paidAt: current.paidAt ?? now,
           cancelledAt: null,
+          couponReservedUntil: null,
+          couponUsedAt: current.couponId ? (current.couponUsedAt ?? now) : null,
         },
       });
       if (claimed.count !== 1) {
@@ -1070,26 +1199,27 @@ export async function applyVerifiedMercadoPagoPayment(
       // Si el pago se acreditó después de una cancelación, el dinero manda:
       // volvemos a reservar el pedido aun si eso deja stock negativo, para no
       // ocultar una venta cobrada que requiere resolución operativa.
-      if (current.status === "cancelado") {
+      if (current.status === "cancelado" || current.status === "no_pagado") {
         for (const item of current.items) {
           await tx.product.update({
             where: { id: item.productId },
             data: { stock: { decrement: item.qty } },
           });
         }
-        if (current.couponId) {
-          await tx.coupon.update({
-            where: { id: current.couponId },
-            data: { usedCount: { increment: 1 } },
-          });
-        }
+      }
+      if (current.couponId && !current.couponUsedAt) {
+        await tx.coupon.update({
+          where: { id: current.couponId },
+          data: { usedCount: { increment: 1 } },
+        });
       }
       statusChanged = nextStatus !== current.status;
     } else {
-      const canCancel =
+      const canClose =
         (failed && !current.mpPaymentId && current.status === "pendiente") ||
         (reversed && current.mpPaymentId === payment.id && current.status !== "cancelado");
-      if (!canCancel) return current;
+      if (!canClose) return current;
+      const nextStatus: OrderStatus = failed ? "no_pagado" : "cancelado";
 
       const claimed = await tx.order.updateMany({
         where: reversed
@@ -1103,7 +1233,12 @@ export async function applyVerifiedMercadoPagoPayment(
               status: "pendiente",
               mpPaymentId: null,
             },
-        data: { status: "cancelado", cancelledAt: now },
+        data: {
+          status: nextStatus,
+          cancelledAt: now,
+          couponReservedUntil: null,
+          ...(reversed ? { couponUsedAt: null } : {}),
+        },
       });
       if (claimed.count !== 1) {
         return tx.order.findUnique({ where: { id: current.id }, include: { items: true } });
@@ -1115,7 +1250,7 @@ export async function applyVerifiedMercadoPagoPayment(
           data: { stock: { increment: item.qty } },
         });
       }
-      if (current.couponId) {
+      if (reversed && current.couponId && current.couponUsedAt) {
         await tx.coupon.updateMany({
           where: { id: current.couponId, usedCount: { gt: 0 } },
           data: { usedCount: { decrement: 1 } },
@@ -1138,7 +1273,7 @@ export async function applyVerifiedMercadoPagoPayment(
 
 /**
  * Descarta un checkout que no llegó a crear la preferencia de Mercado Pago.
- * Restaura stock/cupón en la misma transacción para que el intento fallido no
+ * Restaura stock en la misma transacción para que el intento fallido no
  * figure como pedido ni deje mercadería reservada.
  */
 export async function deletePendingOrder(idOrCode: string): Promise<boolean> {
@@ -1166,12 +1301,6 @@ export async function deletePendingOrder(idOrCode: string): Promise<boolean> {
         data: { stock: { increment: item.qty } },
       });
     }
-    if (order.couponId) {
-      await tx.coupon.updateMany({
-        where: { id: order.couponId, usedCount: { gt: 0 } },
-        data: { usedCount: { decrement: 1 } },
-      });
-    }
     await tx.order.delete({ where: { id: order.id } });
     return true;
   });
@@ -1195,7 +1324,10 @@ export async function updateOrderStatus(idOrCode: string, status: OrderStatus): 
     order.updatedAt = now;
     if (status === "entregado" && changed) order.deliveredAt = now;
     if (status === "en_preparacion" && changed) order.paidAt ??= now;
-    if (status === "cancelado" && changed) order.cancelledAt = now;
+    if ((status === "cancelado" || status === "no_pagado") && changed) {
+      order.cancelledAt = now;
+      order.couponReservedUntil = undefined;
+    }
     if (changed) {
       const event = eventForStatus(status);
       if (event) await notifyOrderEvent(event, order);
@@ -1210,7 +1342,8 @@ export async function updateOrderStatus(idOrCode: string, status: OrderStatus): 
   if (!existing) return null;
   if (existing.status === status) return mapOrder(existing);
   if (
-    (existing.status === "cancelado" && status !== "cancelado") ||
+    ((existing.status === "cancelado" || existing.status === "no_pagado") &&
+      status !== existing.status) ||
     (existing.status === "entregado" && status !== "entregado")
   ) {
     return mapOrder(existing);
@@ -1225,24 +1358,30 @@ export async function updateOrderStatus(idOrCode: string, status: OrderStatus): 
         status,
         ...(status === "entregado" ? { deliveredAt: now } : {}),
         ...(status === "en_preparacion" ? { paidAt: existing.paidAt ?? now } : {}),
-        ...(status === "cancelado" ? { cancelledAt: now } : {}),
+        ...(status === "cancelado" || status === "no_pagado"
+          ? { cancelledAt: now, couponReservedUntil: null }
+          : {}),
       },
     });
     statusChanged = claimed.count === 1;
 
     // El cambio condicional hace que dos webhooks/clicks simultáneos no puedan
     // devolver dos veces las mismas unidades.
-    if (status === "cancelado" && statusChanged) {
+    if ((status === "cancelado" || status === "no_pagado") && statusChanged) {
       for (const item of existing.items) {
         await tx.product.update({
           where: { id: item.productId },
           data: { stock: { increment: item.qty } },
         });
       }
-      if (existing.couponId) {
+      if (existing.couponId && existing.couponUsedAt) {
         await tx.coupon.updateMany({
           where: { id: existing.couponId, usedCount: { gt: 0 } },
           data: { usedCount: { decrement: 1 } },
+        });
+        await tx.order.update({
+          where: { id: existing.id },
+          data: { couponUsedAt: null },
         });
       }
     }

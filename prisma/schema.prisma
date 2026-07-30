@@ -18,6 +18,7 @@ enum Category {
 
 enum OrderStatus {
   pendiente
+  no_pagado
   en_preparacion
   en_camino
   entregado
@@ -125,6 +126,10 @@ model Order {
   coupon           Coupon?       @relation(fields: [couponId], references: [id])
   couponId         String?
   couponCode       String?
+  // El cupón reserva un cupo durante un minuto mientras se completa el pago.
+  // usedCount recién se incrementa cuando Mercado Pago acredita el pedido.
+  couponReservedUntil DateTime?
+  couponUsedAt      DateTime?
   status           OrderStatus   @default(pendiente)
   payment          PaymentMethod
   // Referencias verificadas de Mercado Pago. La URL se conserva para que un
@@ -146,6 +151,7 @@ model Order {
   @@index([repartidorId, status])
   @@index([routeBatchId, routeClosedAt])
   @@index([couponId])
+  @@index([couponId, couponReservedUntil])
 }
 
 model OrderItem {
@@ -209,6 +215,17 @@ model AnalyticsEvent {
 
   @@index([type, createdAt])
   @@index([productId])
+}
+
+// Una fila por sesión de navegador. El heartbeat permite calcular visitantes
+// conectados sin guardar un evento nuevo en cada actualización.
+model AnalyticsSession {
+  id         String   @id
+  path       String?
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  @@index([lastSeenAt])
 }
 
 // Posteo/banner de la sección "Novedades" de la home, editable desde el admin.

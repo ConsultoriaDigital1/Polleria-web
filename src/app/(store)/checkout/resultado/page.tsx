@@ -29,7 +29,7 @@ function clasificarMp(status: string): Estado {
 function mapEstadoInterno(estado: string): Estado | null {
   if (estado === "en_preparacion" || estado === "en_camino" || estado === "entregado")
     return "aprobado";
-  if (estado === "cancelado") return "rechazado";
+  if (estado === "cancelado" || estado === "no_pagado") return "rechazado";
   if (estado === "pendiente") return "pendiente";
   return null;
 }
@@ -92,7 +92,10 @@ function ResultadoContenido() {
             sessionStorage.removeItem(CHECKOUT_ATTEMPT_KEY);
             return;
           }
-          if (e === "rechazado") return;
+          if (e === "rechazado") {
+            sessionStorage.removeItem(CHECKOUT_ATTEMPT_KEY);
+            return;
+          }
         } else {
           setEstado((prev) => (prev === "verificando" ? "pendiente" : prev));
         }

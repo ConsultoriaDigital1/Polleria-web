@@ -8,7 +8,14 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const patchSchema = z.object({
-  status: z.enum(["pendiente", "en_preparacion", "en_camino", "entregado", "cancelado"]),
+  status: z.enum([
+    "pendiente",
+    "no_pagado",
+    "en_preparacion",
+    "en_camino",
+    "entregado",
+    "cancelado",
+  ]),
 });
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {

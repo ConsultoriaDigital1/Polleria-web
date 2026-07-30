@@ -77,6 +77,8 @@ export type CrearPreferenciaInput = {
   baseUrl: string;
   /** Email del comprador (opcional; el checkout igual lo pide). */
   payerEmail?: string;
+  /** Vencimiento del checkout, usado para respetar la reserva del cupón. */
+  expiresAt?: Date;
 };
 
 export type MpPreferencia = {
@@ -112,6 +114,16 @@ export async function crearPreferencia(
 
   if (input.payerEmail) {
     body.payer = { email: input.payerEmail };
+  }
+
+  if (input.expiresAt) {
+    const now = new Date();
+    if (input.expiresAt.getTime() <= now.getTime()) {
+      throw new Error("La reserva del cupón venció. Volvé a intentar el pago.");
+    }
+    body.expires = true;
+    body.expiration_date_from = new Date(now.getTime() - 5_000).toISOString();
+    body.expiration_date_to = input.expiresAt.toISOString();
   }
 
   // auto_return y notification_url solo valen para URLs públicas. En localhost
@@ -186,6 +198,7 @@ export function estadoPedidoDesdePago(mpStatus: string | null | undefined): Orde
       return "en_preparacion";
     case "rejected":
     case "cancelled":
+      return "no_pagado";
     case "refunded":
     case "charged_back":
       return "cancelado";

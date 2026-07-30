@@ -17,6 +17,9 @@ interface RawEvent {
 // Se cuelga de globalThis para sobrevivir al hot-reload de Next.
 const memEvents: RawEvent[] = ((globalThis as Record<string, unknown>).__memAnalytics ??=
   []) as RawEvent[];
+const memPresence: Map<string, Date> = ((globalThis as Record<string, unknown>).__memPresence ??=
+  new Map<string, Date>()) as Map<string, Date>;
+const ONLINE_WINDOW_MS = 45_000;
 
 export async function recordEvent(input: {
   type: AnalyticsEventType;
@@ -30,6 +33,30 @@ export async function recordEvent(input: {
     return;
   }
   memEvents.push({ type: input.type, productId: input.productId ?? null, createdAt: new Date() });
+}
+
+export async function recordPresence(sessionId: string, path?: string | null): Promise<void> {
+  const now = new Date();
+  if (hasDatabase) {
+    await prisma.analyticsSession.upsert({
+      where: { id: sessionId },
+      update: { path: path ?? null, lastSeenAt: now },
+      create: { id: sessionId, path: path ?? null, lastSeenAt: now },
+    });
+    return;
+  }
+  memPresence.set(sessionId, now);
+}
+
+export async function countOnlineVisitors(now = new Date()): Promise<number> {
+  const since = new Date(now.getTime() - ONLINE_WINDOW_MS);
+  if (hasDatabase) {
+    return prisma.analyticsSession.count({ where: { lastSeenAt: { gte: since } } });
+  }
+  for (const [id, lastSeenAt] of memPresence) {
+    if (lastSeenAt < since) memPresence.delete(id);
+  }
+  return memPresence.size;
 }
 
 function dayKey(d: Date): string {

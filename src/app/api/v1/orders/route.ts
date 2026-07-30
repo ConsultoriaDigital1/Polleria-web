@@ -12,6 +12,7 @@ export const runtime = "nodejs";
 
 const STATUSES: OrderStatus[] = [
   "pendiente",
+  "no_pagado",
   "en_preparacion",
   "en_camino",
   "entregado",

@@ -64,7 +64,7 @@ function dayLabel(date: Date): string {
 }
 
 function isSale(status: string): boolean {
-  return status !== "pendiente" && status !== "cancelado";
+  return status === "en_preparacion" || status === "en_camino" || status === "entregado";
 }
 
 function percentageChange(current: number, previous: number): number | null {
@@ -89,8 +89,10 @@ function buildSummary(orders: DashboardOrder[], customerTotal: number, newCustom
 
   for (const order of orders) {
     const key = argentinaDayKey(order.date);
-    if (key === todayKey) ordersToday++;
-    if (key === yesterdayKey) ordersYesterday++;
+    if (order.status !== "pendiente") {
+      if (key === todayKey) ordersToday++;
+      if (key === yesterdayKey) ordersYesterday++;
+    }
     if (!isSale(order.status)) continue;
 
     if (key === todayKey) {

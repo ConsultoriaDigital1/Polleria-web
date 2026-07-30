@@ -29,7 +29,7 @@ function changeTone(change: number | null): "up" | "down" | "flat" {
 export default async function AdminDashboard() {
   const [summary, orders] = await Promise.all([
     getDashboardSummary(),
-    listOrders({ limit: 6 }),
+    listOrders({ statusNot: "pendiente", limit: 6 }),
   ]);
   const stats = [
     {

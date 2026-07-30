@@ -48,7 +48,7 @@ export function PromoCarousel({ products }: { products: Product[] }) {
           {products.map((p) => (
             <div
               key={p.id}
-              className="min-w-0 shrink-0 basis-1/2 pl-3 sm:basis-1/3 md:pl-5 lg:basis-1/4"
+              className="flex min-w-0 shrink-0 basis-1/2 pl-3 sm:basis-1/3 md:pl-5 lg:basis-1/4"
             >
               <ProductCard product={p} />
             </div>

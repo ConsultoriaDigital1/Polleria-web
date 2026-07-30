@@ -70,7 +70,13 @@ export interface CouponQuote {
   gift?: { productId: string; name: string; qty: number };
 }
 
-export type OrderStatus = "pendiente" | "en_preparacion" | "en_camino" | "entregado" | "cancelado";
+export type OrderStatus =
+  | "pendiente"
+  | "no_pagado"
+  | "en_preparacion"
+  | "en_camino"
+  | "entregado"
+  | "cancelado";
 
 /**
  * Forma de entrega del pedido: siempre envío a domicilio.
@@ -113,6 +119,10 @@ export interface Order {
   mpInitPoint?: string;
   /** Pago aprobado asociado al pedido. */
   mpPaymentId?: string;
+  /** Fin de la reserva temporal del cupón. */
+  couponReservedUntil?: string;
+  /** Momento en que el uso del cupón quedó confirmado por el pago. */
+  couponUsedAt?: string;
   /** Posición del pedido en la ruta optimizada del reparto (1..N). */
   routeSeq?: number;
   /** Momento en que el pedido salió de la sucursal (ISO), al cerrar el lote. */

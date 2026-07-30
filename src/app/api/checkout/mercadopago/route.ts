@@ -7,7 +7,7 @@ import {
   quoteOrder,
   getProduct,
   saveMercadoPagoPreference,
-  updateOrderStatus,
+  applyVerifiedMercadoPagoPayment,
   CouponError,
   NoDatabaseError,
   OutOfStockError,
@@ -170,7 +170,7 @@ export async function POST(req: NextRequest) {
 
     // 1) Registramos el pedido (pendiente) vinculado al cliente. Con base de
     //    datos se persiste en Postgres; sin base (demo local) queda en memoria.
-    const order = await createOrder({
+    const orderInput = {
       checkoutId: body.checkoutId,
       customer: { name: body.nombre, phone: body.telefono },
       items: body.items,
@@ -184,14 +184,38 @@ export async function POST(req: NextRequest) {
       notes:
         `Pedido web · Mercado Pago · Entrega ${franjaLabel}\n` +
         `Mapa: https://www.google.com/maps?q=${body.lat},${body.lng}`,
-    });
+    } as const;
+    let order = await createOrder(orderInput);
+
+    // Un reintento posterior al minuto descarta el checkout vencido y genera
+    // una reserva/preferencia nuevas con la misma clave idempotente.
+    if (
+      order.status === "pendiente" &&
+      order.couponReservedUntil &&
+      new Date(order.couponReservedUntil).getTime() <= Date.now()
+    ) {
+      await deletePendingOrder(order.internalId ?? order.id);
+      order = await createOrder(orderInput);
+    }
+    if (order.status === "no_pagado") {
+      return NextResponse.json(
+        {
+          error: "El intento anterior no se pagó. Volvé a intentar para generar uno nuevo.",
+          resetCheckout: true,
+        },
+        { status: 409 }
+      );
+    }
     const externalReference = order.internalId ?? order.id;
     const orderId = order.id;
 
     // Modo demo: marcamos el pago como aprobado y volvemos directo a la
     // pantalla de resultado, sin pasar por el checkout real de Mercado Pago.
     if (fake) {
-      await updateOrderStatus(externalReference, "en_preparacion");
+      await applyVerifiedMercadoPagoPayment(externalReference, {
+        id: `demo-${externalReference}`,
+        status: "approved",
+      });
       const url = `/checkout/resultado?status=approved&external_reference=${encodeURIComponent(
         externalReference
       )}&demo=1`;
@@ -214,6 +238,9 @@ export async function POST(req: NextRequest) {
       pref = await crearPreferencia({
         externalReference,
         baseUrl: baseDelSitio(req),
+        expiresAt: order.couponReservedUntil
+          ? new Date(order.couponReservedUntil)
+          : undefined,
         items: [{
           id: orderId,
           title: body.couponCode ? `Pedido web · Cupón ${body.couponCode.toUpperCase()}` : "Pedido web",

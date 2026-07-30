@@ -166,6 +166,10 @@ export function CartDrawer() {
       });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.url) {
+        if (data?.resetCheckout) {
+          checkoutAttempt.current = null;
+          sessionStorage.removeItem(CHECKOUT_ATTEMPT_KEY);
+        }
         throw new Error(data?.error || "No pudimos iniciar el pago.");
       }
       window.location.href = data.url as string;
