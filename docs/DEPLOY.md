@@ -74,6 +74,21 @@ docker compose up -d --build
 
 Los datos de PostgreSQL viven en el volumen `pgdata` y sobreviven a rebuilds. Para limpiar imágenes viejas de vez en cuando: `docker image prune -f`.
 
+Si cambiaste `ADMIN_USER` o `ADMIN_PASSWORD`, el `.env` no se actualiza con
+`git pull` porque no se versiona. Editalo en el VPS y forzá la recreación del
+contenedor web para que tome las credenciales nuevas:
+
+```bash
+cd /opt/polleria-web
+nano .env
+docker compose up -d --build --force-recreate web
+docker compose ps
+curl -f http://localhost:3000/api/v1/health
+```
+
+Si la contraseña anterior pudo quedar expuesta, cambiá también
+`SESSION_SECRET`: eso cierra las sesiones administrativas que ya estaban abiertas.
+
 ## Comandos útiles
 
 ```bash

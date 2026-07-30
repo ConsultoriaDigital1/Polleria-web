@@ -11,6 +11,7 @@ export function Logo({ className, dark = false }: { className?: string; dark?: b
         width={48}
         height={48}
         priority
+        unoptimized
         className="h-12 w-12 rounded-full object-cover"
       />
       <div className="flex flex-col leading-none">

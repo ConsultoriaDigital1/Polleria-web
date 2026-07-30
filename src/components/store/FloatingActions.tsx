@@ -41,11 +41,14 @@ export function FloatingActions() {
           rel="noopener noreferrer"
           title={WHATSAPP_SOPORTE_TEXTO}
           aria-label={WHATSAPP_SOPORTE_TEXTO}
-          className="flex items-center gap-2 rounded-full bg-[#25D366] py-3 pl-4 pr-5 text-white shadow-card transition hover:scale-105 active:scale-95"
+          className="flex items-center gap-1.5 rounded-full bg-[#25D366] py-2.5 pl-3 pr-4 text-white shadow-card transition hover:scale-105 active:scale-95"
         >
           <WhatsAppIcon />
-          <span className="max-w-[9.5rem] text-left text-xs font-bold leading-tight">
-            {WHATSAPP_SOPORTE_TEXTO}
+          <span className="max-w-[7.5rem] text-left leading-none">
+            <span className="block text-[9px] font-semibold text-white/80">
+              ¿Tenés un problema?
+            </span>
+            <span className="mt-1 block text-[11px] font-bold">Escribinos</span>
           </span>
         </a>
       </div>
@@ -59,8 +62,8 @@ function WhatsAppIcon() {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      width="28"
-      height="28"
+      width="24"
+      height="24"
       viewBox="0 0 24 24"
       fill="currentColor"
       aria-hidden="true"
