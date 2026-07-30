@@ -33,17 +33,27 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Falta orderId." }, { status: 400 });
   }
 
+  const previo = await getOrder(orderId).catch(() => null);
   let mpStatus: string | null = null;
 
   if (paymentId) {
     const pago = await obtenerPago(paymentId);
-    // El pago debe corresponder a este pedido (anti-spoofing básico).
-    if (pago && (!pago.external_reference || pago.external_reference === orderId)) {
+    // El pago debe corresponder exactamente al pedido y al monto cotizado.
+    if (
+      pago &&
+      previo &&
+      pago.external_reference === (previo.internalId ?? orderId) &&
+      pago.transaction_amount != null &&
+      Number(pago.transaction_amount) === previo.total
+    ) {
       mpStatus = pago.status;
+    } else if (pago) {
+      console.error(
+        `[mercadopago:confirm] pago ${paymentId} no coincide con el pedido ${orderId}.`
+      );
     }
   }
 
-  const previo = await getOrder(orderId).catch(() => null);
   let order = previo;
 
   if (previo && !YA_CONFIRMADOS.includes(previo.status)) {

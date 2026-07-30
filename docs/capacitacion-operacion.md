@@ -213,12 +213,11 @@ Ahí ves y hacés:
 - **El código de cada parada** — a diferencia del repartidor, **vos sí ves los
   códigos** en el panel. Sirve para destrabar cuando el cliente perdió el suyo.
 - **"Ver todo" / "Solo llegando"** — filtra las paradas ya entregadas.
-- **Cerrar reparto** — solo se habilita **cuando están todas las entregas hechas**.
-  Es el "fin del viaje": deja de aparecer en curso y pasa al historial.
+- El reparto se **cierra automáticamente** cuando se confirma la última entrega.
+  El botón **Cerrar reparto** queda como respaldo manual.
 
-> *"El botón 'Cerrar reparto' está deshabilitado a propósito hasta que estén todas
-> las entregas. Si te queda una sin cerrar, no es un error del sistema: hay un
-> pedido que realmente no se entregó. Averiguá cuál antes de forzar nada."*
+> *"Al confirmar la última entrega, el lote desaparece de rutas activas y pasa al
+> historial tanto en el panel como en el celular del repartidor."*
 
 ### 2.5 Situaciones frecuentes
 
@@ -371,7 +370,7 @@ Ahí ves y hacés:
 | **No encuentro la dirección** | Escaneá el QR de la etiqueta. Si aun así no, llamá al cliente. |
 | **Me quedé sin datos / se apagó el celular** | Llamá al local. El encargado puede cargar los códigos desde el panel por vos. |
 | **Confirmé una entrega equivocada** | Avisá al local **inmediatamente**. No se puede deshacer desde tu celular. |
-| **Terminé todas las entregas** | Avisá al local para que cierren el reparto. Después tocá **"Salir"** si el celular es compartido. |
+| **Terminé todas las entregas** | El reparto se cierra solo. Después tocá **"Salir"** si el celular es compartido. |
 
 ### 4.5 Reglas de oro del repartidor
 

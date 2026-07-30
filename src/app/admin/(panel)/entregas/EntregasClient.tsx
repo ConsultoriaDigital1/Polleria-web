@@ -99,17 +99,24 @@ export function EntregasClient({ sucursales, repartidores, envios, enCurso = 0 }
     const etiquetasTab = window.open("about:blank", "_blank");
     setState(null);
     startTransition(async () => {
-      const res = await cerrarPedidosEnvio(sucursalId, ids, repartidorId);
-      setState(res);
-      if (res.ok) {
-        const url = etiquetasUrl(ids, true);
-        if (etiquetasTab) etiquetasTab.location.href = url;
-        else window.open(url, "_blank", "noopener,noreferrer");
-        setDespachados(ids);
-        setModalStock(false);
-        setSeleccion(new Set());
-      } else if (etiquetasTab) {
-        etiquetasTab.close();
+      try {
+        const res = await cerrarPedidosEnvio(sucursalId, ids, repartidorId);
+        setState(res);
+        if (res.ok) {
+          const url = etiquetasUrl(ids, true);
+          if (etiquetasTab) etiquetasTab.location.href = url;
+          else window.open(url, "_blank", "noopener,noreferrer");
+          setDespachados(ids);
+          setModalStock(false);
+          setSeleccion(new Set());
+        } else if (etiquetasTab) {
+          etiquetasTab.close();
+        }
+      } catch {
+        etiquetasTab?.close();
+        setState({
+          error: "Se perdió la conexión al cerrar el lote. Actualizá la página antes de reintentar.",
+        });
       }
     });
   };

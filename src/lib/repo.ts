@@ -105,6 +105,7 @@ function mapOrder(o: DbOrder & { items: DbOrderItem[] }): Order {
   return {
     id: o.code ?? `#${1000 + o.seq}`,
     internalId: o.id,
+    checkoutId: o.checkoutId ?? undefined,
     customer: o.customerName,
     phone: o.phone ?? undefined,
     address: o.address ?? undefined,
@@ -114,6 +115,11 @@ function mapOrder(o: DbOrder & { items: DbOrderItem[] }): Order {
     lng: o.lng ?? undefined,
     deliveryCode: o.deliveryCode ?? undefined,
     deliveredAt: o.deliveredAt?.toISOString(),
+    paidAt: o.paidAt?.toISOString(),
+    cancelledAt: o.cancelledAt?.toISOString(),
+    mpPreferenceId: o.mpPreferenceId ?? undefined,
+    mpInitPoint: o.mpInitPoint ?? undefined,
+    mpPaymentId: o.mpPaymentId ?? undefined,
     routeSeq: o.routeSeq ?? undefined,
     dispatchedAt: o.dispatchedAt?.toISOString(),
     routeBatchId: o.routeBatchId ?? undefined,
@@ -409,7 +415,9 @@ async function resolveCoupon(code: string, lines: QuoteLine[], phone?: string) {
       throw new CouponError("Completá tu WhatsApp para usar el código de bienvenida.");
     }
     const previas = await prisma.order.count({
-      where: { phone, status: { not: "cancelado" } },
+      // Un intento de checkout pendiente no es una compra. Solo bloqueamos el
+      // cupón cuando Mercado Pago ya confirmó el pedido.
+      where: { phone, status: { in: ["en_preparacion", "en_camino", "entregado"] } },
     });
     if (previas > 0) {
       throw new CouponError("El código de bienvenida es solo para tu primera compra.");
@@ -694,6 +702,8 @@ export async function getOrder(idOrCode: string): Promise<Order | null> {
 }
 
 export interface CreateOrderInput {
+  /** Clave estable del intento para que los reintentos no dupliquen pedidos. */
+  checkoutId?: string;
   customerId?: string;
   customer?: { name: string; phone: string; email?: string; document?: string };
   // name/price son opcionales: se usan como respaldo en el modo sin DB (demo).
@@ -763,12 +773,17 @@ async function quoteOrderMem(
 
 /** Alta de pedido en memoria (demo sin base de datos). */
 async function createOrderMem(input: CreateOrderInput): Promise<Order> {
+  if (input.checkoutId) {
+    const existing = [...runtimeOrders.values()].find((o) => o.checkoutId === input.checkoutId);
+    if (existing) return existing;
+  }
   const { lines, total } = await quoteOrderMem(input.items);
   runtimeSeq.n += 1;
   const internalId = `mem-${runtimeSeq.n}`;
   const order: Order = {
     id: `#${runtimeSeq.n}`,
     internalId,
+    checkoutId: input.checkoutId,
     customer: input.customer?.name ?? "Cliente",
     phone: input.customer ? normalizePhone(input.customer.phone) : undefined,
     address: input.address,
@@ -790,6 +805,14 @@ async function createOrderMem(input: CreateOrderInput): Promise<Order> {
 
 export async function createOrder(input: CreateOrderInput): Promise<Order> {
   if (!hasDatabase) return createOrderMem(input);
+
+  if (input.checkoutId) {
+    const existing = await prisma.order.findUnique({
+      where: { checkoutId: input.checkoutId },
+      include: { items: true },
+    });
+    if (existing) return mapOrder(existing);
+  }
 
   const { lines, total: subtotal } = await quoteOrder(input.items);
 
@@ -839,6 +862,7 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
     : lines;
 
   const createData = {
+      checkoutId: input.checkoutId ?? null,
       customerId,
       customerName,
       phone,
@@ -862,35 +886,53 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
   // cupón y crear el pedido. Si algo no da, no se crea nada y no se pierde
   // stock. El `where` con `stock: { gte: qty }` es lo que evita sobrevender
   // cuando dos personas compran la última unidad a la vez.
-  const created = await prisma.$transaction(async (tx) => {
-    for (const line of orderLines) {
-      const claimed = await tx.product.updateMany({
-        where: { id: line.productId, available: true, stock: { gte: line.qty } },
-        data: { stock: { decrement: line.qty } },
-      });
-      if (claimed.count !== 1) {
-        const actual = await tx.product.findUnique({
-          where: { id: line.productId },
-          select: { stock: true },
+  let created: DbOrder & { items: DbOrderItem[] };
+  try {
+    created = await prisma.$transaction(async (tx) => {
+      for (const line of orderLines) {
+        const claimed = await tx.product.updateMany({
+          where: { id: line.productId, available: true, stock: { gte: line.qty } },
+          data: { stock: { decrement: line.qty } },
         });
-        throw new OutOfStockError(line.name, actual?.stock ?? 0);
+        if (claimed.count !== 1) {
+          const actual = await tx.product.findUnique({
+            where: { id: line.productId },
+            select: { stock: true },
+          });
+          throw new OutOfStockError(line.name, actual?.stock ?? 0);
+        }
       }
-    }
 
-    if (couponResult) {
-      const claimed = await tx.coupon.updateMany({
-        where: {
-          id: couponResult.coupon.id,
-          active: true,
-          usedCount: { lt: couponResult.coupon.maxUses },
-        },
-        data: { usedCount: { increment: 1 } },
+      if (couponResult) {
+        const claimed = await tx.coupon.updateMany({
+          where: {
+            id: couponResult.coupon.id,
+            active: true,
+            usedCount: { lt: couponResult.coupon.maxUses },
+          },
+          data: { usedCount: { increment: 1 } },
+        });
+        if (claimed.count !== 1) throw new CouponError("Este cupón ya agotó sus usos disponibles.");
+      }
+
+      return tx.order.create({ data: createData, include: { items: true } });
+    });
+  } catch (error) {
+    // Dos requests simultáneos con la misma clave pueden superar la lectura
+    // inicial. El índice único decide cuál crea; el otro reutiliza ese pedido.
+    if (
+      input.checkoutId &&
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      const existing = await prisma.order.findUnique({
+        where: { checkoutId: input.checkoutId },
+        include: { items: true },
       });
-      if (claimed.count !== 1) throw new CouponError("Este cupón ya agotó sus usos disponibles.");
+      if (existing) return mapOrder(existing);
     }
-
-    return tx.order.create({ data: createData, include: { items: true } });
-  });
+    throw error;
+  }
 
   const withCode = await prisma.order.update({
     where: { id: created.id },
@@ -899,6 +941,47 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
   });
 
   return mapOrder(withCode);
+}
+
+/**
+ * Descarta un checkout que no llegó a crear la preferencia de Mercado Pago.
+ * Restaura stock/cupón en la misma transacción para que el intento fallido no
+ * figure como pedido ni deje mercadería reservada.
+ */
+export async function deletePendingOrder(idOrCode: string): Promise<boolean> {
+  if (!hasDatabase) {
+    const order = findMemOrder(idOrCode);
+    if (!order || order.status !== "pendiente") return false;
+    runtimeOrders.delete(order.internalId ?? idOrCode);
+    return true;
+  }
+
+  ensureDb();
+  return prisma.$transaction(async (tx) => {
+    const order = await tx.order.findFirst({
+      where: {
+        OR: [{ id: idOrCode }, { code: idOrCode }],
+        status: "pendiente",
+      },
+      include: { items: true },
+    });
+    if (!order) return false;
+
+    for (const item of order.items) {
+      await tx.product.update({
+        where: { id: item.productId },
+        data: { stock: { increment: item.qty } },
+      });
+    }
+    if (order.couponId) {
+      await tx.coupon.updateMany({
+        where: { id: order.couponId, usedCount: { gt: 0 } },
+        data: { usedCount: { decrement: 1 } },
+      });
+    }
+    await tx.order.delete({ where: { id: order.id } });
+    return true;
+  });
 }
 
 /** Busca un pedido en memoria por internalId o por código (#1234). */
@@ -941,6 +1024,12 @@ export async function updateOrderStatus(idOrCode: string, status: OrderStatus): 
         await tx.product.update({
           where: { id: item.productId },
           data: { stock: { increment: item.qty } },
+        });
+      }
+      if (existing.couponId) {
+        await tx.coupon.updateMany({
+          where: { id: existing.couponId, usedCount: { gt: 0 } },
+          data: { usedCount: { decrement: 1 } },
         });
       }
     }
@@ -986,6 +1075,7 @@ export async function confirmDelivery(idOrCode: string, code: string): Promise<D
     if (existing.deliveryCode !== code.trim()) return { ok: false, reason: "invalid_code" };
     const order = await updateOrderStatus(existing.internalId ?? existing.id, "entregado");
     if (!order) return { ok: false, reason: "not_found" };
+    await closeRouteIfComplete(order);
     return { ok: true, order };
   }
   ensureDb();
@@ -1000,6 +1090,7 @@ export async function confirmDelivery(idOrCode: string, code: string): Promise<D
 
   const order = await updateOrderStatus(existing.id, "entregado");
   if (!order) return { ok: false, reason: "not_found" };
+  await closeRouteIfComplete(order);
   return { ok: true, order };
 }
 
@@ -1038,6 +1129,7 @@ export async function confirmDeliveryByCode(
     }
     const order = await updateOrderStatus(match.internalId ?? match.id, "entregado");
     if (!order) return { ok: false, reason: "not_found" };
+    await closeRouteIfComplete(order);
     return { ok: true, order };
   }
   ensureDb();
@@ -1064,6 +1156,7 @@ export async function confirmDeliveryByCode(
 
   const order = await updateOrderStatus(match.id, "entregado");
   if (!order) return { ok: false, reason: "not_found" };
+  await closeRouteIfComplete(order);
   return { ok: true, order };
 }
 
@@ -1094,6 +1187,7 @@ export async function cancelDelivery(
     const order = await updateOrderStatus(existing.internalId ?? existing.id, "cancelado");
     if (!order) return { ok: false, reason: "not_found" };
     await notifyDeliveryCancellation(order);
+    await closeRouteIfComplete(order);
     return { ok: true, order };
   }
 
@@ -1113,6 +1207,7 @@ export async function cancelDelivery(
   const order = await updateOrderStatus(existing.id, "cancelado");
   if (!order) return { ok: false, reason: "not_found" };
   await notifyDeliveryCancellation(order);
+  await closeRouteIfComplete(order);
   return { ok: true, order };
 }
 
@@ -1157,6 +1252,13 @@ export interface DispatchResult {
   /** URL de Google Maps con la ruta optimizada (vacía si no hubo envíos). */
   mapsUrl: string;
   count: number;
+}
+
+export class DeliveryDispatchConflictError extends Error {
+  constructor() {
+    super("Otro usuario ya incluyó uno de estos pedidos en un reparto.");
+    this.name = "DeliveryDispatchConflictError";
+  }
 }
 
 export interface RouteHistory {
@@ -1271,7 +1373,7 @@ export async function dispatchDeliveries(
       stop.order.repartidorId = repartidorId;
     });
     const routeOrders = ordered.map((s) => s.order);
-    for (const o of routeOrders) await notifyOrderEvent("pedido_en_camino", o);
+    await Promise.all(routeOrders.map((o) => notifyOrderEvent("pedido_en_camino", o)));
     const mapsUrl = googleMapsRouteUrl(
       origin,
       ordered.map((s) => ({ lat: s.lat, lng: s.lng }))
@@ -1300,10 +1402,13 @@ export async function dispatchDeliveries(
   const ordered = optimizeRoute(origin, stops);
 
   const now = new Date();
-  await prisma.$transaction(
-    ordered.map((stop, i) =>
-      prisma.order.update({
-        where: { id: stop.id },
+  // El estado forma parte del WHERE: dos operadores no pueden despachar el
+  // mismo pedido a lotes/repartidores distintos. Si uno se adelantó, se
+  // revierte el lote completo y el segundo recibe un conflicto claro.
+  await prisma.$transaction(async (tx) => {
+    for (const [i, stop] of ordered.entries()) {
+      const claimed = await tx.order.updateMany({
+        where: { id: stop.id, status: "en_preparacion" },
         data: {
           status: "en_camino",
           routeSeq: i + 1,
@@ -1313,9 +1418,10 @@ export async function dispatchDeliveries(
           originSucursalId: sucursalId,
           repartidorId: repartidorId ?? null,
         },
-      })
-    )
-  );
+      });
+      if (claimed.count !== 1) throw new DeliveryDispatchConflictError();
+    }
+  });
 
   // Releemos con items para armar los avisos y la respuesta, en orden de ruta.
   const rows = await prisma.order.findMany({
@@ -1325,9 +1431,9 @@ export async function dispatchDeliveries(
   const byId = new Map(rows.map((r) => [r.id, r]));
   const routeOrders = ordered.map((s) => mapOrder(byId.get(s.id)!));
 
-  for (const o of routeOrders) {
-    await notifyOrderEvent("pedido_en_camino", o);
-  }
+  // Los avisos son independientes: un lote grande espera como máximo el
+  // timeout de un webhook, no cinco segundos multiplicados por cada pedido.
+  await Promise.all(routeOrders.map((o) => notifyOrderEvent("pedido_en_camino", o)));
 
   const mapsUrl = googleMapsRouteUrl(
     origin,
@@ -1377,6 +1483,16 @@ export async function closeDeliveryRoute(routeKey: string): Promise<number> {
   });
 }
 
+/** Cierra automáticamente el lote cuando ya no quedan paradas en camino. */
+async function closeRouteIfComplete(order: Order): Promise<void> {
+  const routeKey =
+    order.routeBatchId ??
+    (order.dispatchedAt
+      ? `legacy:${order.repartidorId ?? "sin-asignar"}:${order.dispatchedAt}`
+      : null);
+  if (routeKey) await closeDeliveryRoute(routeKey);
+}
+
 // ---------- Clientes ----------
 export async function listCustomers(search?: string): Promise<Customer[]> {
   if (hasDatabase) {
@@ -1390,7 +1506,12 @@ export async function listCustomers(search?: string): Promise<Customer[]> {
             ],
           }
         : undefined,
-      include: { orders: { select: { total: true } } },
+      include: {
+        orders: {
+          where: { status: { in: ["en_preparacion", "en_camino", "entregado"] } },
+          select: { total: true },
+        },
+      },
       orderBy: { createdAt: "desc" },
     });
     return rows.map(mapCustomer);
@@ -1415,7 +1536,12 @@ export async function getCustomer(id: string): Promise<Customer | null> {
   if (hasDatabase) {
     const c = await prisma.customer.findUnique({
       where: { id },
-      include: { orders: { select: { total: true } } },
+      include: {
+        orders: {
+          where: { status: { in: ["en_preparacion", "en_camino", "entregado"] } },
+          select: { total: true },
+        },
+      },
     });
     return c ? mapCustomer(c) : null;
   }
@@ -1443,12 +1569,22 @@ export async function findCustomer(by: {
     if (clauses.length === 0) return null;
     let c = await prisma.customer.findFirst({
       where: { OR: clauses },
-      include: { orders: { select: { total: true } } },
+      include: {
+        orders: {
+          where: { status: { in: ["en_preparacion", "en_camino", "entregado"] } },
+          select: { total: true },
+        },
+      },
     });
     if (!c && document) {
       const candidates = await prisma.customer.findMany({
         where: { document: { not: null } },
-        include: { orders: { select: { total: true } } },
+        include: {
+          orders: {
+            where: { status: { in: ["en_preparacion", "en_camino", "entregado"] } },
+            select: { total: true },
+          },
+        },
       });
       c = candidates.find((candidate) => normalizeDocument(candidate.document ?? "") === document) ?? null;
     }
@@ -1485,7 +1621,12 @@ export async function createCustomer(input: {
       email: input.email ?? null,
       document: input.document ?? null,
     },
-    include: { orders: { select: { total: true } } },
+    include: {
+      orders: {
+        where: { status: { in: ["en_preparacion", "en_camino", "entregado"] } },
+        select: { total: true },
+      },
+    },
   });
   return mapCustomer(c);
 }
@@ -1505,7 +1646,12 @@ export async function updateCustomer(
       email: input.email === undefined ? undefined : input.email,
       document: input.document === undefined ? undefined : input.document,
     },
-    include: { orders: { select: { total: true } } },
+    include: {
+      orders: {
+        where: { status: { in: ["en_preparacion", "en_camino", "entregado"] } },
+        select: { total: true },
+      },
+    },
   });
   return mapCustomer(c);
 }

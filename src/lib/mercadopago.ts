@@ -135,10 +135,15 @@ export type MpPago = {
   transaction_amount?: number;
 };
 
+/** Consulta un pago y propaga el error para que el webhook pueda pedir reintento. */
+export async function obtenerPagoEstricto(paymentId: string): Promise<MpPago> {
+  return mpFetch<MpPago>(`/v1/payments/${encodeURIComponent(paymentId)}`);
+}
+
 /** Consulta un pago por id. Devuelve null si no existe o falla. */
 export async function obtenerPago(paymentId: string): Promise<MpPago | null> {
   try {
-    return await mpFetch<MpPago>(`/v1/payments/${encodeURIComponent(paymentId)}`);
+    return await obtenerPagoEstricto(paymentId);
   } catch {
     return null;
   }
@@ -151,6 +156,8 @@ export function estadoPedidoDesdePago(mpStatus: string | null | undefined): Orde
       return "en_preparacion";
     case "rejected":
     case "cancelled":
+    case "refunded":
+    case "charged_back":
       return "cancelado";
     default:
       // pending, in_process, etc.

@@ -45,29 +45,37 @@ function ResultadoContenido() {
   const demo = params.get("demo") === "1";
 
   const [estado, setEstado] = useState<Estado>(() =>
-    demo ? "aprobado" : clasificarMp(urlStatus)
+    demo ? "aprobado" : clasificarMp(urlStatus) === "pendiente" ? "pendiente" : "verificando"
   );
   const [pedido, setPedido] = useState<DatosPedido | null>(null);
 
   useEffect(() => {
-    // Si MP ya dijo "aprobado" en la URL, vaciamos el carrito sin esperar.
-    if (demo || clasificarMp(urlStatus) === "aprobado") clear();
+    if (demo) {
+      clear();
+      return;
+    }
 
     if (!orderId) {
       setEstado((prev) => (prev === "verificando" ? "pendiente" : prev));
       return;
     }
 
-    // Verificamos el estado REAL contra el backend (consulta a MP) y traemos
-    // los códigos del pedido para mostrárselos al cliente. /confirm es
-    // idempotente, así que no pasa nada si el efecto corre dos veces (StrictMode).
-    fetch("/api/checkout/mercadopago/confirm", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ orderId, paymentId }),
-    })
-      .then((r) => r.json())
-      .then((d) => {
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    // MP puede acreditar unos segundos después de volver al sitio. Reintentamos
+    // la verificación y vaciamos el carrito únicamente con pago real confirmado.
+    const verificar = async (intento = 0) => {
+      try {
+        const response = await fetch("/api/checkout/mercadopago/confirm", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          cache: "no-store",
+          body: JSON.stringify({ orderId, paymentId }),
+        });
+        if (!response.ok) throw new Error("No se pudo verificar el pago.");
+        const d = await response.json();
+        if (cancelled) return;
         setPedido({
           codigo: d?.codigo ?? null,
           deliveryCode: d?.deliveryCode ?? null,
@@ -77,16 +85,27 @@ function ResultadoContenido() {
         const e = d?.estado ? mapEstadoInterno(d.estado) : null;
         if (e) {
           setEstado(e);
-          if (e === "aprobado") clear();
+          if (e === "aprobado") {
+            clear();
+            return;
+          }
+          if (e === "rechazado") return;
         } else {
           setEstado((prev) => (prev === "verificando" ? "pendiente" : prev));
         }
-      })
-      .catch(() => {
+      } catch {
+        if (cancelled) return;
         setEstado((prev) => (prev === "verificando" ? "pendiente" : prev));
-      });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+      }
+      if (intento < 9) timer = setTimeout(() => void verificar(intento + 1), 2000);
+    };
+
+    void verificar();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [clear, demo, orderId, paymentId]);
 
   const ui = {
     verificando: {

@@ -78,20 +78,26 @@ export function RutaEnCursoClient({
 
   // Refresco automático para reflejar lo que confirma el repartidor.
   useEffect(() => {
-    const t = setInterval(() => router.refresh(), 15000);
+    const t = setInterval(() => {
+      if (document.visibilityState === "visible" && !pending && !closing) router.refresh();
+    }, 20000);
     return () => clearInterval(t);
-  }, [router]);
+  }, [closing, pending, router]);
 
   const confirmar = () => {
     const c = code.trim();
     if (c.length < 4 || pending) return;
     setState(null);
     startTransition(async () => {
-      const res = await confirmarEntrega(c);
-      setState(res);
-      if (res.ok) {
-        setCode("");
-        router.refresh();
+      try {
+        const res = await confirmarEntrega(c);
+        setState(res);
+        if (res.ok) {
+          setCode("");
+          router.refresh();
+        }
+      } catch {
+        setState({ error: "No se pudo conectar. Actualizá e intentá nuevamente." });
       }
       inputRef.current?.focus();
     });
@@ -105,9 +111,13 @@ export function RutaEnCursoClient({
     ) return;
     setCloseError(null);
     startClosing(async () => {
-      const result = await cerrarReparto(routeKey);
-      if (result.ok) router.refresh();
-      else setCloseError(result.error ?? "No se pudo cerrar el reparto.");
+      try {
+        const result = await cerrarReparto(routeKey);
+        if (result.ok) router.refresh();
+        else setCloseError(result.error ?? "No se pudo cerrar el reparto.");
+      } catch {
+        setCloseError("No se pudo conectar. Actualizá la página antes de reintentar.");
+      }
     });
   };
 

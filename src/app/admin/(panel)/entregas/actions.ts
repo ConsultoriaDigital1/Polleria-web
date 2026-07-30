@@ -5,6 +5,7 @@ import { assertPerm } from "@/lib/auth/permissions";
 import {
   closeDeliveryRoute,
   confirmDeliveryByCode,
+  DeliveryDispatchConflictError,
   dispatchDeliveries,
   getStaff,
   NoDatabaseError,
@@ -56,6 +57,8 @@ export async function cerrarPedidosEnvio(
     return { ok: true, count: result.count, mapsUrl: result.mapsUrl };
   } catch (e) {
     if (e instanceof NoDatabaseError) return { error: e.message };
+    if (e instanceof DeliveryDispatchConflictError) return { error: e.message };
+    console.error("[entregas] no se pudo cerrar el lote:", e);
     return { error: "No se pudieron cerrar los pedidos." };
   }
 }

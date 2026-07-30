@@ -15,13 +15,19 @@ const paymentLabels: Record<string, string> = {
 
 export default async function PedidosPage() {
   await requirePerm("pedidos");
-  const orders = await listOrders();
+  // "Pedidos" es una vista operativa: los checkouts todavía no pagados no
+  // deben confundirse con ventas reales.
+  const orders = (await listOrders()).filter((order) =>
+    ["en_preparacion", "en_camino", "entregado"].includes(order.status)
+  );
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-brand-ink">Pedidos</h1>
-          <p className="text-sm text-brand-ink/55">{orders.length} pedidos en total</p>
+          <p className="text-sm text-brand-ink/55">
+            {orders.length} pedidos con pago confirmado
+          </p>
         </div>
         <button className="btn-primary">Nuevo pedido</button>
       </div>

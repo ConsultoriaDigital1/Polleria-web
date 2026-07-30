@@ -3,6 +3,7 @@ import { z } from "zod";
 import { crearPreferencia, mpHabilitado } from "@/lib/mercadopago";
 import {
   createOrder,
+  deletePendingOrder,
   quoteOrder,
   getProduct,
   updateOrderStatus,
@@ -195,19 +196,30 @@ export async function POST(req: NextRequest) {
     }
 
     // 2) Creamos la preferencia de Checkout Pro vinculada al pedido.
-    const pref = await crearPreferencia({
-      externalReference,
-      baseUrl: baseDelSitio(req),
-      items: [{
-        id: orderId,
-        title: body.couponCode ? `Pedido web · Cupón ${body.couponCode.toUpperCase()}` : "Pedido web",
-        quantity: 1,
-        unit_price: order.total,
-      }],
-    });
+    let pref: Awaited<ReturnType<typeof crearPreferencia>>;
+    try {
+      pref = await crearPreferencia({
+        externalReference,
+        baseUrl: baseDelSitio(req),
+        items: [{
+          id: orderId,
+          title: body.couponCode ? `Pedido web · Cupón ${body.couponCode.toUpperCase()}` : "Pedido web",
+          quantity: 1,
+          unit_price: order.total,
+        }],
+      });
+    } catch (error) {
+      await deletePendingOrder(externalReference).catch((rollbackError) => {
+        console.error(`[checkout] no se pudo revertir ${order.id}:`, rollbackError);
+      });
+      console.error(`[checkout] Mercado Pago rechazó la preferencia de ${order.id}:`, error);
+      throw error;
+    }
 
     const url = pref.init_point || pref.sandbox_init_point;
     if (!url) {
+      await deletePendingOrder(externalReference);
+      console.error(`[checkout] Mercado Pago devolvió una preferencia sin URL para ${order.id}.`);
       return NextResponse.json(
         { error: "Mercado Pago no devolvió una URL de pago." },
         { status: 502 }
@@ -222,6 +234,7 @@ export async function POST(req: NextRequest) {
         { status: 503 }
       );
     }
+    console.error("[checkout] no se pudo iniciar el pago:", e);
     const msg = e instanceof Error ? e.message : "Error desconocido.";
     return NextResponse.json(
       { error: `No pudimos iniciar el pago. ${msg}` },

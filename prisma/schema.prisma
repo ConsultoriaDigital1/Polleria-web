@@ -89,6 +89,9 @@ model Order {
   id               String        @id @default(cuid())
   seq              Int           @default(autoincrement())
   code             String?       @unique
+  // Identifica un intento de checkout del navegador. Evita crear dos pedidos
+  // cuando hay doble click, reintento de red o una respuesta perdida.
+  checkoutId       String?       @unique
   customer         Customer?     @relation(fields: [customerId], references: [id])
   customerId       String?
   customerName     String
@@ -124,6 +127,13 @@ model Order {
   couponCode       String?
   status           OrderStatus   @default(pendiente)
   payment          PaymentMethod
+  // Referencias verificadas de Mercado Pago. La URL se conserva para que un
+  // reintento del mismo checkout vuelva a la misma preferencia.
+  mpPreferenceId   String?       @unique
+  mpInitPoint      String?
+  mpPaymentId      String?       @unique
+  paidAt           DateTime?
+  cancelledAt      DateTime?
   notes            String?
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { obtenerPago, estadoPedidoDesdePago } from "@/lib/mercadopago";
-import { updateOrderStatus } from "@/lib/repo";
+import { obtenerPagoEstricto, estadoPedidoDesdePago } from "@/lib/mercadopago";
+import { getOrder, updateOrderStatus } from "@/lib/repo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,30 +32,49 @@ async function procesar(req: NextRequest): Promise<void> {
   if (topic && topic !== "payment") return;
   if (!paymentId) return;
 
-  const pago = await obtenerPago(paymentId);
-  if (pago?.external_reference) {
-    await updateOrderStatus(
-      pago.external_reference,
-      estadoPedidoDesdePago(pago.status)
-    ).catch(() => {});
+  const pago = await obtenerPagoEstricto(paymentId);
+  const orderId = pago.external_reference?.trim();
+  if (!orderId) return;
+
+  const order = await getOrder(orderId);
+  if (!order) {
+    console.error(`[mercadopago:webhook] pedido inexistente para el pago ${paymentId}.`);
+    return;
   }
+  if (
+    pago.status === "approved" &&
+    (pago.transaction_amount == null || Number(pago.transaction_amount) !== order.total)
+  ) {
+    console.error(
+      `[mercadopago:webhook] monto inválido en pago ${paymentId}: esperado ${order.total}, recibido ${pago.transaction_amount}.`
+    );
+    return;
+  }
+
+  await updateOrderStatus(orderId, estadoPedidoDesdePago(pago.status));
+  console.info(
+    `[mercadopago:webhook] pago ${paymentId} (${pago.status}) aplicado a ${order.id}.`
+  );
 }
 
 export async function POST(req: NextRequest) {
   try {
     await procesar(req);
-  } catch {
-    // Nunca devolvemos error: MP reintentaría. Respondemos 200 siempre.
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    // Un error temporal debe devolver 500 para que Mercado Pago reintente.
+    console.error("[mercadopago:webhook] no se pudo procesar la notificación:", error);
+    return NextResponse.json({ ok: false }, { status: 500 });
   }
-  return NextResponse.json({ ok: true });
 }
 
 // MP a veces hace un GET de verificación sobre la notification_url.
 export async function GET(req: NextRequest) {
   try {
     await procesar(req);
-  } catch {
-    // ídem POST
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    console.error("[mercadopago:webhook] falló la verificación:", error);
+    return NextResponse.json({ ok: false }, { status: 500 });
   }
-  return NextResponse.json({ ok: true });
 }

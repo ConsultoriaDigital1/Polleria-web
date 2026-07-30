@@ -89,6 +89,8 @@ export interface Order {
   id: string;
   /** id interno de la base (cuid); se usa como external_reference en pagos. */
   internalId?: string;
+  /** Clave idempotente de un intento de checkout. */
+  checkoutId?: string;
   customer: string;
   phone?: string;
   address?: string;
@@ -102,6 +104,15 @@ export interface Order {
   deliveryCode?: string;
   /** Momento exacto en que se confirmó la entrega. */
   deliveredAt?: string;
+  /** Momento exacto en que Mercado Pago confirmó el cobro. */
+  paidAt?: string;
+  /** Momento exacto en que se canceló el pedido. */
+  cancelledAt?: string;
+  /** Preferencia de Mercado Pago asociada al intento. */
+  mpPreferenceId?: string;
+  mpInitPoint?: string;
+  /** Pago aprobado asociado al pedido. */
+  mpPaymentId?: string;
   /** Posición del pedido en la ruta optimizada del reparto (1..N). */
   routeSeq?: number;
   /** Momento en que el pedido salió de la sucursal (ISO), al cerrar el lote. */
