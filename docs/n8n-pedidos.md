@@ -11,6 +11,7 @@ armás el flujo de mensajes al cliente y la ruta optimizada del repartidor.
 | `N8N_ORDER_DISPATCH_WEBHOOK_URL` | (Opcional) Webhook exclusivo para `pedido_en_camino`, disparado al cerrar el lote. Si queda vacío usa el general. |
 | `N8N_ORDER_WEBHOOK_SECRET` | (Opcional) La web manda `Authorization: Bearer <valor>`; validalo en n8n. |
 | `MP_ACCESS_TOKEN` | Access token de Mercado Pago (Checkout Pro). |
+| `MP_WEBHOOK_SECRET` | Firma secreta de Webhooks de Mercado Pago; permite rechazar notificaciones falsas. |
 | `NEXT_PUBLIC_BASE_URL` | URL pública del sitio; necesaria para que MP llame al webhook de pagos. |
 | `API_KEY` | La que ya usa tu bot para llamar a `/api/v1/...` (Authorization: Bearer). |
 

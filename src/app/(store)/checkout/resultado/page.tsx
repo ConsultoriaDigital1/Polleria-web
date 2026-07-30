@@ -7,6 +7,7 @@ import { CheckCircle2, Clock3, Gift, Loader2, PackageCheck, XCircle } from "luci
 import { useCart } from "@/store/cart";
 
 type Estado = "verificando" | "aprobado" | "pendiente" | "rechazado";
+const CHECKOUT_ATTEMPT_KEY = "entrerios-checkout-attempt";
 
 /** Datos del pedido que devuelve /confirm para mostrarle al cliente. */
 interface DatosPedido {
@@ -52,6 +53,7 @@ function ResultadoContenido() {
   useEffect(() => {
     if (demo) {
       clear();
+      sessionStorage.removeItem(CHECKOUT_ATTEMPT_KEY);
       return;
     }
 
@@ -87,6 +89,7 @@ function ResultadoContenido() {
           setEstado(e);
           if (e === "aprobado") {
             clear();
+            sessionStorage.removeItem(CHECKOUT_ATTEMPT_KEY);
             return;
           }
           if (e === "rechazado") return;

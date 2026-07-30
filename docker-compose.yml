@@ -44,6 +44,7 @@ services:
       ADMIN_PHONES: ${ADMIN_PHONES:-}
       # Pagos online (Mercado Pago Checkout Pro)
       MP_ACCESS_TOKEN: ${MP_ACCESS_TOKEN:?Definí MP_ACCESS_TOKEN en el archivo .env}
+      MP_WEBHOOK_SECRET: ${MP_WEBHOOK_SECRET:-}
       NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL:?Definí NEXT_PUBLIC_BASE_URL en el archivo .env}
       # Demo: si es true, saltea Mercado Pago y marca el pago como aprobado.
       CHECKOUT_FAKE_PAYMENT: ${CHECKOUT_FAKE_PAYMENT:-}

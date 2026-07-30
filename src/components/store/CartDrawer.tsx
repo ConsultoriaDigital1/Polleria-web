@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
   Clock,
@@ -24,6 +24,8 @@ import { MapPicker, type MapPoint } from "@/components/store/MapPicker";
 import { AvisoTurnos } from "@/components/store/AvisoTurnos";
 import type { CouponQuote } from "@/lib/types";
 
+const CHECKOUT_ATTEMPT_KEY = "entrerios-checkout-attempt";
+
 export function CartDrawer() {
   const open = useUI((s) => s.cartOpen);
   const close = useUI((s) => s.closeCart);
@@ -37,6 +39,7 @@ export function CartDrawer() {
 
   const [errorPago, setErrorPago] = useState<string | null>(null);
   const [pagando, setPagando] = useState(false);
+  const checkoutAttempt = useRef<{ fingerprint: string; id: string } | null>(null);
 
   // Datos de contacto + entrega a domicilio (única modalidad).
   const [nombre, setNombre] = useState("");
@@ -124,23 +127,41 @@ export function CartDrawer() {
     setErrorPago(null);
     setPagando(true);
     try {
+      const payload = {
+        items: lines.map((l) => ({
+          productId: l.product.id,
+          qty: l.qty,
+          name: l.product.name,
+          price: l.product.price,
+        })),
+        direccion: direccion.trim(),
+        lat: punto?.lat,
+        lng: punto?.lng,
+        franjaHoraria: franja,
+        nombre: nombre.trim(),
+        telefono: telefono.trim(),
+        couponCode: coupon?.code,
+      };
+      const fingerprint = JSON.stringify(payload);
+      if (!checkoutAttempt.current || checkoutAttempt.current.fingerprint !== fingerprint) {
+        let stored: { fingerprint: string; id: string } | null = null;
+        try {
+          stored = JSON.parse(sessionStorage.getItem(CHECKOUT_ATTEMPT_KEY) ?? "null");
+        } catch {
+          stored = null;
+        }
+        checkoutAttempt.current =
+          stored?.fingerprint === fingerprint && /^[0-9a-f-]{36}$/i.test(stored.id)
+            ? stored
+            : { fingerprint, id: crypto.randomUUID() };
+        sessionStorage.setItem(CHECKOUT_ATTEMPT_KEY, JSON.stringify(checkoutAttempt.current));
+      }
       const res = await fetch("/api/checkout/mercadopago", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          items: lines.map((l) => ({
-            productId: l.product.id,
-            qty: l.qty,
-            name: l.product.name,
-            price: l.product.price,
-          })),
-          direccion: direccion.trim(),
-          lat: punto?.lat,
-          lng: punto?.lng,
-          franjaHoraria: franja,
-          nombre: nombre.trim(),
-          telefono: telefono.trim(),
-          couponCode: coupon?.code,
+          ...payload,
+          checkoutId: checkoutAttempt.current.id,
         }),
       });
       const data = await res.json().catch(() => null);

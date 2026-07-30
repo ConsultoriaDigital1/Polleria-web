@@ -1,5 +1,6 @@
 import "server-only";
 import type { OrderStatus } from "./types";
+import { createHmac, timingSafeEqual } from "node:crypto";
 
 // Integración con Mercado Pago (Checkout Pro). Todo este módulo corre SOLO en
 // el servidor: usa el access token (secreto) para crear la preferencia de pago
@@ -147,6 +148,35 @@ export async function obtenerPago(paymentId: string): Promise<MpPago | null> {
   } catch {
     return null;
   }
+}
+
+/**
+ * Valida la firma HMAC documentada por Mercado Pago. Si todavía no se
+ * configuró MP_WEBHOOK_SECRET se mantiene compatibilidad y la autenticidad se
+ * apoya en la consulta server-to-server del pago.
+ */
+export function validarFirmaWebhook(input: {
+  signature: string | null;
+  requestId: string | null;
+  dataId: string;
+}): boolean {
+  const secret = process.env.MP_WEBHOOK_SECRET?.trim();
+  if (!secret) return true;
+  if (!input.signature || !input.requestId || !input.dataId) return false;
+
+  const parts = Object.fromEntries(
+    input.signature.split(",").map((part) => {
+      const [key, ...value] = part.trim().split("=");
+      return [key, value.join("=")];
+    })
+  );
+  const ts = parts.ts;
+  const received = parts.v1;
+  if (!ts || !received || !/^[a-f0-9]{64}$/i.test(received)) return false;
+
+  const manifest = `id:${input.dataId.toLowerCase()};request-id:${input.requestId};ts:${ts};`;
+  const expected = createHmac("sha256", secret).update(manifest).digest("hex");
+  return timingSafeEqual(Buffer.from(expected, "hex"), Buffer.from(received, "hex"));
 }
 
 /** Traduce el estado de un pago de MP al estado interno del pedido. */

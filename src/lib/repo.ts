@@ -943,6 +943,199 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
   return mapOrder(withCode);
 }
 
+/** Conserva la preferencia para que un reintento vuelva al mismo checkout. */
+export async function saveMercadoPagoPreference(
+  idOrCode: string,
+  preference: { id: string; initPoint: string }
+): Promise<Order | null> {
+  if (!hasDatabase) {
+    const order = findMemOrder(idOrCode);
+    if (!order) return null;
+    if (!order.mpPreferenceId) {
+      order.mpPreferenceId = preference.id;
+      order.mpInitPoint = preference.initPoint;
+    }
+    return order;
+  }
+
+  ensureDb();
+  const existing = await prisma.order.findFirst({
+    where: { OR: [{ id: idOrCode }, { code: idOrCode }] },
+    include: { items: true },
+  });
+  if (!existing) return null;
+  if (existing.mpPreferenceId) return mapOrder(existing);
+
+  await prisma.order.updateMany({
+    where: { id: existing.id, mpPreferenceId: null },
+    data: {
+      mpPreferenceId: preference.id,
+      mpInitPoint: preference.initPoint,
+    },
+  });
+  const updated = await prisma.order.findUnique({
+    where: { id: existing.id },
+    include: { items: true },
+  });
+  return updated ? mapOrder(updated) : null;
+}
+
+export interface VerifiedMercadoPagoPayment {
+  id: string;
+  status: string;
+}
+
+/**
+ * Aplica un pago ya verificado contra Mercado Pago.
+ *
+ * - Un pago rechazado solo cancela un checkout todavía pendiente.
+ * - Un segundo pago nunca pisa el pago aprobado que ya quedó ligado.
+ * - Un webhook viejo no hace retroceder un pedido confirmado.
+ * - Reintentos del mismo evento son idempotentes y no duplican stock/avisos.
+ */
+export async function applyVerifiedMercadoPagoPayment(
+  idOrCode: string,
+  payment: VerifiedMercadoPagoPayment
+): Promise<Order | null> {
+  const approved = payment.status === "approved";
+  const failed = payment.status === "rejected" || payment.status === "cancelled";
+  const reversed = payment.status === "refunded" || payment.status === "charged_back";
+
+  if (!hasDatabase) {
+    const order = findMemOrder(idOrCode);
+    if (!order) return null;
+    const previousStatus = order.status;
+    const now = new Date().toISOString();
+
+    if (approved && (!order.mpPaymentId || order.mpPaymentId === payment.id)) {
+      if (!order.mpPaymentId && !["en_camino", "entregado"].includes(order.status)) {
+        order.status = "en_preparacion";
+      }
+      order.mpPaymentId = payment.id;
+      order.paidAt ??= now;
+      if (order.status !== "cancelado") order.cancelledAt = undefined;
+    } else if (
+      (failed && !order.mpPaymentId && order.status === "pendiente") ||
+      (reversed && order.mpPaymentId === payment.id && order.status !== "cancelado")
+    ) {
+      order.status = "cancelado";
+      order.cancelledAt ??= now;
+    }
+
+    if (order.status !== previousStatus) {
+      order.updatedAt = now;
+      const event = eventForStatus(order.status);
+      if (event) await notifyOrderEvent(event, order);
+    }
+    return order;
+  }
+
+  ensureDb();
+  let statusChanged = false;
+  const updated = await prisma.$transaction(async (tx) => {
+    const current = await tx.order.findFirst({
+      where: { OR: [{ id: idOrCode }, { code: idOrCode }] },
+      include: { items: true },
+    });
+    if (!current) return null;
+
+    const now = new Date();
+    if (approved) {
+      // Si ya hay otro pago aprobado, esta notificación pertenece a un segundo
+      // intento y no puede modificar el pedido.
+      if (current.mpPaymentId && current.mpPaymentId !== payment.id) return current;
+      if (current.mpPaymentId === payment.id) return current;
+
+      const nextStatus =
+        current.status === "pendiente" || current.status === "cancelado"
+          ? "en_preparacion"
+          : current.status;
+      const claimed = await tx.order.updateMany({
+        where: {
+          id: current.id,
+          status: current.status,
+          mpPaymentId: null,
+        },
+        data: {
+          status: nextStatus,
+          mpPaymentId: payment.id,
+          paidAt: current.paidAt ?? now,
+          cancelledAt: null,
+        },
+      });
+      if (claimed.count !== 1) {
+        return tx.order.findUnique({ where: { id: current.id }, include: { items: true } });
+      }
+
+      // Si el pago se acreditó después de una cancelación, el dinero manda:
+      // volvemos a reservar el pedido aun si eso deja stock negativo, para no
+      // ocultar una venta cobrada que requiere resolución operativa.
+      if (current.status === "cancelado") {
+        for (const item of current.items) {
+          await tx.product.update({
+            where: { id: item.productId },
+            data: { stock: { decrement: item.qty } },
+          });
+        }
+        if (current.couponId) {
+          await tx.coupon.update({
+            where: { id: current.couponId },
+            data: { usedCount: { increment: 1 } },
+          });
+        }
+      }
+      statusChanged = nextStatus !== current.status;
+    } else {
+      const canCancel =
+        (failed && !current.mpPaymentId && current.status === "pendiente") ||
+        (reversed && current.mpPaymentId === payment.id && current.status !== "cancelado");
+      if (!canCancel) return current;
+
+      const claimed = await tx.order.updateMany({
+        where: reversed
+          ? {
+              id: current.id,
+              status: { not: "cancelado" },
+              mpPaymentId: payment.id,
+            }
+          : {
+              id: current.id,
+              status: "pendiente",
+              mpPaymentId: null,
+            },
+        data: { status: "cancelado", cancelledAt: now },
+      });
+      if (claimed.count !== 1) {
+        return tx.order.findUnique({ where: { id: current.id }, include: { items: true } });
+      }
+
+      for (const item of current.items) {
+        await tx.product.update({
+          where: { id: item.productId },
+          data: { stock: { increment: item.qty } },
+        });
+      }
+      if (current.couponId) {
+        await tx.coupon.updateMany({
+          where: { id: current.couponId, usedCount: { gt: 0 } },
+          data: { usedCount: { decrement: 1 } },
+        });
+      }
+      statusChanged = true;
+    }
+
+    return tx.order.findUnique({ where: { id: current.id }, include: { items: true } });
+  });
+
+  if (!updated) return null;
+  const order = mapOrder(updated);
+  if (statusChanged) {
+    const event = eventForStatus(order.status);
+    if (event) await notifyOrderEvent(event, order);
+  }
+  return order;
+}
+
 /**
  * Descarta un checkout que no llegó a crear la preferencia de Mercado Pago.
  * Restaura stock/cupón en la misma transacción para que el intento fallido no
@@ -1001,6 +1194,8 @@ export async function updateOrderStatus(idOrCode: string, status: OrderStatus): 
     const now = new Date().toISOString();
     order.updatedAt = now;
     if (status === "entregado" && changed) order.deliveredAt = now;
+    if (status === "en_preparacion" && changed) order.paidAt ??= now;
+    if (status === "cancelado" && changed) order.cancelledAt = now;
     if (changed) {
       const event = eventForStatus(status);
       if (event) await notifyOrderEvent(event, order);
@@ -1013,13 +1208,31 @@ export async function updateOrderStatus(idOrCode: string, status: OrderStatus): 
     include: { items: true },
   });
   if (!existing) return null;
+  if (existing.status === status) return mapOrder(existing);
+  if (
+    (existing.status === "cancelado" && status !== "cancelado") ||
+    (existing.status === "entregado" && status !== "entregado")
+  ) {
+    return mapOrder(existing);
+  }
 
-  // Al cancelar devolvemos al catálogo las unidades que el pedido había
-  // reservado al crearse. Solo la primera vez: el guard de estado evita que
-  // un segundo "cancelado" (webhook repetido) infle el stock.
-  const devuelveStock = status === "cancelado" && existing.status !== "cancelado";
+  let statusChanged = false;
   const updated = await prisma.$transaction(async (tx) => {
-    if (devuelveStock) {
+    const now = new Date();
+    const claimed = await tx.order.updateMany({
+      where: { id: existing.id, status: existing.status },
+      data: {
+        status,
+        ...(status === "entregado" ? { deliveredAt: now } : {}),
+        ...(status === "en_preparacion" ? { paidAt: existing.paidAt ?? now } : {}),
+        ...(status === "cancelado" ? { cancelledAt: now } : {}),
+      },
+    });
+    statusChanged = claimed.count === 1;
+
+    // El cambio condicional hace que dos webhooks/clicks simultáneos no puedan
+    // devolver dos veces las mismas unidades.
+    if (status === "cancelado" && statusChanged) {
       for (const item of existing.items) {
         await tx.product.update({
           where: { id: item.productId },
@@ -1033,14 +1246,8 @@ export async function updateOrderStatus(idOrCode: string, status: OrderStatus): 
         });
       }
     }
-    return tx.order.update({
+    return tx.order.findUniqueOrThrow({
       where: { id: existing.id },
-      data: {
-        status,
-        ...(status === "entregado" && existing.status !== "entregado"
-          ? { deliveredAt: new Date() }
-          : {}),
-      },
       include: { items: true },
     });
   });
@@ -1048,7 +1255,7 @@ export async function updateOrderStatus(idOrCode: string, status: OrderStatus): 
 
   // Avisar a n8n solo cuando el estado realmente cambió (evita duplicados
   // cuando MP reintenta webhooks o el panel guarda sin cambios).
-  if (existing.status !== status) {
+  if (statusChanged) {
     const event = eventForStatus(status);
     if (event) await notifyOrderEvent(event, order);
   }

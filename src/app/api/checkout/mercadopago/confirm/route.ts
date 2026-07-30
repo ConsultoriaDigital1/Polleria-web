@@ -1,18 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { obtenerPago, estadoPedidoDesdePago } from "@/lib/mercadopago";
-import { getOrder, updateOrderStatus } from "@/lib/repo";
+import { obtenerPago } from "@/lib/mercadopago";
+import { applyVerifiedMercadoPagoPayment, getOrder } from "@/lib/repo";
 import { deliverySlotLabel } from "@/lib/entrega";
-import type { OrderStatus } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-/**
- * Estados en los que el pago ya se dio por bueno. Si el pedido ya está acá, el
- * regreso del navegador no puede hacerlo retroceder: el webhook de Mercado Pago
- * (o el modo demo) mandan, y una back_url vieja no debe pisar esa decisión.
- */
-const YA_CONFIRMADOS: OrderStatus[] = ["en_preparacion", "en_camino", "entregado"];
 
 // Confirma el resultado del pago cuando el cliente vuelve a /checkout/resultado.
 // No confiamos en el status que viene en la URL: lo verificamos consultando el
@@ -34,6 +26,7 @@ export async function POST(req: NextRequest) {
   }
 
   const previo = await getOrder(orderId).catch(() => null);
+  let order = previo;
   let mpStatus: string | null = null;
 
   if (paymentId) {
@@ -42,11 +35,17 @@ export async function POST(req: NextRequest) {
     if (
       pago &&
       previo &&
+      previo.payment === "mercadopago" &&
       pago.external_reference === (previo.internalId ?? orderId) &&
       pago.transaction_amount != null &&
       Number(pago.transaction_amount) === previo.total
     ) {
       mpStatus = pago.status;
+      order =
+        (await applyVerifiedMercadoPagoPayment(orderId, {
+          id: String(pago.id),
+          status: pago.status,
+        })) ?? previo;
     } else if (pago) {
       console.error(
         `[mercadopago:confirm] pago ${paymentId} no coincide con el pedido ${orderId}.`
@@ -54,19 +53,9 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  let order = previo;
-
-  if (previo && !YA_CONFIRMADOS.includes(previo.status)) {
-    try {
-      order = (await updateOrderStatus(orderId, estadoPedidoDesdePago(mpStatus))) ?? previo;
-    } catch {
-      // Si falla la actualización devolvemos igual lo que sabemos del pedido.
-    }
-  }
-
   return NextResponse.json({
     status: mpStatus ?? "pending",
-    estado: order?.status ?? estadoPedidoDesdePago(mpStatus),
+    estado: order?.status ?? "pendiente",
     // Códigos reales del pedido, para mostrarlos en la pantalla de resultado.
     codigo: order?.id ?? null,
     deliveryCode: order?.deliveryCode ?? null,

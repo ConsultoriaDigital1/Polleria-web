@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { obtenerPagoEstricto, estadoPedidoDesdePago } from "@/lib/mercadopago";
-import { getOrder, updateOrderStatus } from "@/lib/repo";
+import { obtenerPagoEstricto, validarFirmaWebhook } from "@/lib/mercadopago";
+import { applyVerifiedMercadoPagoPayment, getOrder } from "@/lib/repo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+class InvalidWebhookSignatureError extends Error {}
 
 // Webhook de notificaciones de Mercado Pago (notification_url de la preferencia).
 // MP avisa server-to-server cuando cambia un pago. Solo funciona si el sitio es
@@ -31,6 +33,15 @@ async function procesar(req: NextRequest): Promise<void> {
   // Solo nos interesan notificaciones de pagos.
   if (topic && topic !== "payment") return;
   if (!paymentId) return;
+  if (
+    !validarFirmaWebhook({
+      signature: req.headers.get("x-signature"),
+      requestId: req.headers.get("x-request-id"),
+      dataId: paymentId,
+    })
+  ) {
+    throw new InvalidWebhookSignatureError("Firma de Mercado Pago inválida.");
+  }
 
   const pago = await obtenerPagoEstricto(paymentId);
   const orderId = pago.external_reference?.trim();
@@ -41,17 +52,21 @@ async function procesar(req: NextRequest): Promise<void> {
     console.error(`[mercadopago:webhook] pedido inexistente para el pago ${paymentId}.`);
     return;
   }
-  if (
-    pago.status === "approved" &&
-    (pago.transaction_amount == null || Number(pago.transaction_amount) !== order.total)
-  ) {
+  if (order.payment !== "mercadopago") {
+    console.error(`[mercadopago:webhook] ${order.id} no es un pedido de Mercado Pago.`);
+    return;
+  }
+  if (pago.transaction_amount == null || Number(pago.transaction_amount) !== order.total) {
     console.error(
       `[mercadopago:webhook] monto inválido en pago ${paymentId}: esperado ${order.total}, recibido ${pago.transaction_amount}.`
     );
     return;
   }
 
-  await updateOrderStatus(orderId, estadoPedidoDesdePago(pago.status));
+  await applyVerifiedMercadoPagoPayment(orderId, {
+    id: String(pago.id),
+    status: pago.status,
+  });
   console.info(
     `[mercadopago:webhook] pago ${paymentId} (${pago.status}) aplicado a ${order.id}.`
   );
@@ -62,6 +77,9 @@ export async function POST(req: NextRequest) {
     await procesar(req);
     return NextResponse.json({ ok: true });
   } catch (error) {
+    if (error instanceof InvalidWebhookSignatureError) {
+      return NextResponse.json({ ok: false }, { status: 401 });
+    }
     // Un error temporal debe devolver 500 para que Mercado Pago reintente.
     console.error("[mercadopago:webhook] no se pudo procesar la notificación:", error);
     return NextResponse.json({ ok: false }, { status: 500 });
@@ -74,6 +92,9 @@ export async function GET(req: NextRequest) {
     await procesar(req);
     return NextResponse.json({ ok: true });
   } catch (error) {
+    if (error instanceof InvalidWebhookSignatureError) {
+      return NextResponse.json({ ok: false }, { status: 401 });
+    }
     console.error("[mercadopago:webhook] falló la verificación:", error);
     return NextResponse.json({ ok: false }, { status: 500 });
   }

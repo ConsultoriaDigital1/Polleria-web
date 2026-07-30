@@ -6,6 +6,7 @@ import {
   deletePendingOrder,
   quoteOrder,
   getProduct,
+  saveMercadoPagoPreference,
   updateOrderStatus,
   CouponError,
   NoDatabaseError,
@@ -22,6 +23,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const bodySchema = z.object({
+  checkoutId: z.string().uuid("No pudimos identificar este intento de pago."),
   items: z
     .array(
       z.object({
@@ -169,6 +171,7 @@ export async function POST(req: NextRequest) {
     // 1) Registramos el pedido (pendiente) vinculado al cliente. Con base de
     //    datos se persiste en Postgres; sin base (demo local) queda en memoria.
     const order = await createOrder({
+      checkoutId: body.checkoutId,
       customer: { name: body.nombre, phone: body.telefono },
       items: body.items,
       payment: "mercadopago",
@@ -193,6 +196,16 @@ export async function POST(req: NextRequest) {
         externalReference
       )}&demo=1`;
       return NextResponse.json({ url, orderId, demo: true });
+    }
+
+    // Una respuesta perdida no obliga a crear otra preferencia ni otro pedido.
+    if (order.mpInitPoint && order.mpPreferenceId) {
+      return NextResponse.json({
+        url: order.mpInitPoint,
+        orderId,
+        preferenceId: order.mpPreferenceId,
+        reused: true,
+      });
     }
 
     // 2) Creamos la preferencia de Checkout Pro vinculada al pedido.
@@ -226,7 +239,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    return NextResponse.json({ url, orderId, preferenceId: pref.id });
+    const saved = await saveMercadoPagoPreference(externalReference, {
+      id: pref.id,
+      initPoint: url,
+    });
+    return NextResponse.json({
+      url: saved?.mpInitPoint ?? url,
+      orderId,
+      preferenceId: saved?.mpPreferenceId ?? pref.id,
+    });
   } catch (e) {
     if (e instanceof NoDatabaseError) {
       return NextResponse.json(
