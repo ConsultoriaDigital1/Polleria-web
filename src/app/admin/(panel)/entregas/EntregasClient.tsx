@@ -46,10 +46,10 @@ interface Props {
   enCurso?: number;
 }
 
-/** URL de la vista de impresión de etiquetas para un conjunto de pedidos. */
-function etiquetasUrl(ids: string[], autoPrint = false): string {
+/** URL de la vista de etiquetas para un conjunto de pedidos. */
+function etiquetasUrl(ids: string[]): string {
   const params = `ids=${encodeURIComponent(ids.join(","))}`;
-  return `/admin/etiquetas?${params}${autoPrint ? "&autoPrint=1" : ""}`;
+  return `/admin/etiquetas?${params}`;
 }
 
 export function EntregasClient({ sucursales, repartidores, envios, enCurso = 0 }: Props) {
@@ -94,26 +94,17 @@ export function EntregasClient({ sucursales, repartidores, envios, enCurso = 0 }
   const confirmarStock = () => {
     if (!sucursalId || !repartidorId || pending || seleccionados.length === 0) return;
     const ids = seleccionados.map((e) => e.id);
-    // Se abre dentro del click del encargado para que el navegador no bloquee
-    // la pestaña de etiquetas después de la respuesta del servidor.
-    const etiquetasTab = window.open("about:blank", "_blank");
     setState(null);
     startTransition(async () => {
       try {
         const res = await cerrarPedidosEnvio(sucursalId, ids, repartidorId);
         setState(res);
         if (res.ok) {
-          const url = etiquetasUrl(ids, true);
-          if (etiquetasTab) etiquetasTab.location.href = url;
-          else window.open(url, "_blank", "noopener,noreferrer");
           setDespachados(ids);
           setModalStock(false);
           setSeleccion(new Set());
-        } else if (etiquetasTab) {
-          etiquetasTab.close();
         }
       } catch {
-        etiquetasTab?.close();
         setState({
           error: "Se perdió la conexión al cerrar el lote. Actualizá la página antes de reintentar.",
         });

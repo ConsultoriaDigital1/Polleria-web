@@ -101,11 +101,7 @@ actualizado el estado del reparto y evita errores al validar los códigos.
 
 Esto se configura **antes** del primer cierre. Si falla, todo el flujo se traba.
 
-1. **Permitir ventanas emergentes (pop-ups)** para el sitio del panel.
-   > *"Cuando cerrás el lote, el sistema te abre solo la pestaña de etiquetas y
-   > manda a imprimir. Si el navegador bloquea pop-ups, no se abre y parece que
-   > falló. No falló: se cerró el lote igual, pero perdiste la impresión automática."*
-2. **Configurar la impresora** en el diálogo de impresión:
+1. **Configurar la impresora** en el diálogo de impresión:
    - Tamaño: **A4**
    - Márgenes: **Ninguno**
    - Escala: **100%** (nunca "Ajustar a la página")
@@ -171,14 +167,13 @@ Esto se configura **antes** del primer cierre. Si falla, todo el flujo se traba.
   - Se calcula la **ruta optimizada** desde la sucursal.
   - Se le asigna el lote al repartidor (le aparece en el celular).
   - Se le avisa por WhatsApp a **todos** los clientes del lote.
-  - **Se abre sola la pestaña de etiquetas y se manda a imprimir.**
+  - Aparece el enlace para abrir e imprimir las etiquetas.
 
 > ⚠️ **Esto no se puede deshacer.** Por eso el botón está después del control de stock.
 
 **Paso 5 — Imprimir y entregar las etiquetas**
 
-- La pestaña de etiquetas se abre sola. Si no se abrió (pop-ups), usá el link
-  **"Imprimir etiquetas del reparto"** que queda en el mensaje verde de éxito.
+- Usá el link **"Imprimir etiquetas del reparto"** del mensaje verde de éxito.
 - Formato: **A6, 4 etiquetas por hoja A4**. Cortá por la línea punteada.
 - Llevá las etiquetas cortadas a la mesa de armado.
 
@@ -224,7 +219,7 @@ Ahí ves y hacés:
 | Situación | Qué hacer |
 |---|---|
 | Seleccioné 10 pedidos pero despachó 9 | Un pedido **no tenía ubicación en el mapa**. El sistema solo despacha pedidos con punto geográfico. Buscalo en Pedidos y resolvé la dirección con el cliente. |
-| No se abrió la pestaña de etiquetas | El lote **igual se cerró**. Usá el link *"Imprimir etiquetas del reparto"* del mensaje verde. Después habilitá pop-ups. |
+| Necesito imprimir las etiquetas | El lote ya se cerró. Usá el link *"Imprimir etiquetas del reparto"* del mensaje verde. |
 | Las etiquetas salen cortadas o chicas | Escala al **100%**, márgenes en **Ninguno**, sin encabezados/pies. |
 | Me equivoqué de repartidor | El lote ya está cerrado. Avisale al repartidor correcto y coordiná a mano; el encargado general puede confirmar las entregas desde el panel. |
 | Entró un pedido pagado justo después de cerrar | Perfecto, queda para el próximo lote. Cerrá un segundo lote cuando junte volumen. |
@@ -500,7 +495,7 @@ ANTES DE CERRAR
 
 CERRAR
 [ ] Apreté "Confirmo que hay stock, cerrar lote y armar ruta"
-[ ] Se abrió la pestaña de etiquetas (si no: link del mensaje verde)
+[ ] Abrí las etiquetas desde el link del mensaje verde
 [ ] Imprimí A4 / márgenes ninguno / escala 100%
 [ ] Corté y le llevé las etiquetas a cocina
 

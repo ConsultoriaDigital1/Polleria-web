@@ -43,9 +43,11 @@ export interface RutaEnCursoProps {
 
 function horaCorta(iso: string | null): string | null {
   if (!iso) return null;
-  return new Intl.DateTimeFormat("es-AR", { hour: "2-digit", minute: "2-digit" }).format(
-    new Date(iso)
-  );
+  return new Intl.DateTimeFormat("es-AR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "America/Argentina/Buenos_Aires",
+  }).format(new Date(iso));
 }
 
 export function RutaEnCursoClient({
@@ -128,7 +130,7 @@ export function RutaEnCursoClient({
         <div>
           <h2 className="font-semibold text-brand-ink">{repartidor}</h2>
           <p className="text-xs text-brand-ink/50">
-            Reparto en curso{dispatchedAt ? ` · ${new Date(dispatchedAt).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" })}` : ""}
+            Reparto en curso{dispatchedAt ? ` · ${new Date(dispatchedAt).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Argentina/Buenos_Aires" })}` : ""}
           </p>
         </div>
         <span className="chip bg-violet-100 text-violet-700">Sale de {originName}</span>
