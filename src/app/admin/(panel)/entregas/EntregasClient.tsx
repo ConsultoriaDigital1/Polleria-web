@@ -35,6 +35,8 @@ export interface EnvioPendiente {
   franjaHoraria: string | null;
   /** Id del rango horario ("08-12"), para agrupar la lista por franja. */
   slotId: string | null;
+  /** El repartidor anterior canceló la entrega y necesita una nueva asignación. */
+  isRetry: boolean;
 }
 
 interface Props {
@@ -240,6 +242,11 @@ export function EntregasClient({ sucursales, repartidores, envios, enCurso = 0 }
                               <span className="flex flex-wrap items-center gap-x-2">
                                 <b className="text-brand-ink">{e.code}</b>
                                 <span className="font-medium text-brand-ink">{e.customer}</span>
+                                {e.isRetry && (
+                                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700">
+                                    Reasignar
+                                  </span>
+                                )}
                                 {e.phone && <span className="text-brand-ink/50">· {e.phone}</span>}
                                 <span className="ml-auto text-xs text-brand-ink/50">
                                   {formatDateTime(e.date)}

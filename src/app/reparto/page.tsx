@@ -203,7 +203,10 @@ export default function RepartoPage() {
         });
         const json = await res.json().catch(() => null);
         if (res.ok && json?.ok) {
-          setFeedback({ ok: true, msg: `Pedido ${json.pedido} cancelado correctamente.` });
+          setFeedback({
+            ok: true,
+            msg: `Pedido ${json.pedido} devuelto a Entregas para reasignarlo.`,
+          });
           await cargarRuta();
         } else {
           setFeedback({ ok: false, msg: json?.error || "No se pudo cancelar el pedido." });

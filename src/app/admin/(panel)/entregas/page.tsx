@@ -25,7 +25,7 @@ export default async function EntregasPage() {
   await requirePerm("entregas");
 
   const [listos, ruta, historial, equipo] = await Promise.all([
-    listOrders({ status: "en_preparacion" }),
+    listOrders({ statusIn: ["en_preparacion", "cancelado"] }),
     listActiveRoute(),
     listRouteHistory(),
     listStaff(),
@@ -38,10 +38,16 @@ export default async function EntregasPage() {
   // Todos los pedidos son envíos a domicilio (no existe el retiro por sucursal).
   // Se ordenan por franja horaria (mañana antes que tarde) y, dentro de cada
   // franja, por antigüedad: arriba queda siempre el que pidió primero.
-  const envios = [...listos].sort(
-    (a, b) =>
-      slotOrder(a.deliverySlot) - slotOrder(b.deliverySlot) || a.date.localeCompare(b.date)
-  );
+  const envios = listos
+    .filter(
+      (order) =>
+        order.status === "en_preparacion" ||
+        (order.status === "cancelado" && Boolean(order.paidAt) && Boolean(order.deliveryRetryAt))
+    )
+    .sort(
+      (a, b) =>
+        slotOrder(a.deliverySlot) - slotOrder(b.deliverySlot) || a.date.localeCompare(b.date)
+    );
   const enCamino = ruta.filter((o) => o.status === "en_camino");
 
   const sucursalOptions = sucursales.map((s) => ({ id: s.id, name: s.name }));
@@ -59,6 +65,7 @@ export default async function EntregasPage() {
     mapUrl: o.lat != null && o.lng != null ? googleMapsPointUrl({ lat: o.lat, lng: o.lng }) : null,
     franjaHoraria: deliverySlotLabel(o.deliverySlot),
     slotId: o.deliverySlot ?? null,
+    isRetry: o.status === "cancelado",
   }));
 
   // Cada cierre es un bloque independiente, incluso si sale el mismo repartidor.

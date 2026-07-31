@@ -87,61 +87,63 @@ model Customer {
 }
 
 model Order {
-  id               String        @id @default(cuid())
-  seq              Int           @default(autoincrement())
-  code             String?       @unique
+  id                  String        @id @default(cuid())
+  seq                 Int           @default(autoincrement())
+  code                String?       @unique
   // Identifica un intento de checkout del navegador. Evita crear dos pedidos
   // cuando hay doble click, reintento de red o una respuesta perdida.
-  checkoutId       String?       @unique
-  customer         Customer?     @relation(fields: [customerId], references: [id])
-  customerId       String?
-  customerName     String
-  phone            String?
-  address          String?
+  checkoutId          String?       @unique
+  customer            Customer?     @relation(fields: [customerId], references: [id])
+  customerId          String?
+  customerName        String
+  phone               String?
+  address             String?
   // Entrega: siempre "envio" a domicilio (no hay retiro por sucursal).
-  entrega          String?
+  entrega             String?
   // Rango horario de entrega elegido por el cliente ("08-12" o "17-20").
-  deliverySlot     String?
+  deliverySlot        String?
   // Punto exacto de entrega marcado en el mapa.
-  lat              Float?
-  lng              Float?
+  lat                 Float?
+  lng                 Float?
   // Código que el cliente le da al repartidor al recibir el pedido; al
   // validarlo se marca como entregado y n8n recibe el aviso de confirmación.
-  deliveryCode     String?
+  deliveryCode        String?
   // Momento exacto en que el repartidor confirmó la entrega.
-  deliveredAt      DateTime?
+  deliveredAt         DateTime?
   // Reparto: al "cerrar pedidos" se arma una ruta optimizada y cada envío
   // recibe su posición (routeSeq), el momento del despacho, la sucursal origen
   // y el repartidor (Staff) a cargo de la entrega.
-  routeSeq         Int?
-  dispatchedAt     DateTime?
+  routeSeq            Int?
+  dispatchedAt        DateTime?
   // Identifica cada cierre/lote aunque un repartidor tenga varios en curso.
-  routeBatchId     String?
+  routeBatchId        String?
   // Al cerrar manualmente el reparto, deja de mostrarse como ruta activa.
-  routeClosedAt    DateTime?
-  originSucursalId String?
-  repartidorId     String?
-  total            Int
-  discount         Int           @default(0)
-  coupon           Coupon?       @relation(fields: [couponId], references: [id])
-  couponId         String?
-  couponCode       String?
+  routeClosedAt       DateTime?
+  originSucursalId    String?
+  repartidorId        String?
+  total               Int
+  discount            Int           @default(0)
+  coupon              Coupon?       @relation(fields: [couponId], references: [id])
+  couponId            String?
+  couponCode          String?
   // El cupón reserva un cupo durante un minuto mientras se completa el pago.
   // usedCount recién se incrementa cuando Mercado Pago acredita el pedido.
   couponReservedUntil DateTime?
-  couponUsedAt      DateTime?
-  status           OrderStatus   @default(pendiente)
-  payment          PaymentMethod
+  couponUsedAt        DateTime?
+  status              OrderStatus   @default(pendiente)
+  payment             PaymentMethod
   // Referencias verificadas de Mercado Pago. La URL se conserva para que un
   // reintento del mismo checkout vuelva a la misma preferencia.
-  mpPreferenceId   String?       @unique
-  mpInitPoint      String?
-  mpPaymentId      String?       @unique
-  paidAt           DateTime?
-  cancelledAt      DateTime?
-  notes            String?
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
+  mpPreferenceId      String?       @unique
+  mpInitPoint         String?
+  mpPaymentId         String?       @unique
+  paidAt              DateTime?
+  cancelledAt         DateTime?
+  // Cancelación logística: el pedido sigue pagado y debe asignarse a otro repartidor.
+  deliveryRetryAt     DateTime?
+  notes               String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
 
   items OrderItem[]
 

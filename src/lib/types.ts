@@ -114,6 +114,8 @@ export interface Order {
   paidAt?: string;
   /** Momento exacto en que se canceló el pedido. */
   cancelledAt?: string;
+  /** Cancelación logística pendiente de reasignación a otro repartidor. */
+  deliveryRetryAt?: string;
   /** Preferencia de Mercado Pago asociada al intento. */
   mpPreferenceId?: string;
   mpInitPoint?: string;

@@ -117,6 +117,7 @@ function mapOrder(o: DbOrder & { items: DbOrderItem[] }): Order {
     deliveredAt: o.deliveredAt?.toISOString(),
     paidAt: o.paidAt?.toISOString(),
     cancelledAt: o.cancelledAt?.toISOString(),
+    deliveryRetryAt: o.deliveryRetryAt?.toISOString(),
     mpPreferenceId: o.mpPreferenceId ?? undefined,
     mpInitPoint: o.mpInitPoint ?? undefined,
     mpPaymentId: o.mpPaymentId ?? undefined,
@@ -747,6 +748,7 @@ export async function upsertSuperOferta(input: SuperOfertaInput): Promise<SuperO
 // ---------- Pedidos ----------
 export interface OrderFilter {
   status?: OrderStatus;
+  statusIn?: OrderStatus[];
   statusNot?: OrderStatus;
   customerId?: string;
   limit?: number;
@@ -757,7 +759,9 @@ export async function listOrders(f: OrderFilter = {}): Promise<Order[]> {
     await releaseExpiredCouponReservations();
     const rows = await prisma.order.findMany({
       where: {
-        status: f.status ?? (f.statusNot ? { not: f.statusNot } : undefined),
+        status:
+          f.status ??
+          (f.statusIn ? { in: f.statusIn } : f.statusNot ? { not: f.statusNot } : undefined),
         customerId: f.customerId,
       },
       include: { items: true },
@@ -770,6 +774,7 @@ export async function listOrders(f: OrderFilter = {}): Promise<Order[]> {
   const runtime = [...runtimeOrders.values()].sort((a, b) => b.date.localeCompare(a.date));
   let list = [...runtime, ...mockOrders];
   if (f.status) list = list.filter((o) => o.status === f.status);
+  if (f.statusIn) list = list.filter((o) => f.statusIn?.includes(o.status));
   if (f.statusNot) list = list.filter((o) => o.status !== f.statusNot);
   if (f.limit) list = list.slice(0, f.limit);
   return list;
@@ -1190,6 +1195,7 @@ export async function applyVerifiedMercadoPagoPayment(
           cancelledAt: null,
           couponReservedUntil: null,
           couponUsedAt: current.couponId ? (current.couponUsedAt ?? now) : null,
+          deliveryRetryAt: null,
         },
       });
       if (claimed.count !== 1) {
@@ -1237,6 +1243,7 @@ export async function applyVerifiedMercadoPagoPayment(
           status: nextStatus,
           cancelledAt: now,
           couponReservedUntil: null,
+          deliveryRetryAt: null,
           ...(reversed ? { couponUsedAt: null } : {}),
         },
       });
@@ -1314,7 +1321,11 @@ function findMemOrder(idOrCode: string): Order | undefined {
   );
 }
 
-export async function updateOrderStatus(idOrCode: string, status: OrderStatus): Promise<Order | null> {
+export async function updateOrderStatus(
+  idOrCode: string,
+  status: OrderStatus,
+  options: { deliveryRetry?: boolean } = {}
+): Promise<Order | null> {
   if (!hasDatabase) {
     const order = findMemOrder(idOrCode);
     if (!order) return null;
@@ -1327,6 +1338,7 @@ export async function updateOrderStatus(idOrCode: string, status: OrderStatus): 
     if ((status === "cancelado" || status === "no_pagado") && changed) {
       order.cancelledAt = now;
       order.couponReservedUntil = undefined;
+      order.deliveryRetryAt = status === "cancelado" && options.deliveryRetry ? now : undefined;
     }
     if (changed) {
       const event = eventForStatus(status);
@@ -1359,7 +1371,11 @@ export async function updateOrderStatus(idOrCode: string, status: OrderStatus): 
         ...(status === "entregado" ? { deliveredAt: now } : {}),
         ...(status === "en_preparacion" ? { paidAt: existing.paidAt ?? now } : {}),
         ...(status === "cancelado" || status === "no_pagado"
-          ? { cancelledAt: now, couponReservedUntil: null }
+          ? {
+              cancelledAt: now,
+              couponReservedUntil: null,
+              deliveryRetryAt: status === "cancelado" && options.deliveryRetry ? now : null,
+            }
           : {}),
       },
     });
@@ -1530,7 +1546,9 @@ export async function cancelDelivery(
     if (existing.status === "entregado") return { ok: false, reason: "already_delivered" };
     if (existing.status === "cancelado") return { ok: false, reason: "already_cancelled" };
     if (existing.status !== "en_camino") return { ok: false, reason: "not_in_progress" };
-    const order = await updateOrderStatus(existing.internalId ?? existing.id, "cancelado");
+    const order = await updateOrderStatus(existing.internalId ?? existing.id, "cancelado", {
+      deliveryRetry: true,
+    });
     if (!order) return { ok: false, reason: "not_found" };
     await notifyDeliveryCancellation(order);
     await closeRouteIfComplete(order);
@@ -1550,7 +1568,7 @@ export async function cancelDelivery(
   if (existing.status === "cancelado") return { ok: false, reason: "already_cancelled" };
   if (existing.status !== "en_camino") return { ok: false, reason: "not_in_progress" };
 
-  const order = await updateOrderStatus(existing.id, "cancelado");
+  const order = await updateOrderStatus(existing.id, "cancelado", { deliveryRetry: true });
   if (!order) return { ok: false, reason: "not_found" };
   await notifyDeliveryCancellation(order);
   await closeRouteIfComplete(order);
@@ -1676,7 +1694,8 @@ export async function listRouteHistory(
 
 /**
  * "Cerrar pedidos para enviar": toma los envíos pagados listos
- * (`en_preparacion`, con punto en el mapa), arma la ruta optimizada desde la
+ * (`en_preparacion` o una cancelación logística pagada, con punto en el mapa),
+ * arma la ruta optimizada desde la
  * sucursal elegida y los despacha (pasan a `en_camino` con su `routeSeq`).
  * Si `orderIds` viene con ids (internos o códigos #), solo despacha esos:
  * el encargado elige qué pedidos entran en la ruta. `repartidorId` (Staff)
@@ -1696,7 +1715,8 @@ export async function dispatchDeliveries(
   if (!hasDatabase) {
     const pending = [...runtimeOrders.values()].filter(
       (o) =>
-        o.status === "en_preparacion" &&
+        (o.status === "en_preparacion" ||
+          (o.status === "cancelado" && Boolean(o.paidAt) && Boolean(o.deliveryRetryAt))) &&
         o.entrega === "envio" &&
         o.lat != null &&
         o.lng != null &&
@@ -1717,6 +1737,7 @@ export async function dispatchDeliveries(
       stop.order.routeClosedAt = undefined;
       stop.order.originSucursalId = sucursalId;
       stop.order.repartidorId = repartidorId;
+      stop.order.deliveryRetryAt = undefined;
     });
     const routeOrders = ordered.map((s) => s.order);
     await Promise.all(routeOrders.map((o) => notifyOrderEvent("pedido_en_camino", o)));
@@ -1730,7 +1751,10 @@ export async function dispatchDeliveries(
   ensureDb();
   const pending = await prisma.order.findMany({
     where: {
-      status: "en_preparacion",
+      OR: [
+        { status: "en_preparacion" },
+        { status: "cancelado", paidAt: { not: null }, deliveryRetryAt: { not: null } },
+      ],
       entrega: "envio",
       lat: { not: null },
       lng: { not: null },
@@ -1746,6 +1770,7 @@ export async function dispatchDeliveries(
     lng: o.lng as number,
   }));
   const ordered = optimizeRoute(origin, stops);
+  const pendingById = new Map(pending.map((order) => [order.id, order]));
 
   const now = new Date();
   // El estado forma parte del WHERE: dos operadores no pueden despachar el
@@ -1753,8 +1778,16 @@ export async function dispatchDeliveries(
   // revierte el lote completo y el segundo recibe un conflicto claro.
   await prisma.$transaction(async (tx) => {
     for (const [i, stop] of ordered.entries()) {
+      const original = pendingById.get(stop.id)!;
+      const isRetry = original.status === "cancelado";
       const claimed = await tx.order.updateMany({
-        where: { id: stop.id, status: "en_preparacion" },
+        where: {
+          id: stop.id,
+          OR: [
+            { status: "en_preparacion" },
+            { status: "cancelado", paidAt: { not: null }, deliveryRetryAt: { not: null } },
+          ],
+        },
         data: {
           status: "en_camino",
           routeSeq: i + 1,
@@ -1763,9 +1796,31 @@ export async function dispatchDeliveries(
           routeClosedAt: null,
           originSucursalId: sucursalId,
           repartidorId: repartidorId ?? null,
+          deliveryRetryAt: null,
+          ...(isRetry && original.couponId && !original.couponUsedAt
+            ? { couponUsedAt: now }
+            : {}),
         },
       });
       if (claimed.count !== 1) throw new DeliveryDispatchConflictError();
+
+      // La cancelación devolvió las unidades y el uso del cupón. Al reasignar
+      // un pedido ya cobrado se reservan otra vez, incluso si el stock queda
+      // negativo: la venta pagada necesita resolución operativa.
+      if (isRetry) {
+        for (const item of original.items) {
+          await tx.product.update({
+            where: { id: item.productId },
+            data: { stock: { decrement: item.qty } },
+          });
+        }
+        if (original.couponId && !original.couponUsedAt) {
+          await tx.coupon.update({
+            where: { id: original.couponId },
+            data: { usedCount: { increment: 1 } },
+          });
+        }
+      }
     }
   });
 
