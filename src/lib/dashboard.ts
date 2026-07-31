@@ -22,13 +22,24 @@ export interface DashboardSummary {
   topProducts: { name: string; sold: number; pct: number }[];
 }
 
+export type DashboardPeriod = "yesterday" | "today" | "7d" | "14d";
+
 interface DashboardOrder {
   date: Date;
   total: number;
   status: string;
   payment: string;
+  paidAt: Date | null;
+  mpPaymentId: string | null;
   items: { name: string; qty: number }[];
 }
+
+const PERIOD_OFFSETS: Record<DashboardPeriod, { from: number; to: number }> = {
+  yesterday: { from: -1, to: 0 },
+  today: { from: 0, to: 1 },
+  "7d": { from: -6, to: 1 },
+  "14d": { from: -13, to: 1 },
+};
 
 function argentinaDateParts(date: Date): { year: number; month: number; day: number } {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -63,8 +74,13 @@ function dayLabel(date: Date): string {
     .replace(".", "");
 }
 
-function isSale(status: string): boolean {
-  return status === "en_preparacion" || status === "en_camino" || status === "entregado";
+function isSale(order: DashboardOrder): boolean {
+  return (
+    order.status === "en_preparacion" ||
+    order.status === "en_camino" ||
+    order.status === "entregado" ||
+    (order.status === "cancelado" && Boolean(order.paidAt || order.mpPaymentId))
+  );
 }
 
 function percentageChange(current: number, previous: number): number | null {
@@ -72,10 +88,20 @@ function percentageChange(current: number, previous: number): number | null {
   return Math.round(((current - previous) / previous) * 100);
 }
 
-function buildSummary(orders: DashboardOrder[], customerTotal: number, newCustomersToday: number): DashboardSummary {
-  const todayKey = argentinaDayKey(new Date());
-  const yesterdayKey = argentinaDayKey(argentinaDayStart(-1));
-  const dayKeys = Array.from({ length: 7 }, (_, index) => argentinaDayKey(argentinaDayStart(index - 6)));
+function buildSummary(
+  orders: DashboardOrder[],
+  customerTotal: number,
+  newCustomersToday: number,
+  period: DashboardPeriod
+): DashboardSummary {
+  const offsets = PERIOD_OFFSETS[period];
+  const periodDays = offsets.to - offsets.from;
+  const currentFrom = argentinaDayStart(offsets.from).getTime();
+  const currentTo = argentinaDayStart(offsets.to).getTime();
+  const previousFrom = argentinaDayStart(offsets.from - periodDays).getTime();
+  const dayKeys = Array.from({ length: periodDays }, (_, index) =>
+    argentinaDayKey(argentinaDayStart(offsets.from + index))
+  );
   const salesByDay = new Map(dayKeys.map((key) => [key, 0]));
   const paymentTotals = new Map<string, number>();
   const productTotals = new Map<string, number>();
@@ -88,25 +114,23 @@ function buildSummary(orders: DashboardOrder[], customerTotal: number, newCustom
   let productsYesterday = 0;
 
   for (const order of orders) {
-    const key = argentinaDayKey(order.date);
-    if (order.status !== "pendiente") {
-      if (key === todayKey) ordersToday++;
-      if (key === yesterdayKey) ordersYesterday++;
-    }
-    if (!isSale(order.status)) continue;
+    if (!isSale(order)) continue;
 
-    if (key === todayKey) {
+    const timestamp = order.date.getTime();
+    const key = argentinaDayKey(order.date);
+    if (timestamp >= currentFrom && timestamp < currentTo) {
+      ordersToday++;
       salesToday += order.total;
       productsToday += order.items.reduce((sum, item) => sum + item.qty, 0);
-    }
-    if (key === yesterdayKey) {
+      if (salesByDay.has(key)) salesByDay.set(key, (salesByDay.get(key) ?? 0) + order.total);
+      paymentTotals.set(order.payment, (paymentTotals.get(order.payment) ?? 0) + order.total);
+      for (const item of order.items) {
+        productTotals.set(item.name, (productTotals.get(item.name) ?? 0) + item.qty);
+      }
+    } else if (timestamp >= previousFrom && timestamp < currentFrom) {
+      ordersYesterday++;
       salesYesterday += order.total;
       productsYesterday += order.items.reduce((sum, item) => sum + item.qty, 0);
-    }
-    if (salesByDay.has(key)) salesByDay.set(key, (salesByDay.get(key) ?? 0) + order.total);
-    paymentTotals.set(order.payment, (paymentTotals.get(order.payment) ?? 0) + order.total);
-    for (const item of order.items) {
-      productTotals.set(item.name, (productTotals.get(item.name) ?? 0) + item.qty);
     }
   }
 
@@ -130,7 +154,7 @@ function buildSummary(orders: DashboardOrder[], customerTotal: number, newCustom
       change: percentageChange(productsToday, productsYesterday),
     },
     salesByDay: dayKeys.map((key, index) => ({
-      day: dayLabel(new Date(argentinaDayStart(index - 6).getTime())),
+      day: dayLabel(argentinaDayStart(offsets.from + index)),
       ventas: salesByDay.get(key) ?? 0,
     })),
     paymentMethods,
@@ -142,11 +166,12 @@ function buildSummary(orders: DashboardOrder[], customerTotal: number, newCustom
   };
 }
 
-export async function getDashboardSummary(): Promise<DashboardSummary> {
-  const from = argentinaDayStart(-6);
-  const to = argentinaDayStart(1);
+export async function getDashboardSummary(period: DashboardPeriod = "today"): Promise<DashboardSummary> {
+  const offsets = PERIOD_OFFSETS[period];
+  const periodDays = offsets.to - offsets.from;
+  const from = argentinaDayStart(offsets.from - periodDays);
+  const to = argentinaDayStart(offsets.to);
   const today = argentinaDayStart(0);
-  const yesterday = argentinaDayStart(-1);
 
   if (hasDatabase) {
     const [orders, customerTotal, newCustomersToday] = await Promise.all([
@@ -157,6 +182,8 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
           total: true,
           status: true,
           payment: true,
+          paidAt: true,
+          mpPaymentId: true,
           items: { select: { name: true, qty: true } },
         },
       }),
@@ -169,9 +196,11 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
       total: order.total,
       status: String(order.status),
       payment: String(order.payment),
+      paidAt: order.paidAt,
+      mpPaymentId: order.mpPaymentId,
       items: order.items,
     }));
-    return buildSummary(rows, customerTotal, newCustomersToday);
+    return buildSummary(rows, customerTotal, newCustomersToday, period);
   }
 
   const rows: DashboardOrder[] = mockOrders
@@ -184,8 +213,10 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
       total: order.total,
       status: order.status,
       payment: order.payment,
+      paidAt: order.paidAt ? new Date(order.paidAt) : null,
+      mpPaymentId: order.mpPaymentId ?? null,
       items: order.items.map((item) => ({ name: item.name, qty: item.qty })),
     }));
 
-  return buildSummary(rows, mockCustomers.length, 0);
+  return buildSummary(rows, mockCustomers.length, 0, period);
 }

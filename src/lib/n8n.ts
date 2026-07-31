@@ -24,6 +24,8 @@ export type OrderEvent =
 
 const DELIVERY_CANCEL_WEBHOOK_URL =
   "https://n8n.srv1224751.hstgr.cloud/webhook/pollerianoentregado";
+const ORDER_DELIVERED_WEBHOOK_URL =
+  "https://n8n.srv1224751.hstgr.cloud/webhook/pedido-entregado";
 
 /** Traduce un estado del pedido al evento que le avisamos a n8n. */
 export function eventForStatus(status: OrderStatus): OrderEvent | null {
@@ -65,6 +67,9 @@ export async function notifyOrderEvent(event: OrderEvent, order: Order): Promise
     event === "pedido_en_camino"
       ? process.env.N8N_ORDER_DISPATCH_WEBHOOK_URL?.trim() ||
         process.env.N8N_ORDER_WEBHOOK_URL?.trim()
+      : event === "pedido_entregado"
+        ? process.env.N8N_ORDER_DELIVERED_WEBHOOK_URL?.trim() ||
+          ORDER_DELIVERED_WEBHOOK_URL
       : process.env.N8N_ORDER_WEBHOOK_URL?.trim();
   if (!url) return;
 

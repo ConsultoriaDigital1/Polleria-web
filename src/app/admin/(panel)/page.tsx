@@ -7,7 +7,8 @@ import {
   ArrowDownRight,
   Minus,
 } from "lucide-react";
-import { getDashboardSummary } from "@/lib/dashboard";
+import Link from "next/link";
+import { getDashboardSummary, type DashboardPeriod } from "@/lib/dashboard";
 import { listOrders } from "@/lib/repo";
 import { formatARS, formatCantidad } from "@/lib/format";
 import { StatusBadge } from "@/components/admin/StatusBadge";
@@ -15,9 +16,28 @@ import { SalesChart, PaymentPie } from "@/components/admin/Charts";
 
 export const dynamic = "force-dynamic";
 
-function changeLabel(change: number | null): string {
+const PERIODS: { value: DashboardPeriod; label: string }[] = [
+  { value: "yesterday", label: "Ayer" },
+  { value: "today", label: "Hoy" },
+  { value: "7d", label: "Últimos 7 días" },
+  { value: "14d", label: "Últimos 14 días" },
+];
+
+const PERIOD_LABELS: Record<DashboardPeriod, string> = {
+  yesterday: "ayer",
+  today: "hoy",
+  "7d": "últimos 7 días",
+  "14d": "últimos 14 días",
+};
+
+function resolvePeriod(value?: string): DashboardPeriod {
+  return PERIODS.some((period) => period.value === value) ? (value as DashboardPeriod) : "today";
+}
+
+function changeLabel(change: number | null, period: DashboardPeriod): string {
   if (change === null) return "Nuevo";
-  return `${change > 0 ? "+" : ""}${change}% vs. ayer`;
+  const comparison = period === "today" ? "ayer" : period === "yesterday" ? "anteayer" : "período anterior";
+  return `${change > 0 ? "+" : ""}${change}% vs. ${comparison}`;
 }
 
 function changeTone(change: number | null): "up" | "down" | "flat" {
@@ -26,23 +46,29 @@ function changeTone(change: number | null): "up" | "down" | "flat" {
   return "flat";
 }
 
-export default async function AdminDashboard() {
+export default async function AdminDashboard({
+  searchParams,
+}: {
+  searchParams: Promise<{ period?: string }>;
+}) {
+  const period = resolvePeriod((await searchParams).period);
+  const periodLabel = PERIOD_LABELS[period];
   const [summary, orders] = await Promise.all([
-    getDashboardSummary(),
+    getDashboardSummary(period),
     listOrders({ statusNot: "pendiente", limit: 6 }),
   ]);
   const stats = [
     {
-      label: "Ventas de hoy",
+      label: period === "today" || period === "yesterday" ? `Ventas de ${periodLabel}` : `Ventas · ${periodLabel}`,
       value: formatARS(summary.salesToday.value),
-      delta: changeLabel(summary.salesToday.change),
+      delta: changeLabel(summary.salesToday.change, period),
       trend: changeTone(summary.salesToday.change),
       icon: DollarSign,
     },
     {
-      label: "Pedidos de hoy",
+      label: period === "today" || period === "yesterday" ? `Pedidos pagados ${periodLabel}` : `Pedidos pagados · ${periodLabel}`,
       value: formatCantidad(summary.ordersToday.value),
-      delta: changeLabel(summary.ordersToday.change),
+      delta: changeLabel(summary.ordersToday.change, period),
       trend: changeTone(summary.ordersToday.change),
       icon: ShoppingCart,
     },
@@ -54,9 +80,9 @@ export default async function AdminDashboard() {
       icon: Users,
     },
     {
-      label: "Productos vendidos hoy",
+      label: period === "today" || period === "yesterday" ? `Productos vendidos ${periodLabel}` : `Productos vendidos · ${periodLabel}`,
       value: formatCantidad(summary.productsSoldToday.value),
-      delta: changeLabel(summary.productsSoldToday.change),
+      delta: changeLabel(summary.productsSoldToday.change, period),
       trend: changeTone(summary.productsSoldToday.change),
       icon: Package,
     },
@@ -74,6 +100,23 @@ export default async function AdminDashboard() {
             timeZone: "America/Argentina/Buenos_Aires",
           })}
         </p>
+      </div>
+
+      <div className="flex flex-wrap gap-2 rounded-2xl bg-white p-3 shadow-soft" aria-label="Filtrar ventas por período">
+        {PERIODS.map((option) => (
+          <Link
+            key={option.value}
+            href={`/admin?period=${option.value}`}
+            aria-current={period === option.value ? "page" : undefined}
+            className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
+              period === option.value
+                ? "bg-brand-red text-white"
+                : "bg-brand-cream text-brand-ink/70 hover:bg-black/5"
+            }`}
+          >
+            {option.label}
+          </Link>
+        ))}
       </div>
 
       {/* Stat cards */}
@@ -113,12 +156,12 @@ export default async function AdminDashboard() {
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="rounded-2xl bg-white p-4 shadow-soft lg:col-span-2">
           <div className="mb-2 flex items-center justify-between">
-            <h2 className="font-semibold text-brand-ink">Ventas de los últimos 7 días</h2>
+            <h2 className="font-semibold text-brand-ink">Ventas · {periodLabel}</h2>
           </div>
           <SalesChart data={summary.salesByDay} />
         </div>
         <div className="rounded-2xl bg-white p-4 shadow-soft">
-          <h2 className="mb-2 font-semibold text-brand-ink">Métodos de pago · últimos 7 días</h2>
+          <h2 className="mb-2 font-semibold text-brand-ink">Métodos de pago · {periodLabel}</h2>
           <PaymentPie data={summary.paymentMethods} />
         </div>
       </div>
@@ -154,7 +197,7 @@ export default async function AdminDashboard() {
         </div>
 
         <div className="rounded-2xl bg-white p-4 shadow-soft">
-          <h2 className="mb-3 font-semibold text-brand-ink">Más vendidos · últimos 7 días</h2>
+          <h2 className="mb-3 font-semibold text-brand-ink">Más vendidos · {periodLabel}</h2>
           {summary.topProducts.length > 0 ? (
             <ul className="space-y-3">
               {summary.topProducts.map((p) => (
