@@ -6,8 +6,8 @@
 
 /** Rangos horarios en los que se puede recibir el pedido. */
 export const DELIVERY_SLOTS = [
-  { id: "08-12", label: "08:00 a 12:00", detalle: "Mañana", cutoffMinutes: 16 * 60 },
-  { id: "17-20", label: "17:00 a 20:00", detalle: "Tarde", cutoffMinutes: 23 * 60 + 30 },
+  { id: "08-12", label: "08:00 a 12:00", detalle: "Mañana", cutoffMinutes: 21 * 60 },
+  { id: "17-20", label: "17:00 a 20:00", detalle: "Tarde", cutoffMinutes: 12 * 60 },
 ] as const;
 
 export type DeliverySlotId = (typeof DELIVERY_SLOTS)[number]["id"];
@@ -61,16 +61,16 @@ function argentinaDateTime(now: Date): ArgentinaDateTime {
   };
 }
 
-function isBusinessDay(date: Date): boolean {
+function isDeliveryDay(date: Date, slotId: DeliverySlotId): boolean {
   const weekday = date.getUTCDay();
-  return weekday !== 0 && weekday !== 6;
+  if (weekday === 0) return false;
+  return slotId === "08-12" || weekday !== 6;
 }
 
-function nextBusinessDay(date: Date): Date {
-  const next = new Date(date);
-  do next.setUTCDate(next.getUTCDate() + 1);
-  while (!isBusinessDay(next));
-  return next;
+function firstDeliveryDay(date: Date, slotId: DeliverySlotId): Date {
+  const target = new Date(date);
+  while (!isDeliveryDay(target, slotId)) target.setUTCDate(target.getUTCDate() + 1);
+  return target;
 }
 
 function dateOnly(date: Date): string {
@@ -105,10 +105,9 @@ export function deliveryEstimateLabel(
 /**
  * Calcula las próximas entregas usando siempre hora Argentina.
  *
- * - Mañana: el próximo día hábil hasta las 16:00.
- * - Tarde: el próximo día hábil hasta las 23:30.
- * - Al alcanzar el corte, esa franja pasa al día hábil siguiente.
- * - Los pedidos hechos durante el fin de semana quedan para el lunes.
+ * - Mañana: se entrega de lunes a sábado; el cambio de fecha cierra a las 21:00.
+ * - Tarde: se entrega de lunes a viernes; el turno del día cierra a las 12:00.
+ * - Al alcanzar cada corte, esa franja pasa al próximo día disponible.
  */
 export function estimatedDeliveryOptions(now = new Date()): EstimatedDeliveryOption[] {
   const local = argentinaDateTime(now);
@@ -116,10 +115,12 @@ export function estimatedDeliveryOptions(now = new Date()): EstimatedDeliveryOpt
   const minutes = local.hour * 60 + local.minute;
 
   return DELIVERY_SLOTS.map((slot) => {
-    let target = nextBusinessDay(today);
-    if (isBusinessDay(today) && minutes >= slot.cutoffMinutes) {
-      target = nextBusinessDay(target);
-    }
+    const candidate = new Date(today);
+    // La mañana siempre se agenda desde el día siguiente. La tarde puede ser
+    // el mismo día hasta las 12:00. Después de cada corte se avanza un día.
+    if (slot.id === "08-12") candidate.setUTCDate(candidate.getUTCDate() + 1);
+    if (minutes >= slot.cutoffMinutes) candidate.setUTCDate(candidate.getUTCDate() + 1);
+    const target = firstDeliveryDay(candidate, slot.id);
     const date = dateOnly(target);
     return {
       id: slot.id,

@@ -56,7 +56,7 @@ export function CartDrawer() {
   const opcionesEntrega = useMemo(() => estimatedDeliveryOptions(ahora), [ahora]);
 
   // Mantiene las fechas visibles actualizadas si el carrito queda abierto al
-  // cruzar uno de los cortes (16:00 o 23:30, hora Argentina).
+  // cruzar uno de los cortes (12:00 o 21:00, hora Argentina).
   useEffect(() => {
     if (!open) return;
     setAhora(new Date());
