@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Search, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Search, X } from "lucide-react";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { deliveryEstimateLabel } from "@/lib/entrega";
 import { formatARS, formatDateTime } from "@/lib/format";
@@ -16,6 +16,19 @@ type Filter =
   | "en_camino"
   | "entregado"
   | "cancelado";
+
+type SortKey =
+  | "id"
+  | "customer"
+  | "detail"
+  | "delivery"
+  | "payment"
+  | "created"
+  | "paidAt"
+  | "cancelledAt"
+  | "total"
+  | "status";
+type SortDirection = "asc" | "desc";
 
 const paidStatuses: OrderStatus[] = ["en_preparacion", "en_camino", "entregado"];
 
@@ -80,14 +93,70 @@ function paymentState(order: Order): { label: string; className: string } {
   return { label: "No pagado", className: "bg-orange-100 text-orange-700" };
 }
 
+function orderValue(order: Order, key: SortKey): string | number | undefined {
+  switch (key) {
+    case "id":
+      return order.id;
+    case "customer":
+      return order.customer;
+    case "detail":
+      return order.items.map((item) => `${item.name} ${item.qty}`).join(" ");
+    case "delivery":
+      return `${order.deliveryDate ?? ""} ${order.deliverySlot ?? ""}`.trim() || undefined;
+    case "payment":
+      return `${paymentLabels[order.payment]} ${paymentState(order).label}`;
+    case "created":
+      return new Date(order.date).getTime();
+    case "paidAt":
+      return order.paidAt ? new Date(order.paidAt).getTime() : undefined;
+    case "cancelledAt":
+      return order.cancelledAt ? new Date(order.cancelledAt).getTime() : undefined;
+    case "total":
+      return order.total;
+    case "status":
+      return order.status;
+  }
+}
+
+function compareOrders(a: Order, b: Order, key: SortKey, direction: SortDirection): number {
+  const aValue = orderValue(a, key);
+  const bValue = orderValue(b, key);
+  if (aValue === undefined && bValue === undefined) return 0;
+  if (aValue === undefined) return 1;
+  if (bValue === undefined) return -1;
+  const result =
+    typeof aValue === "number" && typeof bValue === "number"
+      ? aValue - bValue
+      : String(aValue).localeCompare(String(bValue), "es", {
+          numeric: true,
+          sensitivity: "base",
+        });
+  return direction === "asc" ? result : -result;
+}
+
 export function OrdersManager({ orders }: { orders: Order[] }) {
   const [filter, setFilter] = useState<Filter>("todos");
   const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<{ key: SortKey; direction: SortDirection }>({
+    key: "created",
+    direction: "desc",
+  });
 
   const visibleOrders = useMemo(
-    () => orders.filter((order) => matchesFilter(order, filter) && matchesSearch(order, query.trim())),
-    [filter, orders, query]
+    () =>
+      orders
+        .filter((order) => matchesFilter(order, filter) && matchesSearch(order, query.trim()))
+        .slice()
+        .sort((a, b) => compareOrders(a, b, sort.key, sort.direction)),
+    [filter, orders, query, sort]
   );
+
+  function changeSort(key: SortKey) {
+    setSort((current) => ({
+      key,
+      direction: current.key === key && current.direction === "asc" ? "desc" : "asc",
+    }));
+  }
 
   const counts = useMemo(
     () =>
@@ -169,16 +238,16 @@ export function OrdersManager({ orders }: { orders: Order[] }) {
           <table className="w-full text-sm">
             <thead className="bg-brand-cream text-left text-xs uppercase tracking-wide text-brand-ink/50">
               <tr>
-                <th className="px-4 py-3 font-semibold">Pedido</th>
-                <th className="px-4 py-3 font-semibold">Cliente</th>
-                <th className="px-4 py-3 font-semibold">Detalle</th>
-                <th className="px-4 py-3 font-semibold">Entrega</th>
-                <th className="px-4 py-3 font-semibold">Pago</th>
-                <th className="px-4 py-3 font-semibold">Creado</th>
-                <th className="px-4 py-3 font-semibold">Pago confirmado</th>
-                <th className="px-4 py-3 font-semibold">Cancelado</th>
-                <th className="px-4 py-3 font-semibold">Total</th>
-                <th className="px-4 py-3 font-semibold">Estado</th>
+                <SortHeader label="Pedido" sortKey="id" sort={sort} onSort={changeSort} />
+                <SortHeader label="Cliente" sortKey="customer" sort={sort} onSort={changeSort} />
+                <SortHeader label="Detalle" sortKey="detail" sort={sort} onSort={changeSort} />
+                <SortHeader label="Entrega" sortKey="delivery" sort={sort} onSort={changeSort} />
+                <SortHeader label="Pago" sortKey="payment" sort={sort} onSort={changeSort} />
+                <SortHeader label="Creado" sortKey="created" sort={sort} onSort={changeSort} />
+                <SortHeader label="Pago confirmado" sortKey="paidAt" sort={sort} onSort={changeSort} />
+                <SortHeader label="Cancelado" sortKey="cancelledAt" sort={sort} onSort={changeSort} />
+                <SortHeader label="Total" sortKey="total" sort={sort} onSort={changeSort} />
+                <SortHeader label="Estado" sortKey="status" sort={sort} onSort={changeSort} />
               </tr>
             </thead>
             <tbody>
@@ -250,5 +319,35 @@ export function OrdersManager({ orders }: { orders: Order[] }) {
         </div>
       </div>
     </div>
+  );
+}
+
+function SortHeader({
+  label,
+  sortKey,
+  sort,
+  onSort,
+}: {
+  label: string;
+  sortKey: SortKey;
+  sort: { key: SortKey; direction: SortDirection };
+  onSort: (key: SortKey) => void;
+}) {
+  const active = sort.key === sortKey;
+  const Icon = !active ? ArrowUpDown : sort.direction === "asc" ? ArrowUp : ArrowDown;
+  return (
+    <th
+      className="px-4 py-3 font-semibold"
+      aria-sort={active ? (sort.direction === "asc" ? "ascending" : "descending") : "none"}
+    >
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className="inline-flex items-center gap-1 whitespace-nowrap hover:text-brand-red"
+      >
+        {label}
+        <Icon size={13} aria-hidden="true" className={active ? "text-brand-red" : "opacity-45"} />
+      </button>
+    </th>
   );
 }

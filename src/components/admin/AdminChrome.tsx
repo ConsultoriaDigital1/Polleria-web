@@ -12,10 +12,8 @@ import {
   UserCog,
   Tag,
   TicketPercent,
-  Megaphone,
-  BarChart3,
+  Sparkles,
   LineChart,
-  Settings,
   Store,
   Bell,
   Search,
@@ -38,10 +36,8 @@ const nav = [
   { href: "/admin/equipo", label: "Equipo", icon: UserCog, perm: "equipo" },
   { href: "/admin/ofertas", label: "Ofertas", icon: Tag, perm: "ofertas" },
   { href: "/admin/cupones", label: "Cupones", icon: TicketPercent, perm: "cupones" },
-  { href: "/admin/novedades", label: "Novedades", icon: Megaphone, perm: "novedades" },
-  { href: "/admin/reportes", label: "Reportes", icon: BarChart3, perm: "reportes" },
+  { href: "/admin/reportes", label: "IA y reportes", icon: Sparkles, perm: "reportes" },
   { href: "/admin/analitica", label: "Analítica", icon: LineChart, perm: "analitica" },
-  { href: "/admin/config", label: "Configuración", icon: Settings, perm: "config" },
 ];
 
 function NavContent({ perms, onNavigate }: { perms: string[]; onNavigate?: () => void }) {

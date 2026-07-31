@@ -55,7 +55,7 @@ export default async function AdminDashboard({
   const periodLabel = PERIOD_LABELS[period];
   const [summary, orders] = await Promise.all([
     getDashboardSummary(period),
-    listOrders({ statusNot: "pendiente", limit: 6 }),
+    listOrders({ statusIn: ["en_preparacion", "en_camino", "entregado"], limit: 6 }),
   ]);
   const stats = [
     {

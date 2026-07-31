@@ -30,10 +30,8 @@ export const PERM_MODULES: PermModule[] = [
   { key: "equipo", label: "Equipo", href: "/admin/equipo" },
   { key: "ofertas", label: "Ofertas", href: "/admin/ofertas" },
   { key: "cupones", label: "Cupones", href: "/admin/cupones" },
-  { key: "novedades", label: "Novedades", href: "/admin/novedades" },
-  { key: "reportes", label: "Reportes", href: "/admin/reportes" },
+  { key: "reportes", label: "IA y reportes", href: "/admin/reportes" },
   { key: "analitica", label: "Analítica", href: "/admin/analitica" },
-  { key: "config", label: "Configuración", href: "/admin/config" },
 ];
 
 export const PERM_KEYS: string[] = PERM_MODULES.map((m) => m.key);

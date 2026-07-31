@@ -2,6 +2,8 @@ import { UserPlus, TrendingUp, CalendarDays, Users } from "lucide-react";
 import { getNewCustomersStats, getTopBuyers } from "@/lib/repo";
 import { requirePerm } from "@/lib/auth/permissions";
 import { formatARS, formatCantidad } from "@/lib/format";
+import { aiHabilitado } from "@/lib/ai";
+import { BusinessAIChat } from "./BusinessAIChat";
 
 export const dynamic = "force-dynamic";
 
@@ -23,67 +25,76 @@ export default async function ReportesPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold text-brand-ink">Reportes</h1>
-        <p className="text-sm text-brand-ink/55">Estadísticas de clientes y ventas</p>
+        <h1 className="text-2xl font-bold text-brand-ink">IA y reportes</h1>
+        <p className="text-sm text-brand-ink/55">Resumen compacto y análisis conversacional del negocio</p>
       </div>
 
-      {/* Tarjetas de clientes nuevos */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {cards.map((c) => (
-          <div key={c.label} className="rounded-2xl bg-white p-4 shadow-soft">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-red/10 text-brand-red">
-              <c.icon size={20} />
-            </span>
-            <p className="mt-3 text-2xl font-bold text-brand-ink">{c.value}</p>
-            <p className="text-sm text-brand-ink/55">{c.label}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-3">
-        {/* Clientes nuevos por mes */}
-        <div className="rounded-2xl bg-white p-5 shadow-soft lg:col-span-2">
-          <h2 className="mb-4 font-semibold text-brand-ink">Clientes nuevos por mes</h2>
-          <div className="flex h-48 items-end justify-between gap-3">
-            {stats.byMonth.map((m) => (
-              <div key={m.month} className="flex flex-1 flex-col items-center gap-2">
-                <span className="text-xs font-semibold text-brand-ink/70">{m.count}</span>
-                <div className="flex w-full flex-1 items-end">
-                  <div
-                    className="w-full rounded-t-lg bg-brand-gold transition-all"
-                    style={{ height: `${(m.count / maxMonth) * 100}%`, minHeight: m.count > 0 ? 4 : 0 }}
-                  />
-                </div>
-                <span className="text-xs capitalize text-brand-ink/55">{m.label}</span>
+      <section className="space-y-3" aria-label="Resumen de reportes">
+        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+          {cards.map((card) => (
+            <div key={card.label} className="flex items-center gap-3 rounded-xl bg-white px-3 py-2.5 shadow-soft">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-red/10 text-brand-red">
+                <card.icon size={16} />
+              </span>
+              <div className="min-w-0">
+                <p className="text-lg font-bold leading-tight text-brand-ink">{card.value}</p>
+                <p className="truncate text-[11px] text-brand-ink/55">{card.label}</p>
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
 
-        {/* Top de compradores */}
-        <div className="rounded-2xl bg-white p-5 shadow-soft">
-          <h2 className="mb-3 font-semibold text-brand-ink">Top de compradores</h2>
-          <ol className="space-y-3">
-            {topBuyers.map((c, i) => (
-              <li key={c.id} className="flex items-center gap-3">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-cream text-xs font-bold text-brand-ink/70">
-                  {i + 1}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium text-brand-ink">{c.name}</p>
-                  <p className="text-xs text-brand-ink/50">{c.orders} pedidos</p>
+        <div className="grid gap-3 lg:grid-cols-[1.15fr_1fr]">
+          <div className="rounded-xl bg-white p-3 shadow-soft">
+            <h2 className="mb-2 text-xs font-semibold text-brand-ink">Clientes nuevos por mes</h2>
+            <div className="flex h-28 items-end justify-between gap-2">
+              {stats.byMonth.map((month) => (
+                <div key={month.month} className="flex h-full flex-1 flex-col items-center gap-1">
+                  <span className="text-[10px] font-semibold text-brand-ink/65">{month.count}</span>
+                  <div className="flex w-full flex-1 items-end">
+                    <div
+                      className="w-full rounded-t bg-brand-gold"
+                      style={{
+                        height: `${(month.count / maxMonth) * 100}%`,
+                        minHeight: month.count > 0 ? 3 : 0,
+                      }}
+                    />
+                  </div>
+                  <span className="text-[10px] capitalize text-brand-ink/50">{month.label}</span>
                 </div>
-                <p className="text-right font-semibold text-brand-ink">{formatARS(c.spent)}</p>
-              </li>
-            ))}
-            {topBuyers.length === 0 && (
-              <li className="py-6 text-center text-sm text-brand-ink/50">Todavía no hay datos.</li>
-            )}
-          </ol>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-xl bg-white p-3 shadow-soft">
+            <h2 className="mb-2 text-xs font-semibold text-brand-ink">Top de compradores</h2>
+            <ol className="grid gap-x-4 gap-y-1 sm:grid-cols-2">
+              {topBuyers.map((customer, index) => (
+                <li key={customer.id} className="flex min-w-0 items-center gap-2 border-t border-black/5 py-1 first:border-0 sm:[&:nth-child(2)]:border-0">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-cream text-[9px] font-bold text-brand-ink/65">
+                    {index + 1}
+                  </span>
+                  <p className="min-w-0 flex-1 truncate text-[11px] font-medium text-brand-ink">
+                    {customer.name}
+                  </p>
+                  <p className="whitespace-nowrap text-[10px] font-semibold text-brand-ink/65">
+                    {formatARS(customer.spent)} · {customer.orders}
+                  </p>
+                </li>
+              ))}
+              {topBuyers.length === 0 && (
+                <li className="col-span-2 py-5 text-center text-xs text-brand-ink/50">
+                  Todavía no hay datos.
+                </li>
+              )}
+            </ol>
+          </div>
         </div>
-      </div>
+      </section>
+
+      <BusinessAIChat enabled={aiHabilitado()} />
     </div>
   );
 }
