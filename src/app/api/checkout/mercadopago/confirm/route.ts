@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { obtenerPago } from "@/lib/mercadopago";
 import { applyVerifiedMercadoPagoPayment, getOrder } from "@/lib/repo";
-import { deliverySlotLabel } from "@/lib/entrega";
+import { deliveryEstimateLabel } from "@/lib/entrega";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
     // Códigos reales del pedido, para mostrarlos en la pantalla de resultado.
     codigo: order?.id ?? null,
     deliveryCode: order?.deliveryCode ?? null,
-    franjaHoraria: deliverySlotLabel(order?.deliverySlot),
+    franjaHoraria: deliveryEstimateLabel(order?.deliverySlot, order?.deliveryDate),
     regalo: order?.items.find((i) => i.price === 0)?.name ?? null,
   });
 }

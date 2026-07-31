@@ -103,6 +103,8 @@ export interface Order {
   entrega?: DeliveryType;
   /** Rango horario de entrega elegido por el cliente ("08-12" o "17-20"). */
   deliverySlot?: string;
+  /** Fecha calendario estimada de entrega en Argentina (YYYY-MM-DD). */
+  deliveryDate?: string;
   /** Punto exacto de entrega marcado en el mapa. */
   lat?: number;
   lng?: number;

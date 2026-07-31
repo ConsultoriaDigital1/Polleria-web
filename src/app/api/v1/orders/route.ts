@@ -46,6 +46,8 @@ const createOrderSchema = z.object({
   deliverySlot: z
     .enum(DELIVERY_SLOTS.map((s) => s.id) as [string, ...string[]])
     .optional(),
+  /** Fecha calendario estimada de entrega (YYYY-MM-DD). */
+  deliveryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 }).refine((d) => d.customerId || d.customer, {
   message: "Indicá customerId o los datos del cliente (customer).",
   path: ["customer"],

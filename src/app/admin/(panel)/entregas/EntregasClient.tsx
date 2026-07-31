@@ -255,6 +255,11 @@ export function EntregasClient({ sucursales, repartidores, envios, enCurso = 0 }
                               {e.address && (
                                 <span className="block truncate text-brand-ink/60">{e.address}</span>
                               )}
+                              {e.franjaHoraria && (
+                                <span className="block text-xs font-bold text-brand-red">
+                                  Entrega: {e.franjaHoraria}
+                                </span>
+                              )}
                               <span className="block text-xs text-brand-ink/55">
                                 {e.items.map((i) => `${i.qty}× ${i.name}`).join(", ")} ·{" "}
                                 <b className="text-brand-ink/80">{formatARS(e.total)}</b>

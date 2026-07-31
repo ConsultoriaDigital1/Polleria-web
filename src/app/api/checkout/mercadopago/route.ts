@@ -14,7 +14,12 @@ import {
 } from "@/lib/repo";
 import { hasDatabase } from "@/lib/prisma";
 import { isInsideCorrientes, MIN_ENVIO_TOTAL } from "@/lib/geo";
-import { DELIVERY_SLOTS, deliverySlotLabel } from "@/lib/entrega";
+import {
+  DELIVERY_SLOTS,
+  deliveryEstimateLabel,
+  estimatedDeliveryOption,
+  type DeliverySlotId,
+} from "@/lib/entrega";
 import { isValidPhone } from "@/lib/phone";
 import { formatARS } from "@/lib/format";
 
@@ -42,6 +47,7 @@ const bodySchema = z.object({
   franjaHoraria: z.enum(DELIVERY_SLOTS.map((s) => s.id) as [string, ...string[]], {
     message: "Elegí el rango horario en el que querés recibir el pedido.",
   }),
+  fechaEntrega: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "La fecha de entrega no es válida."),
   nombre: z.string().trim().min(2, "Decinos tu nombre."),
   telefono: z
     .string()
@@ -151,7 +157,16 @@ export async function POST(req: NextRequest) {
     );
   }
   const address = direccion;
-  const franjaLabel = deliverySlotLabel(body.franjaHoraria);
+  // El servidor vuelve a calcular la fecha con hora Argentina. Así un reloj
+  // incorrecto o una pestaña abierta durante el corte no agenda un día viejo.
+  const entregaEsperada = estimatedDeliveryOption(body.franjaHoraria as DeliverySlotId);
+  if (body.fechaEntrega !== entregaEsperada.date) {
+    return NextResponse.json(
+      { error: "La fecha de entrega se actualizó. Revisá y elegí nuevamente el horario." },
+      { status: 409 }
+    );
+  }
+  const franjaLabel = deliveryEstimateLabel(body.franjaHoraria, body.fechaEntrega);
 
   try {
     // Precios reales del catálogo + validación del mínimo de compra.
@@ -178,6 +193,7 @@ export async function POST(req: NextRequest) {
       address,
       entrega: "envio",
       deliverySlot: body.franjaHoraria,
+      deliveryDate: body.fechaEntrega,
       lat: body.lat,
       lng: body.lng,
       couponCode: body.couponCode,

@@ -20,7 +20,7 @@ export function AvisoTurnos({ className }: { className?: string }) {
       )}
     >
       <p className="mb-3 text-xs font-bold uppercase tracking-wide text-brand-gold">
-        Horarios de entrega
+        Horarios de entrega · Hora Argentina
       </p>
       <ul className="space-y-3">
         {AVISO_TURNOS_REGLAS.map((r) => {

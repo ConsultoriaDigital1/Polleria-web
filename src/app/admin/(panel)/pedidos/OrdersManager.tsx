@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Search, X } from "lucide-react";
 import { StatusBadge } from "@/components/admin/StatusBadge";
-import { deliverySlotLabel } from "@/lib/entrega";
+import { deliveryEstimateLabel } from "@/lib/entrega";
 import { formatARS, formatDateTime } from "@/lib/format";
 import type { Order, OrderStatus } from "@/lib/types";
 import { cn } from "@/lib/cn";
@@ -61,6 +61,7 @@ function matchesSearch(order: Order, query: string): boolean {
     order.phone,
     order.address,
     order.deliverySlot,
+    order.deliveryDate,
     paymentLabels[order.payment],
     order.status.replaceAll("_", " "),
     order.total.toString(),
@@ -201,7 +202,7 @@ export function OrdersManager({ orders }: { orders: Order[] }) {
                       {order.items.map((item) => `${item.qty}× ${item.name}`).join(", ")}
                     </td>
                     <td className="px-4 py-3 text-brand-ink/70">
-                      {deliverySlotLabel(order.deliverySlot) ?? "—"}
+                      {deliveryEstimateLabel(order.deliverySlot, order.deliveryDate) ?? "—"}
                     </td>
                     <td className="px-4 py-3 text-brand-ink/70">
                       <p className="whitespace-nowrap">{paymentLabels[order.payment]}</p>

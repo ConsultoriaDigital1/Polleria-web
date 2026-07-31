@@ -2,7 +2,7 @@ import { listOrders, listActiveRoute, listRouteHistory, listStaff } from "@/lib/
 import { requirePerm } from "@/lib/auth/permissions";
 import { sucursales } from "@/lib/sucursales";
 import { googleMapsPointUrl, googleMapsRouteUrl, DEFAULT_ROUTE_ORIGIN } from "@/lib/route";
-import { deliverySlotLabel, DELIVERY_SLOTS } from "@/lib/entrega";
+import { deliveryEstimateLabel, DELIVERY_SLOTS } from "@/lib/entrega";
 import type { Order } from "@/lib/types";
 import { EntregasClient, type EnvioPendiente } from "./EntregasClient";
 import type { RutaStop, RutaEnCursoProps } from "./RutaEnCursoClient";
@@ -36,8 +36,7 @@ export default async function EntregasPage() {
   const staffName = (id?: string) => equipo.find((s) => s.id === id)?.name ?? null;
 
   // Todos los pedidos son envíos a domicilio (no existe el retiro por sucursal).
-  // Se ordenan por franja horaria (mañana antes que tarde) y, dentro de cada
-  // franja, por antigüedad: arriba queda siempre el que pidió primero.
+  // Se ordenan por fecha estimada, franja y antigüedad.
   const envios = listos
     .filter(
       (order) =>
@@ -46,7 +45,9 @@ export default async function EntregasPage() {
     )
     .sort(
       (a, b) =>
-        slotOrder(a.deliverySlot) - slotOrder(b.deliverySlot) || a.date.localeCompare(b.date)
+        (a.deliveryDate ?? "9999-12-31").localeCompare(b.deliveryDate ?? "9999-12-31") ||
+        slotOrder(a.deliverySlot) - slotOrder(b.deliverySlot) ||
+        a.date.localeCompare(b.date)
     );
   const enCamino = ruta.filter((o) => o.status === "en_camino");
 
@@ -63,7 +64,7 @@ export default async function EntregasPage() {
     total: o.total,
     items: o.items.map((i) => ({ name: i.name, qty: i.qty })),
     mapUrl: o.lat != null && o.lng != null ? googleMapsPointUrl({ lat: o.lat, lng: o.lng }) : null,
-    franjaHoraria: deliverySlotLabel(o.deliverySlot),
+    franjaHoraria: deliveryEstimateLabel(o.deliverySlot, o.deliveryDate),
     slotId: o.deliverySlot ?? null,
     isRetry: o.status === "cancelado",
   }));

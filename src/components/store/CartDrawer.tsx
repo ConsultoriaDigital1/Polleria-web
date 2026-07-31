@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   Clock,
@@ -18,7 +18,12 @@ import { useCart } from "@/store/cart";
 import { useUI } from "@/store/ui";
 import { formatARS } from "@/lib/format";
 import { isInsideCorrientes, MIN_ENVIO_TOTAL } from "@/lib/geo";
-import { AVISO_DIRECCION, DELIVERY_SLOTS, type DeliverySlotId } from "@/lib/entrega";
+import {
+  AVISO_DIRECCION,
+  estimatedDeliveryOption,
+  estimatedDeliveryOptions,
+  type DeliverySlotId,
+} from "@/lib/entrega";
 import { CODIGO_BIENVENIDA } from "@/lib/data";
 import { MapPicker, type MapPoint } from "@/components/store/MapPicker";
 import { AvisoTurnos } from "@/components/store/AvisoTurnos";
@@ -48,6 +53,17 @@ export function CartDrawer() {
   const [punto, setPunto] = useState<MapPoint | null>(null);
   const [puntoConfirmado, setPuntoConfirmado] = useState(false);
   const [franja, setFranja] = useState<DeliverySlotId | "">("");
+  const [ahora, setAhora] = useState(() => new Date());
+  const opcionesEntrega = useMemo(() => estimatedDeliveryOptions(ahora), [ahora]);
+
+  // Mantiene las fechas visibles actualizadas si el carrito queda abierto al
+  // cruzar uno de los cortes (16:00 o 23:30, hora Argentina).
+  useEffect(() => {
+    if (!open) return;
+    setAhora(new Date());
+    const timer = window.setInterval(() => setAhora(new Date()), 30_000);
+    return () => window.clearInterval(timer);
+  }, [open]);
 
   useEffect(() => {
     setCoupon(null);
@@ -123,10 +139,13 @@ export function CartDrawer() {
 
   // Inicia el pago: crea el pedido + preferencia en el backend y redirige a MP.
   const pagarConMercadoPago = async () => {
-    if (!listoParaPagar || pagando) return;
+    if (!listoParaPagar || pagando || !franja) return;
     setErrorPago(null);
     setPagando(true);
     try {
+      // Se vuelve a calcular al hacer click para no enviar una fecha vencida si
+      // justo se alcanzó un horario de corte con el carrito abierto.
+      const opcionEntrega = estimatedDeliveryOption(franja, new Date());
       const payload = {
         items: lines.map((l) => ({
           productId: l.product.id,
@@ -138,6 +157,7 @@ export function CartDrawer() {
         lat: punto?.lat,
         lng: punto?.lng,
         franjaHoraria: franja,
+        fechaEntrega: opcionEntrega.date,
         nombre: nombre.trim(),
         telefono: telefono.trim(),
         couponCode: coupon?.code,
@@ -366,26 +386,19 @@ export function CartDrawer() {
                     <Clock size={14} className="text-brand-red" /> ¿En qué horario querés recibirlo?
                   </span>
                   <div className="grid grid-cols-2 gap-2">
-                    {DELIVERY_SLOTS.map((s) => (
+                    {opcionesEntrega.map((opcion) => (
                       <button
-                        key={s.id}
+                        key={opcion.id}
                         type="button"
-                        onClick={() => setFranja(s.id)}
-                        aria-pressed={franja === s.id}
-                        className={`rounded-xl border px-3 py-2.5 text-sm font-bold transition ${
-                          franja === s.id
+                        onClick={() => setFranja(opcion.id)}
+                        aria-pressed={franja === opcion.id}
+                        className={`rounded-xl border px-3 py-2.5 text-xs font-bold transition ${
+                          franja === opcion.id
                             ? "border-brand-red bg-brand-red text-white"
                             : "border-black/10 bg-white text-brand-ink hover:border-brand-red/40"
                         }`}
                       >
-                        {s.label}
-                        <span
-                          className={`block text-[11px] font-semibold ${
-                            franja === s.id ? "text-white/75" : "text-brand-ink/50"
-                          }`}
-                        >
-                          {s.detalle}
-                        </span>
+                        {opcion.label}
                       </button>
                     ))}
                   </div>

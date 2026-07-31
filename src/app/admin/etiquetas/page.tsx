@@ -5,7 +5,7 @@ import { requirePerm } from "@/lib/auth/permissions";
 import { listOrdersByIds } from "@/lib/repo";
 import { formatARS } from "@/lib/format";
 import { googleMapsPointUrl } from "@/lib/route";
-import { deliverySlotLabel } from "@/lib/entrega";
+import { deliveryEstimateLabel } from "@/lib/entrega";
 import { sucursales } from "@/lib/sucursales";
 import type { Order } from "@/lib/types";
 import { PrintButton } from "./PrintButton";
@@ -160,9 +160,9 @@ export default async function EtiquetasPage({
                   </p>
                   <p className="text-[4.6mm] font-extrabold leading-tight">{o.customer}</p>
                   {o.phone && <p className="text-[3.2mm] font-semibold">Tel: {o.phone}</p>}
-                  {deliverySlotLabel(o.deliverySlot) && (
+                  {deliveryEstimateLabel(o.deliverySlot, o.deliveryDate) && (
                     <p className="text-[3.2mm] font-semibold">
-                      Horario: {deliverySlotLabel(o.deliverySlot)}
+                      Entrega: {deliveryEstimateLabel(o.deliverySlot, o.deliveryDate)}
                     </p>
                   )}
                 </div>

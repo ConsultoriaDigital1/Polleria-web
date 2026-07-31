@@ -1,4 +1,5 @@
 import type { Order, OrderStatus } from "./types";
+import { deliveryEstimateLabel } from "./entrega";
 
 /**
  * Avisos de pedidos hacia n8n. Cada vez que un pedido cambia de estado se
@@ -46,7 +47,11 @@ export function eventForStatus(status: OrderStatus): OrderEvent | null {
 function messageForOrderEvent(event: OrderEvent, order: Order): string {
   switch (event) {
     case "pedido_confirmado":
-      return `✅ Recibimos tu pedido ${order.id}. Ya estamos preparándolo.`;
+      return `✅ Recibimos tu pedido ${order.id}. Ya estamos preparándolo.${
+        deliveryEstimateLabel(order.deliverySlot, order.deliveryDate)
+          ? `\n📅 Entrega estimada: ${deliveryEstimateLabel(order.deliverySlot, order.deliveryDate)}.`
+          : ""
+      }`;
     case "pedido_en_camino":
       return `🚚 Tu pedido está saliendo de la sucursal.\n🔐 Este es tu código: ${order.deliveryCode ?? ""}. Debés dárselo al repartidor cuando te entregue tu pedido.`;
     case "pedido_entregado":

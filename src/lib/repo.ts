@@ -111,6 +111,7 @@ function mapOrder(o: DbOrder & { items: DbOrderItem[] }): Order {
     address: o.address ?? undefined,
     entrega: (o.entrega as Order["entrega"]) ?? undefined,
     deliverySlot: o.deliverySlot ?? undefined,
+    deliveryDate: o.deliveryDate?.toISOString().slice(0, 10),
     lat: o.lat ?? undefined,
     lng: o.lng ?? undefined,
     deliveryCode: o.deliveryCode ?? undefined,
@@ -835,6 +836,8 @@ export interface CreateOrderInput {
   entrega?: Order["entrega"];
   /** Rango horario de entrega ("08-12" o "17-20"). */
   deliverySlot?: string;
+  /** Fecha calendario estimada de entrega en Argentina (YYYY-MM-DD). */
+  deliveryDate?: string;
   lat?: number;
   lng?: number;
   couponCode?: string;
@@ -910,6 +913,7 @@ async function createOrderMem(input: CreateOrderInput): Promise<Order> {
     address: input.address,
     entrega: input.entrega,
     deliverySlot: input.deliverySlot,
+    deliveryDate: input.deliveryDate,
     lat: input.lat,
     lng: input.lng,
     deliveryCode: generateDeliveryCode(),
@@ -995,6 +999,9 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
       notes: input.notes,
       entrega: input.entrega ?? null,
       deliverySlot: input.deliverySlot ?? null,
+      deliveryDate: input.deliveryDate
+        ? new Date(`${input.deliveryDate}T00:00:00.000Z`)
+        : null,
       lat: input.lat ?? null,
       lng: input.lng ?? null,
       // El cliente le da este código al repartidor al recibir el pedido.

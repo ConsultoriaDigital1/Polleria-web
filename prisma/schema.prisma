@@ -102,6 +102,8 @@ model Order {
   entrega             String?
   // Rango horario de entrega elegido por el cliente ("08-12" o "17-20").
   deliverySlot        String?
+  // Día estimado elegido junto con la franja (fecha calendario de Argentina).
+  deliveryDate        DateTime?     @db.Date
   // Punto exacto de entrega marcado en el mapa.
   lat                 Float?
   lng                 Float?

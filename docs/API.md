@@ -72,11 +72,13 @@ POST /orders
   "payment": "mercadopago",
   "address": "Av. Siempreviva 742",
   "deliverySlot": "08-12",
+  "deliveryDate": "2026-08-03",
   "notes": "Sin sal"
 }
 ```
 > Alternativamente, en lugar de `customer` podés mandar `customerId` de un cliente existente.
 > `deliverySlot` es el rango horario de entrega: `08-12` (08:00 a 12:00) o `17-20` (17:00 a 20:00).
+> `deliveryDate` es la fecha calendario estimada en Argentina (`YYYY-MM-DD`).
 > El stock se descuenta al crear el pedido: si no alcanza, la respuesta es `400` con el detalle.
 
 Respuesta (`201`):
