@@ -26,7 +26,6 @@ import {
 } from "@/lib/entrega";
 import { CODIGO_BIENVENIDA } from "@/lib/data";
 import { MapPicker, type MapPoint } from "@/components/store/MapPicker";
-import { AvisoTurnos } from "@/components/store/AvisoTurnos";
 import type { CouponQuote } from "@/lib/types";
 
 const CHECKOUT_ATTEMPT_KEY = "entrerios-checkout-attempt";
@@ -295,8 +294,6 @@ export function CartDrawer() {
 
         {lines.length > 0 && (
           <div className="max-h-[70%] overflow-y-auto border-t border-black/5 px-4 py-3">
-            <AvisoTurnos className="mb-3" />
-
             <div className="space-y-1 text-sm">
               {coupon && coupon.discount > 0 && (
                 <>

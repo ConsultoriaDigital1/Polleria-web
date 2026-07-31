@@ -5,8 +5,7 @@ import { cn } from "@/lib/cn";
 const ICONOS = { manana: Sunrise, tarde: Sunset } as const;
 
 /**
- * Aviso principal de cuándo se recibe cada compra. Se muestra en la home y en
- * el carrito, así el cliente lo ve antes de elegir el horario de entrega.
+ * Aviso principal de cuándo se recibe cada compra. Se muestra en la home.
  * Cada turno se muestra como una fila con su propio ícono (mañana / tarde),
  * para que se lea claro en vez de un párrafo largo. Los textos viven en
  * lib/entrega para que sean uno solo en toda la app.
@@ -20,7 +19,7 @@ export function AvisoTurnos({ className }: { className?: string }) {
       )}
     >
       <p className="mb-3 text-xs font-bold uppercase tracking-wide text-brand-gold">
-        Horarios de entrega · Hora Argentina
+        Horarios de entrega
       </p>
       <ul className="space-y-3">
         {AVISO_TURNOS_REGLAS.map((r) => {

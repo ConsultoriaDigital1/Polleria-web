@@ -138,22 +138,18 @@ export function estimatedDeliveryOption(
 
 /** Aviso principal de cuándo se recibe cada compra. */
 export const AVISO_TURNOS =
-  "La mañana cierra a las 16:00 y la tarde a las 23:30, siempre con hora Argentina.";
+  "Las compras realizadas por la mañana se reciben por la tarde. Las compras realizadas por la tarde se reciben por la mañana del día siguiente.";
 
 /**
  * El mismo aviso separado por turno, para mostrarlo como dos reglas claras
  * (cada una con su ícono) en vez de un párrafo largo.
  */
 export const AVISO_TURNOS_REGLAS = [
-  {
-    turno: "manana",
-    compra: "Pedís hasta las 16:00",
-    entrega: "podés elegir la mañana del próximo día hábil",
-  },
+  { turno: "manana", compra: "Comprás por la mañana", entrega: "lo recibís por la tarde" },
   {
     turno: "tarde",
-    compra: "Pedís hasta las 23:30",
-    entrega: "podés elegir la tarde del próximo día hábil",
+    compra: "Comprás por la tarde",
+    entrega: "lo recibís a la mañana del día siguiente",
   },
 ] as const;
 
