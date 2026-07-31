@@ -17,8 +17,7 @@ import { isInsideCorrientes, MIN_ENVIO_TOTAL } from "@/lib/geo";
 import {
   DELIVERY_SLOTS,
   deliveryEstimateLabel,
-  estimatedDeliveryOption,
-  type DeliverySlotId,
+  estimatedDeliveryOptions,
 } from "@/lib/entrega";
 import { isValidPhone } from "@/lib/phone";
 import { formatARS } from "@/lib/format";
@@ -159,8 +158,11 @@ export async function POST(req: NextRequest) {
   const address = direccion;
   // El servidor vuelve a calcular la fecha con hora Argentina. Así un reloj
   // incorrecto o una pestaña abierta durante el corte no agenda un día viejo.
-  const entregaEsperada = estimatedDeliveryOption(body.franjaHoraria as DeliverySlotId);
-  if (body.fechaEntrega !== entregaEsperada.date) {
+  const entregaValida = estimatedDeliveryOptions().some(
+    (opcion) =>
+      opcion.id === body.franjaHoraria && opcion.date === body.fechaEntrega
+  );
+  if (!entregaValida) {
     return NextResponse.json(
       { error: "La fecha de entrega se actualizó. Revisá y elegí nuevamente el horario." },
       { status: 409 }

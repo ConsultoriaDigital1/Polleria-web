@@ -25,6 +25,8 @@ export function deliverySlotLabel(id?: string | null): string | null {
 export const ARGENTINA_TIME_ZONE = "America/Argentina/Buenos_Aires";
 
 export interface EstimatedDeliveryOption {
+  /** Identificador único de la opción, incluso si dos fechas usan la misma franja. */
+  key: string;
   id: DeliverySlotId;
   /** Fecha calendario de Argentina, en formato YYYY-MM-DD. */
   date: string;
@@ -114,7 +116,7 @@ export function estimatedDeliveryOptions(now = new Date()): EstimatedDeliveryOpt
   const today = new Date(Date.UTC(local.year, local.month - 1, local.day));
   const minutes = local.hour * 60 + local.minute;
 
-  return DELIVERY_SLOTS.map((slot) => {
+  const options = DELIVERY_SLOTS.map((slot) => {
     const candidate = new Date(today);
     // La mañana siempre se agenda desde el día siguiente. La tarde puede ser
     // el mismo día hasta las 12:00. Después de cada corte se avanza un día.
@@ -123,18 +125,30 @@ export function estimatedDeliveryOptions(now = new Date()): EstimatedDeliveryOpt
     const target = firstDeliveryDay(candidate, slot.id);
     const date = dateOnly(target);
     return {
+      key: `${slot.id}:${date}`,
       id: slot.id,
       date,
       label: deliveryEstimateLabel(slot.id, date)!,
     };
   });
-}
 
-export function estimatedDeliveryOption(
-  slotId: DeliverySlotId,
-  now = new Date()
-): EstimatedDeliveryOption {
-  return estimatedDeliveryOptions(now).find((option) => option.id === slotId)!;
+  // Los viernes, desde el cierre del turno de la tarde hasta las 21:00,
+  // se ofrecen dos mañanas: sábado y lunes.
+  if (today.getUTCDay() === 5 && minutes >= 12 * 60 && minutes < 21 * 60) {
+    const saturdayMorning = options[0];
+    const mondayDate = options[1].date;
+    return [
+      saturdayMorning,
+      {
+        key: `08-12:${mondayDate}`,
+        id: "08-12",
+        date: mondayDate,
+        label: deliveryEstimateLabel("08-12", mondayDate)!,
+      },
+    ];
+  }
+
+  return options;
 }
 
 /** Aviso principal de cuándo se recibe cada compra. */

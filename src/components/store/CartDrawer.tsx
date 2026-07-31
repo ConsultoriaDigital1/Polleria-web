@@ -20,9 +20,7 @@ import { formatARS } from "@/lib/format";
 import { isInsideCorrientes, MIN_ENVIO_TOTAL } from "@/lib/geo";
 import {
   AVISO_DIRECCION,
-  estimatedDeliveryOption,
   estimatedDeliveryOptions,
-  type DeliverySlotId,
 } from "@/lib/entrega";
 import { CODIGO_BIENVENIDA } from "@/lib/data";
 import { MapPicker, type MapPoint } from "@/components/store/MapPicker";
@@ -51,9 +49,13 @@ export function CartDrawer() {
   const [direccion, setDireccion] = useState("");
   const [punto, setPunto] = useState<MapPoint | null>(null);
   const [puntoConfirmado, setPuntoConfirmado] = useState(false);
-  const [franja, setFranja] = useState<DeliverySlotId | "">("");
+  const [opcionEntregaKey, setOpcionEntregaKey] = useState("");
   const [ahora, setAhora] = useState(() => new Date());
   const opcionesEntrega = useMemo(() => estimatedDeliveryOptions(ahora), [ahora]);
+  const opcionEntregaSeleccionada = useMemo(
+    () => opcionesEntrega.find((opcion) => opcion.key === opcionEntregaKey) ?? null,
+    [opcionEntregaKey, opcionesEntrega]
+  );
 
   // Mantiene las fechas visibles actualizadas si el carrito queda abierto al
   // cruzar uno de los cortes (12:00 o 21:00, hora Argentina).
@@ -118,7 +120,7 @@ export function CartDrawer() {
     punto !== null &&
     dentroDeZona &&
     puntoConfirmado &&
-    franja !== "";
+    opcionEntregaSeleccionada !== null;
 
   const textoBoton = pagando
     ? "Redirigiendo a Mercado Pago…"
@@ -132,19 +134,27 @@ export function CartDrawer() {
             ? "Punto fuera de Corrientes"
             : !puntoConfirmado
               ? "Confirmá la ubicación del mapa"
-              : franja === ""
+              : opcionEntregaSeleccionada === null
                 ? "Elegí el horario de entrega"
                 : "Pagar con Mercado Pago";
 
   // Inicia el pago: crea el pedido + preferencia en el backend y redirige a MP.
   const pagarConMercadoPago = async () => {
-    if (!listoParaPagar || pagando || !franja) return;
+    if (!listoParaPagar || pagando || !opcionEntregaSeleccionada) return;
     setErrorPago(null);
     setPagando(true);
     try {
       // Se vuelve a calcular al hacer click para no enviar una fecha vencida si
       // justo se alcanzó un horario de corte con el carrito abierto.
-      const opcionEntrega = estimatedDeliveryOption(franja, new Date());
+      const ahoraActualizado = new Date();
+      const opcionEntrega = estimatedDeliveryOptions(ahoraActualizado).find(
+        (opcion) => opcion.key === opcionEntregaKey
+      );
+      if (!opcionEntrega) {
+        setAhora(ahoraActualizado);
+        setOpcionEntregaKey("");
+        throw new Error("La fecha de entrega se actualizó. Elegí nuevamente el horario.");
+      }
       const payload = {
         items: lines.map((l) => ({
           productId: l.product.id,
@@ -155,7 +165,7 @@ export function CartDrawer() {
         direccion: direccion.trim(),
         lat: punto?.lat,
         lng: punto?.lng,
-        franjaHoraria: franja,
+        franjaHoraria: opcionEntrega.id,
         fechaEntrega: opcionEntrega.date,
         nombre: nombre.trim(),
         telefono: telefono.trim(),
@@ -385,12 +395,12 @@ export function CartDrawer() {
                   <div className="grid grid-cols-2 gap-2">
                     {opcionesEntrega.map((opcion) => (
                       <button
-                        key={opcion.id}
+                        key={opcion.key}
                         type="button"
-                        onClick={() => setFranja(opcion.id)}
-                        aria-pressed={franja === opcion.id}
+                        onClick={() => setOpcionEntregaKey(opcion.key)}
+                        aria-pressed={opcionEntregaKey === opcion.key}
                         className={`rounded-xl border px-3 py-2.5 text-xs font-bold transition ${
-                          franja === opcion.id
+                          opcionEntregaKey === opcion.key
                             ? "border-brand-red bg-brand-red text-white"
                             : "border-black/10 bg-white text-brand-ink hover:border-brand-red/40"
                         }`}
