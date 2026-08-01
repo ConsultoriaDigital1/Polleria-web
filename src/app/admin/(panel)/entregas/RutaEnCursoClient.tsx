@@ -14,7 +14,12 @@ import {
   Truck,
   XCircle,
 } from "lucide-react";
-import { cerrarReparto, confirmarEntrega, type ConfirmarEntregaState } from "./actions";
+import {
+  cerrarReparto,
+  confirmarEntrega,
+  reasignarEntrega,
+  type ConfirmarEntregaState,
+} from "./actions";
 
 export interface RutaStop {
   id: string;
@@ -64,7 +69,13 @@ export function RutaEnCursoClient({
   const [state, setState] = useState<ConfirmarEntregaState | null>(null);
   const [pending, startTransition] = useTransition();
   const [closing, startClosing] = useTransition();
+  const [reassigning, startReassigning] = useTransition();
   const [closeError, setCloseError] = useState<string | null>(null);
+  const [reassigningId, setReassigningId] = useState<string | null>(null);
+  const [reassignFeedback, setReassignFeedback] = useState<{
+    ok: boolean;
+    message: string;
+  } | null>(null);
   const [mostrarTodo, setMostrarTodo] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -81,10 +92,12 @@ export function RutaEnCursoClient({
   // Refresco automático para reflejar lo que confirma el repartidor.
   useEffect(() => {
     const t = setInterval(() => {
-      if (document.visibilityState === "visible" && !pending && !closing) router.refresh();
+      if (document.visibilityState === "visible" && !pending && !closing && !reassigning) {
+        router.refresh();
+      }
     }, 20000);
     return () => clearInterval(t);
-  }, [closing, pending, router]);
+  }, [closing, pending, reassigning, router]);
 
   const confirmar = () => {
     const c = code.trim();
@@ -119,6 +132,44 @@ export function RutaEnCursoClient({
         else setCloseError(result.error ?? "No se pudo cerrar el reparto.");
       } catch {
         setCloseError("No se pudo conectar. Actualizá la página antes de reintentar.");
+      }
+    });
+  };
+
+  const reasignar = (stop: RutaStop) => {
+    if (
+      reassigning ||
+      !window.confirm(
+        `¿Cancelar la entrega de ${stop.code}? El pedido volverá a la lista como Reasignado.`
+      )
+    ) {
+      return;
+    }
+
+    setReassigningId(stop.id);
+    setReassignFeedback(null);
+    startReassigning(async () => {
+      try {
+        const result = await reasignarEntrega(stop.id);
+        if (result.ok) {
+          setReassignFeedback({
+            ok: true,
+            message: `Pedido ${result.pedido ?? stop.code} marcado como Reasignado.`,
+          });
+          router.refresh();
+        } else {
+          setReassignFeedback({
+            ok: false,
+            message: result.error ?? "No se pudo reasignar el pedido.",
+          });
+        }
+      } catch {
+        setReassignFeedback({
+          ok: false,
+          message: "No se pudo conectar. Actualizá la página antes de reintentar.",
+        });
+      } finally {
+        setReassigningId(null);
       }
     });
   };
@@ -164,6 +215,17 @@ export function RutaEnCursoClient({
         </div>
       </div>
       {closeError && <p className="mb-3 rounded-lg bg-brand-red/10 px-3 py-2 text-sm font-semibold text-brand-red">{closeError}</p>}
+      {reassignFeedback && (
+        <p
+          className={`mb-3 rounded-lg px-3 py-2 text-sm font-semibold ${
+            reassignFeedback.ok
+              ? "bg-amber-50 text-amber-700"
+              : "bg-brand-red/10 text-brand-red"
+          }`}
+        >
+          {reassignFeedback.message}
+        </p>
+      )}
 
       {/* Progreso */}
       <div className="mb-4">
@@ -304,16 +366,34 @@ export function RutaEnCursoClient({
                 </div>
               </div>
 
-              {s.mapUrl && !entregado && (
-                <a
-                  href={s.mapUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex-none rounded-lg border border-black/10 p-2 text-brand-red"
-                  aria-label="Abrir en el mapa"
-                >
-                  <MapPin size={16} />
-                </a>
+              {!entregado && (
+                <span className="flex flex-none items-center gap-1">
+                  {s.mapUrl && (
+                    <a
+                      href={s.mapUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded-lg border border-black/10 p-2 text-brand-red"
+                      aria-label="Abrir en el mapa"
+                    >
+                      <MapPin size={16} />
+                    </a>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => reasignar(s)}
+                    disabled={reassigning}
+                    title="Cancelar esta entrega y devolverla para reasignación"
+                    aria-label={`Reasignar pedido ${s.code}`}
+                    className="rounded-lg border border-amber-300 p-2 text-amber-700 hover:bg-amber-50 disabled:opacity-50"
+                  >
+                    {reassigningId === s.id ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <XCircle size={16} />
+                    )}
+                  </button>
+                </span>
               )}
             </li>
           );

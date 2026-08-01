@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
       not_assigned: "Ese pedido no está asignado a tu reparto.",
       not_in_progress: "Ese pedido todavía no está en camino.",
       already_delivered: "Ese pedido ya figura como entregado.",
-      already_cancelled: "Ese pedido ya figura como cancelado.",
+      already_cancelled: "Ese pedido ya figura como reasignado.",
     };
     return NextResponse.json(
       { ok: false, error: messages[result.reason] ?? "No se pudo cancelar el pedido." },

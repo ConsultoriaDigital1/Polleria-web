@@ -255,7 +255,7 @@ export function EntregasClient({ sucursales, repartidores, envios, enCurso = 0 }
                                 <span className="font-medium text-brand-ink">{e.customer}</span>
                                 {e.isRetry && (
                                   <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700">
-                                    Reasignar
+                                    Reasignado
                                   </span>
                                 )}
                                 {e.phone && <span className="text-brand-ink/50">· {e.phone}</span>}

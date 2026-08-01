@@ -107,8 +107,8 @@ export async function notifyOrderEvent(event: OrderEvent, order: Order): Promise
   }
 }
 
-/** Avisa la cancelación hecha desde la pantalla del repartidor. */
-export async function notifyDeliveryCancellation(order: Order): Promise<void> {
+/** Avisa que una entrega volvió a la lista para asignarla a otro repartidor. */
+export async function notifyDeliveryReassignment(order: Order): Promise<void> {
   const url =
     process.env.N8N_DELIVERY_CANCEL_WEBHOOK_URL?.trim() || DELIVERY_CANCEL_WEBHOOK_URL;
   const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -117,7 +117,8 @@ export async function notifyDeliveryCancellation(order: Order): Promise<void> {
     process.env.N8N_ORDER_WEBHOOK_SECRET?.trim();
   if (secret) headers.Authorization = `Bearer ${secret}`;
 
-  const message = `El pedido ${order.id} fue cancelado por el repartidor.`;
+  const message =
+    "Tu pedido fue reasignado. Disculpe las molestias. Nuestro equipo ya se comunicará con usted.";
   try {
     const res = await fetch(url, {
       method: "POST",
@@ -125,7 +126,7 @@ export async function notifyDeliveryCancellation(order: Order): Promise<void> {
       cache: "no-store",
       signal: AbortSignal.timeout(5000),
       body: JSON.stringify({
-        event: "pedido_cancelado",
+        event: "pedido_reasignado",
         message,
         mensaje: message,
         at: new Date().toISOString(),
@@ -133,9 +134,9 @@ export async function notifyDeliveryCancellation(order: Order): Promise<void> {
       }),
     });
     if (!res.ok) {
-      console.error(`[n8n] webhook de cancelación respondió ${res.status} para ${order.id}`);
+      console.error(`[n8n] webhook de reasignación respondió ${res.status} para ${order.id}`);
     }
   } catch (e) {
-    console.error(`[n8n] no se pudo notificar la cancelación de ${order.id}:`, e);
+    console.error(`[n8n] no se pudo notificar la reasignación de ${order.id}:`, e);
   }
 }

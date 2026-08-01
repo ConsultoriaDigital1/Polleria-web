@@ -73,8 +73,16 @@ export function HistorialRutas({ rutas, staffName, sucursalName }: Props) {
                             {order.deliveryCode ?? "—"}
                           </td>
                           <td className="px-2 py-2 text-brand-ink/70">{horaEntrega(order)}</td>
-                          <td className="px-2 py-2 font-semibold text-emerald-700">
-                            {order.status === "entregado" ? "Entregado" : order.status}
+                          <td
+                            className={`px-2 py-2 font-semibold ${
+                              order.deliveryRetryAt ? "text-amber-700" : "text-emerald-700"
+                            }`}
+                          >
+                            {order.deliveryRetryAt
+                              ? "Reasignado"
+                              : order.status === "entregado"
+                                ? "Entregado"
+                                : order.status}
                           </td>
                         </tr>
                       ))}

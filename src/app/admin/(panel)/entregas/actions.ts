@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { assertPerm } from "@/lib/auth/permissions";
 import {
+  cancelDelivery,
   closeDeliveryRoute,
   confirmDeliveryByCode,
   DeliveryDispatchConflictError,
@@ -105,6 +106,41 @@ export async function confirmarEntrega(code: string): Promise<ConfirmarEntregaSt
     not_found: "No encontramos el pedido.",
   };
   return { error: messages[result.reason] ?? "No se pudo confirmar." };
+}
+
+export interface ReasignarEntregaState {
+  ok?: boolean;
+  error?: string;
+  pedido?: string;
+}
+
+/** Devuelve una parada en camino a Entregas para asignarla a otro repartidor. */
+export async function reasignarEntrega(orderId: string): Promise<ReasignarEntregaState> {
+  const denied = await assertPerm("entregas");
+  if (denied) return { error: denied };
+  if (!orderId.trim()) return { error: "No encontramos el pedido." };
+
+  try {
+    const result = await cancelDelivery(orderId);
+    if (result.ok) {
+      revalidatePath("/admin/entregas");
+      revalidatePath("/admin/pedidos");
+      revalidatePath("/reparto");
+      return { ok: true, pedido: result.order.id };
+    }
+
+    const messages: Record<string, string> = {
+      not_found: "No encontramos el pedido.",
+      not_in_progress: "Ese pedido ya no está en camino.",
+      already_delivered: "Ese pedido ya figura como entregado.",
+      already_cancelled: "Ese pedido ya figura como reasignado.",
+      not_assigned: "Ese pedido no pertenece a este reparto.",
+    };
+    return { error: messages[result.reason] ?? "No se pudo reasignar el pedido." };
+  } catch (e) {
+    if (e instanceof NoDatabaseError) return { error: e.message };
+    return { error: "No se pudo reasignar el pedido." };
+  }
 }
 
 export async function cerrarReparto(routeKey: string): Promise<{ ok?: boolean; error?: string }> {

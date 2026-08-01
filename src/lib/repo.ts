@@ -32,7 +32,7 @@ import {
 import { OTP_RESEND_MS, OTP_MAX_ATTEMPTS, isAdminPhone } from "./auth/otp";
 import type { Role } from "./auth/session";
 import { hashPassword, verifyPassword } from "./auth/password";
-import { eventForStatus, notifyDeliveryCancellation, notifyOrderEvent } from "./n8n";
+import { eventForStatus, notifyDeliveryReassignment, notifyOrderEvent } from "./n8n";
 import { sucursales } from "./sucursales";
 import { optimizeRoute, googleMapsRouteUrl, DEFAULT_ROUTE_ORIGIN } from "./route";
 import { versionImageUrl } from "./image-url";
@@ -1347,7 +1347,7 @@ export async function updateOrderStatus(
       order.couponReservedUntil = undefined;
       order.deliveryRetryAt = status === "cancelado" && options.deliveryRetry ? now : undefined;
     }
-    if (changed) {
+    if (changed && !options.deliveryRetry) {
       const event = eventForStatus(status);
       if (event) await notifyOrderEvent(event, order);
     }
@@ -1417,7 +1417,7 @@ export async function updateOrderStatus(
 
   // Avisar a n8n solo cuando el estado realmente cambió (evita duplicados
   // cuando MP reintenta webhooks o el panel guarda sin cambios).
-  if (statusChanged) {
+  if (statusChanged && !options.deliveryRetry) {
     const event = eventForStatus(status);
     if (event) await notifyOrderEvent(event, order);
   }
@@ -1557,7 +1557,7 @@ export async function cancelDelivery(
       deliveryRetry: true,
     });
     if (!order) return { ok: false, reason: "not_found" };
-    await notifyDeliveryCancellation(order);
+    await notifyDeliveryReassignment(order);
     await closeRouteIfComplete(order);
     return { ok: true, order };
   }
@@ -1577,7 +1577,7 @@ export async function cancelDelivery(
 
   const order = await updateOrderStatus(existing.id, "cancelado", { deliveryRetry: true });
   if (!order) return { ok: false, reason: "not_found" };
-  await notifyDeliveryCancellation(order);
+  await notifyDeliveryReassignment(order);
   await closeRouteIfComplete(order);
   return { ok: true, order };
 }

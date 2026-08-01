@@ -15,6 +15,7 @@ type Filter =
   | "en_preparacion"
   | "en_camino"
   | "entregado"
+  | "reasignado"
   | "cancelado";
 
 type SortKey =
@@ -39,6 +40,7 @@ const filters: { value: Filter; label: string }[] = [
   { value: "en_preparacion", label: "En preparación" },
   { value: "en_camino", label: "En camino" },
   { value: "entregado", label: "Entregados" },
+  { value: "reasignado", label: "Reasignados" },
   { value: "cancelado", label: "Cancelados" },
 ];
 
@@ -49,13 +51,19 @@ const paymentLabels: Record<Order["payment"], string> = {
   transferencia: "Transferencia",
 };
 
+function isReassigned(order: Order): boolean {
+  return order.status === "cancelado" && Boolean(order.paidAt) && Boolean(order.deliveryRetryAt);
+}
+
 function isPaid(order: Order): boolean {
-  return paidStatuses.includes(order.status);
+  return paidStatuses.includes(order.status) || isReassigned(order);
 }
 
 function matchesFilter(order: Order, filter: Filter): boolean {
   if (filter === "todos") return true;
   if (filter === "pagados") return isPaid(order);
+  if (filter === "reasignado") return isReassigned(order);
+  if (filter === "cancelado") return order.status === "cancelado" && !isReassigned(order);
   return order.status === filter;
 }
 
@@ -77,6 +85,7 @@ function matchesSearch(order: Order, query: string): boolean {
     order.deliveryDate,
     paymentLabels[order.payment],
     order.status.replaceAll("_", " "),
+    isReassigned(order) ? "reasignado" : undefined,
     order.total.toString(),
     ...order.items.flatMap((item) => [item.name, item.productId]),
   ];
@@ -114,7 +123,7 @@ function orderValue(order: Order, key: SortKey): string | number | undefined {
     case "total":
       return order.total;
     case "status":
-      return order.status;
+      return isReassigned(order) ? "reasignado" : order.status;
   }
 }
 
@@ -245,7 +254,7 @@ export function OrdersManager({ orders }: { orders: Order[] }) {
                 <SortHeader label="Pago" sortKey="payment" sort={sort} onSort={changeSort} />
                 <SortHeader label="Creado" sortKey="created" sort={sort} onSort={changeSort} />
                 <SortHeader label="Pago confirmado" sortKey="paidAt" sort={sort} onSort={changeSort} />
-                <SortHeader label="Cancelado" sortKey="cancelledAt" sort={sort} onSort={changeSort} />
+                <SortHeader label="Cancelado / reasignado" sortKey="cancelledAt" sort={sort} onSort={changeSort} />
                 <SortHeader label="Total" sortKey="total" sort={sort} onSort={changeSort} />
                 <SortHeader label="Estado" sortKey="status" sort={sort} onSort={changeSort} />
               </tr>
@@ -293,7 +302,11 @@ export function OrdersManager({ orders }: { orders: Order[] }) {
                     <td
                       className={cn(
                         "whitespace-nowrap px-4 py-3 font-medium",
-                        order.status === "no_pagado" ? "text-orange-600" : "text-brand-red"
+                        order.status === "no_pagado"
+                          ? "text-orange-600"
+                          : isReassigned(order)
+                            ? "text-amber-700"
+                            : "text-brand-red"
                       )}
                     >
                       {order.cancelledAt ? formatDateTime(order.cancelledAt) : "—"}
@@ -302,7 +315,11 @@ export function OrdersManager({ orders }: { orders: Order[] }) {
                       {formatARS(order.total)}
                     </td>
                     <td className="px-4 py-3">
-                      <StatusBadge status={order.status} />
+                      {isReassigned(order) ? (
+                        <span className="chip bg-amber-100 text-amber-700">Reasignado</span>
+                      ) : (
+                        <StatusBadge status={order.status} />
+                      )}
                     </td>
                   </tr>
                 );

@@ -10,6 +10,7 @@ armás el flujo de mensajes al cliente y la ruta optimizada del repartidor.
 | `N8N_ORDER_WEBHOOK_URL` | URL del webhook de n8n que recibe los eventos de pedido. |
 | `N8N_ORDER_DISPATCH_WEBHOOK_URL` | (Opcional) Webhook exclusivo para `pedido_en_camino`, disparado al cerrar el lote. Si queda vacío usa el general. |
 | `N8N_ORDER_DELIVERED_WEBHOOK_URL` | Webhook exclusivo para `pedido_entregado`. Si queda vacío usa `https://n8n.srv1224751.hstgr.cloud/webhook/pedido-entregado`. |
+| `N8N_DELIVERY_CANCEL_WEBHOOK_URL` | Webhook exclusivo para `pedido_reasignado`, al devolver una entrega para asignarla a otro repartidor. |
 | `N8N_ORDER_WEBHOOK_SECRET` | (Opcional) La web manda `Authorization: Bearer <valor>`; validalo en n8n. |
 | `MP_ACCESS_TOKEN` | Access token de Mercado Pago (Checkout Pro). |
 | `MP_WEBHOOK_SECRET` | Firma secreta de Webhooks de Mercado Pago; permite rechazar notificaciones falsas. |
@@ -53,6 +54,7 @@ Eventos posibles:
 | `pedido_en_camino` | El panel cierra el lote (o el bot vía API pasa a `en_camino`). | "🚚 Tu pedido está saliendo de la sucursal.\n🔐 Este es tu código: *{{deliveryCode}}*. Debés dárselo al repartidor cuando te entregue tu pedido." |
 | `pedido_entregado` | El repartidor validó el código de entrega. | "🙌 ¡Gracias por tu compra! Tu pedido `{{id}}` fue entregado." |
 | `pedido_cancelado` | Pago rechazado o cancelación manual. | "❌ Tu pedido fue cancelado. Escribinos si querés reintentarlo." |
+| `pedido_reasignado` | Una entrega vuelve al panel para asignarla a otro repartidor. | "Tu pedido fue reasignado. Disculpe las molestias. Nuestro equipo ya se comunicará con usted." |
 
 > **La ruta ya la arma la web.** Desde `/admin/entregas`, el botón "Cerrar
 > pedidos para enviar" optimiza el recorrido, pasa los envíos a `en_camino` y
