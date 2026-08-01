@@ -66,6 +66,7 @@ export default async function EntregasPage() {
     mapUrl: o.lat != null && o.lng != null ? googleMapsPointUrl({ lat: o.lat, lng: o.lng }) : null,
     franjaHoraria: deliveryEstimateLabel(o.deliverySlot, o.deliveryDate),
     slotId: o.deliverySlot ?? null,
+    deliveryDate: o.deliveryDate ?? null,
     isRetry: o.status === "cancelado",
   }));
 

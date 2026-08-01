@@ -128,8 +128,8 @@ Esto se configura **antes** del primer cierre. Si falla, todo el flujo se traba.
 
 **Paso 2 — Elegir qué pedidos entran al lote**
 
-- La lista viene **agrupada por franja horaria** (primero la mañana, después la
-  tarde) y, dentro de cada franja, **arriba el que pidió primero**. Se respeta el
+- La lista viene **agrupada por fecha y franja horaria** (por ejemplo, sábado a la
+  mañana separado de lunes a la mañana) y, dentro de cada columna, **arriba el que pidió primero**. Se respeta el
   orden de llegada sin perder de vista el horario que eligió cada cliente.
 - **Por defecto entran todos.** Tu trabajo es **destildar** los que NO salen.
 - Motivos típicos para destildar:

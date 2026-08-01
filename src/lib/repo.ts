@@ -1583,12 +1583,13 @@ export async function cancelDelivery(
 }
 
 /**
- * Pedidos del reparto en curso (últimas 12 h), ordenados por la ruta.
+ * Pedidos del reparto en curso, ordenados por la ruta.
+ * Una ruta sigue activa hasta que se cierre explícita o automáticamente; su
+ * antigüedad nunca debe ocultar entregas que todavía estén pendientes.
  * Con `repartidorId` devuelve solo las entregas a cargo de ese repartidor:
  * cada repartidor ve únicamente su propia ruta.
  */
 export async function listActiveRoute(repartidorId?: string): Promise<Order[]> {
-  const cutoffMs = Date.now() - 12 * 60 * 60 * 1000;
   if (!hasDatabase) {
     return [...runtimeOrders.values()]
       .filter(
@@ -1597,16 +1598,14 @@ export async function listActiveRoute(repartidorId?: string): Promise<Order[]> {
           (o.status === "en_camino" || o.status === "entregado") &&
           o.dispatchedAt != null &&
           o.routeClosedAt == null &&
-          new Date(o.dispatchedAt).getTime() >= cutoffMs &&
           (!repartidorId || o.repartidorId === repartidorId)
       )
       .sort((a, b) => (a.routeSeq ?? 0) - (b.routeSeq ?? 0));
   }
-  const cutoff = new Date(cutoffMs);
   const rows = await prisma.order.findMany({
     where: {
       routeSeq: { not: null },
-      dispatchedAt: { gte: cutoff },
+      dispatchedAt: { not: null },
       routeClosedAt: null,
       status: { in: ["en_camino", "entregado"] },
       ...(repartidorId ? { repartidorId } : {}),

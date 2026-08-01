@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import {
   Bike,
+  CalendarDays,
   Check,
   CheckSquare,
   ClipboardList,
@@ -35,6 +36,8 @@ export interface EnvioPendiente {
   franjaHoraria: string | null;
   /** Id del rango horario ("08-12"), para agrupar la lista por franja. */
   slotId: string | null;
+  /** Fecha calendario de entrega (YYYY-MM-DD), para separar franjas de distintos dias. */
+  deliveryDate: string | null;
   /** El repartidor anterior canceló la entrega y necesita una nueva asignación. */
   isRetry: boolean;
 }
@@ -69,6 +72,22 @@ export function EntregasClient({ sucursales, repartidores, envios, enCurso = 0 }
 
   const seleccionados = envios.filter((e) => seleccion.has(e.id));
   const todosMarcados = envios.length > 0 && seleccionados.length === envios.length;
+
+  // El orden ya viene definido por fecha y franja desde el servidor. El Map lo
+  // conserva y evita mezclar, por ejemplo, sabado y lunes a la manana.
+  const gruposEntrega = useMemo(() => {
+    const grupos = new Map<string, { label: string; pedidos: EnvioPendiente[] }>();
+    for (const envio of envios) {
+      const key = `${envio.deliveryDate ?? "sin-fecha"}:${envio.slotId ?? "sin-horario"}`;
+      const grupo = grupos.get(key) ?? {
+        label: envio.franjaHoraria ?? "Sin fecha u horario asignado",
+        pedidos: [],
+      };
+      grupo.pedidos.push(envio);
+      grupos.set(key, grupo);
+    }
+    return [...grupos.entries()].map(([key, grupo]) => ({ key, ...grupo }));
+  }, [envios]);
 
   // Total consolidado por producto de los pedidos seleccionados (para juntar
   // la mercadería de una sola vez antes de confirmar el stock).
@@ -131,7 +150,7 @@ export function EntregasClient({ sucursales, repartidores, envios, enCurso = 0 }
 
       <p className="mb-3 text-sm text-brand-ink/60">
         Elegí qué pedidos entran en el reparto y qué repartidor sale con ellos. La lista está
-        agrupada por franja horaria y, dentro de cada franja, arriba quedan los que pidieron
+        agrupada por fecha y franja horaria; dentro de cada columna, arriba quedan los que pidieron
         primero. Antes de armar la ruta te mostramos el total de productos para que confirmes el
         stock; después avisamos a cada cliente que su pedido salió. El repartidor ve su ruta
         entrando con su usuario en <b>/reparto</b>.
@@ -202,27 +221,19 @@ export function EntregasClient({ sucursales, repartidores, envios, enCurso = 0 }
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
-            {[
-              { id: "08-12", label: "08:00 a 12:00" },
-              { id: "17-20", label: "17:00 a 20:00" },
-            ].map((franja) => {
-              const pedidos = envios.filter((e) => e.slotId === franja.id);
+            {gruposEntrega.map((grupo) => {
               return (
-                <div key={franja.id} className="overflow-hidden rounded-xl border border-black/5">
+                <div key={grupo.key} className="overflow-hidden rounded-xl border border-black/5">
                   <div className="flex items-center gap-2 bg-brand-cream/70 px-3 py-2 text-xs font-bold uppercase tracking-wide text-brand-ink/60">
+                    <CalendarDays size={13} className="text-brand-red" />
                     <Clock size={12} className="text-brand-red" />
-                    {franja.label}
+                    {grupo.label}
                     <span className="ml-auto font-semibold normal-case tracking-normal text-brand-ink/45">
-                      {pedidos.length} pedidos
+                      {grupo.pedidos.length} {grupo.pedidos.length === 1 ? "pedido" : "pedidos"}
                     </span>
                   </div>
                   <ul className="divide-y divide-black/5">
-                    {pedidos.length === 0 && (
-                      <li className="px-3 py-4 text-center text-xs text-brand-ink/45">
-                        No hay pedidos en esta franja.
-                      </li>
-                    )}
-                    {pedidos.map((e) => {
+                    {grupo.pedidos.map((e) => {
                       const marcado = seleccion.has(e.id);
                       return (
                         <li
@@ -296,9 +307,9 @@ export function EntregasClient({ sucursales, repartidores, envios, enCurso = 0 }
               );
             })}
           </div>
-          {envios.some((e) => e.slotId !== "08-12" && e.slotId !== "17-20") && (
+          {envios.some((e) => !e.deliveryDate || !e.slotId) && (
             <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">
-              Hay pedidos sin franja horaria asignada; revisalos antes de cerrar el reparto.
+              Hay pedidos sin fecha o franja horaria asignada; revisalos antes de cerrar el reparto.
             </p>
           )}
 
