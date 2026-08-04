@@ -25,12 +25,7 @@ export default async function ReportesPage() {
   ];
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold text-brand-ink">IA y reportes</h1>
-        <p className="text-sm text-brand-ink/55">Resumen compacto y análisis conversacional del negocio</p>
-      </div>
-
+    <div>
       <div className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(15rem,1fr)]">
         <BusinessAIChat enabled={aiHabilitado()} />
 

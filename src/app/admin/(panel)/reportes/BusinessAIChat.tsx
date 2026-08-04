@@ -103,7 +103,7 @@ export function BusinessAIChat({ enabled }: { enabled: boolean }) {
   }
 
   return (
-    <section className="relative flex h-[58vh] min-h-[28rem] max-h-[44rem] flex-col overflow-hidden rounded-2xl bg-white shadow-soft">
+    <section className="relative flex h-full min-h-[42rem] flex-col overflow-hidden rounded-2xl bg-white shadow-soft">
       <header className="flex items-center justify-between gap-3 border-b border-black/5 bg-brand-ink px-4 py-3 text-white">
         <div className="flex items-center gap-3">
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10">
