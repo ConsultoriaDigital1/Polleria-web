@@ -1,12 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Loader2, RotateCcw, Send, Sparkles } from "lucide-react";
+import { History as HistoryIcon, Loader2, RotateCcw, Send, Sparkles, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
+}
+
+interface Conversation {
+  id: number;
+  createdAt: string;
+  messages: Message[];
 }
 
 const INITIAL_MESSAGE =
@@ -18,6 +24,17 @@ const SUGGESTIONS = [
   "Dame tres mejoras concretas para el negocio",
 ];
 
+const HISTORY_STORAGE_KEY = "polleria-admin-ai-history";
+
+function conversationTitle(messages: Message[]) {
+  const firstQuestion = messages.find((message) => message.role === "user")?.content;
+  return firstQuestion ? `${firstQuestion.slice(0, 58)}${firstQuestion.length > 58 ? "…" : ""}` : "Nueva charla";
+}
+
+function formatConversationDate(value: string) {
+  return new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
+}
+
 export function BusinessAIChat({ enabled }: { enabled: boolean }) {
   const [messages, setMessages] = useState<Message[]>([
     { role: "assistant", content: INITIAL_MESSAGE },
@@ -25,7 +42,18 @@ export function BusinessAIChat({ enabled }: { enabled: boolean }) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [history, setHistory] = useState<Conversation[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(HISTORY_STORAGE_KEY);
+      if (stored) setHistory(JSON.parse(stored) as Conversation[]);
+    } catch {
+      // El historial es opcional y no debe impedir usar el chat.
+    }
+  }, []);
 
   useEffect(() => {
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" });
@@ -56,8 +84,26 @@ export function BusinessAIChat({ enabled }: { enabled: boolean }) {
     }
   }
 
+  function startNewConversation() {
+    if (messages.some((message) => message.role === "user")) {
+      const nextHistory = [
+        { id: Date.now(), createdAt: new Date().toISOString(), messages },
+        ...history,
+      ].slice(0, 12);
+      setHistory(nextHistory);
+      try {
+        window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(nextHistory));
+      } catch {
+        // El historial es opcional y no debe impedir iniciar una charla.
+      }
+    }
+    setMessages([{ role: "assistant", content: INITIAL_MESSAGE }]);
+    setError(null);
+    setHistoryOpen(false);
+  }
+
   return (
-    <section className="flex h-[58vh] min-h-[28rem] max-h-[44rem] flex-col overflow-hidden rounded-2xl bg-white shadow-soft">
+    <section className="relative flex h-[58vh] min-h-[28rem] max-h-[44rem] flex-col overflow-hidden rounded-2xl bg-white shadow-soft">
       <header className="flex items-center justify-between gap-3 border-b border-black/5 bg-brand-ink px-4 py-3 text-white">
         <div className="flex items-center gap-3">
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10">
@@ -68,17 +114,62 @@ export function BusinessAIChat({ enabled }: { enabled: boolean }) {
             <p className="text-[11px] text-white/60">Consulta los datos actuales en cada respuesta</p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            setMessages([{ role: "assistant", content: INITIAL_MESSAGE }]);
-            setError(null);
-          }}
-          className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-white/65 hover:bg-white/10 hover:text-white"
-        >
-          <RotateCcw size={14} /> Nueva charla
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setHistoryOpen((open) => !open)}
+            aria-expanded={historyOpen}
+            className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-white/65 hover:bg-white/10 hover:text-white"
+          >
+            <HistoryIcon size={14} /> Historial
+            {history.length > 0 && <span className="rounded-full bg-white/15 px-1.5 py-0.5 text-[10px]">{history.length}</span>}
+          </button>
+          <button
+            type="button"
+            onClick={startNewConversation}
+            className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-white/65 hover:bg-white/10 hover:text-white"
+          >
+            <RotateCcw size={14} /> Nueva charla
+          </button>
+        </div>
       </header>
+
+      {historyOpen && (
+        <div className="absolute inset-x-0 bottom-0 top-[4.25rem] z-10 flex flex-col bg-white">
+          <div className="flex items-center justify-between border-b border-black/5 px-4 py-3">
+            <div>
+              <h3 className="text-sm font-semibold text-brand-ink">Historial de charlas</h3>
+              <p className="text-[11px] text-brand-ink/50">Guardado en este navegador</p>
+            </div>
+            <button type="button" onClick={() => setHistoryOpen(false)} aria-label="Cerrar historial" className="rounded-lg p-1.5 text-brand-ink/50 hover:bg-black/5 hover:text-brand-ink">
+              <X size={16} />
+            </button>
+          </div>
+          <div className="flex-1 space-y-2 overflow-y-auto bg-[#faf9f7] p-4">
+            {history.length === 0 ? (
+              <p className="rounded-xl bg-white p-4 text-xs text-brand-ink/55 shadow-sm ring-1 ring-black/5">
+                Todavía no hay charlas guardadas. Al iniciar una nueva charla, la conversación actual aparecerá acá.
+              </p>
+            ) : (
+              history.map((conversation) => (
+                <button
+                  key={conversation.id}
+                  type="button"
+                  onClick={() => {
+                    setMessages(conversation.messages);
+                    setError(null);
+                    setHistoryOpen(false);
+                  }}
+                  className="block w-full rounded-xl bg-white p-3 text-left shadow-sm ring-1 ring-black/5 transition hover:ring-brand-red/30"
+                >
+                  <p className="truncate text-xs font-semibold text-brand-ink">{conversationTitle(conversation.messages)}</p>
+                  <p className="mt-1 text-[10px] text-brand-ink/45">{formatConversationDate(conversation.createdAt)} · {conversation.messages.length} mensajes</p>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
 
       <div ref={scroller} className="flex-1 space-y-3 overflow-y-auto bg-[#faf9f7] p-4" aria-live="polite">
         {messages.map((message, index) => (

@@ -31,22 +31,24 @@ export default async function ReportesPage() {
         <p className="text-sm text-brand-ink/55">Resumen compacto y análisis conversacional del negocio</p>
       </div>
 
-      <section className="space-y-3" aria-label="Resumen de reportes">
-        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-          {cards.map((card) => (
-            <div key={card.label} className="flex items-center gap-3 rounded-xl bg-white px-3 py-2.5 shadow-soft">
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-red/10 text-brand-red">
-                <card.icon size={16} />
-              </span>
-              <div className="min-w-0">
-                <p className="text-lg font-bold leading-tight text-brand-ink">{card.value}</p>
-                <p className="truncate text-[11px] text-brand-ink/55">{card.label}</p>
-              </div>
-            </div>
-          ))}
-        </div>
+      <div className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(15rem,1fr)]">
+        <BusinessAIChat enabled={aiHabilitado()} />
 
-        <div className="grid gap-3 lg:grid-cols-[1.15fr_1fr]">
+        <section className="space-y-3" aria-label="Resumen de reportes">
+          <div className="grid grid-cols-2 gap-2 lg:grid-cols-1">
+            {cards.map((card) => (
+              <div key={card.label} className="flex items-center gap-3 rounded-xl bg-white px-3 py-2.5 shadow-soft">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-red/10 text-brand-red">
+                  <card.icon size={16} />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-lg font-bold leading-tight text-brand-ink">{card.value}</p>
+                  <p className="truncate text-[11px] text-brand-ink/55">{card.label}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
           <div className="rounded-xl bg-white p-3 shadow-soft">
             <h2 className="mb-2 text-xs font-semibold text-brand-ink">Clientes nuevos por mes</h2>
             <div className="flex h-28 items-end justify-between gap-2">
@@ -70,9 +72,9 @@ export default async function ReportesPage() {
 
           <div className="rounded-xl bg-white p-3 shadow-soft">
             <h2 className="mb-2 text-xs font-semibold text-brand-ink">Top de compradores</h2>
-            <ol className="grid gap-x-4 gap-y-1 sm:grid-cols-2">
+            <ol className="grid gap-x-4 gap-y-1">
               {topBuyers.map((customer, index) => (
-                <li key={customer.id} className="flex min-w-0 items-center gap-2 border-t border-black/5 py-1 first:border-0 sm:[&:nth-child(2)]:border-0">
+                <li key={customer.id} className="flex min-w-0 items-center gap-2 border-t border-black/5 py-1 first:border-0">
                   <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-cream text-[9px] font-bold text-brand-ink/65">
                     {index + 1}
                   </span>
@@ -85,16 +87,14 @@ export default async function ReportesPage() {
                 </li>
               ))}
               {topBuyers.length === 0 && (
-                <li className="col-span-2 py-5 text-center text-xs text-brand-ink/50">
+                <li className="py-5 text-center text-xs text-brand-ink/50">
                   Todavía no hay datos.
                 </li>
               )}
             </ol>
           </div>
-        </div>
-      </section>
-
-      <BusinessAIChat enabled={aiHabilitado()} />
+        </section>
+      </div>
     </div>
   );
 }
