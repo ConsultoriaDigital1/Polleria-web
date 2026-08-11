@@ -131,7 +131,7 @@ export function SuperOfertaHero({
             }}
             className="btn-gold disabled:cursor-not-allowed disabled:opacity-50 md:px-6 md:py-3 md:text-base"
           >
-            Pedila ahora
+            Agregar al carrito
           </button>
           <Link
             href="/ofertas"
