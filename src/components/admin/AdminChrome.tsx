@@ -35,7 +35,7 @@ const nav = [
   { href: "/admin/clientes", label: "Clientes", icon: Users, perm: "clientes" },
   { href: "/admin/equipo", label: "Equipo", icon: UserCog, perm: "equipo" },
   { href: "/admin/ofertas", label: "Ofertas", icon: Tag, perm: "ofertas" },
-  { href: "/admin/cupones", label: "Cupones", icon: TicketPercent, perm: "cupones" },
+  { href: "/admin/cupones", label: "Cupones y promos", icon: TicketPercent, perm: "cupones" },
   { href: "/admin/reportes", label: "IA y reportes", icon: Sparkles, perm: "reportes" },
   { href: "/admin/analitica", label: "Analítica", icon: LineChart, perm: "analitica" },
 ];

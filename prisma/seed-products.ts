@@ -46,6 +46,26 @@ async function main() {
     update: regalo,
   });
   console.log(`✅ Código ${CODIGO_BIENVENIDA} listo.`);
+
+  // Promo automática: la segunda unidad de Medallones Calisa 1 kg tiene 50%
+  // de descuento. Se administra desde /admin/cupones.
+  const promoMedallones = {
+    kind: "second_unit",
+    automatic: true,
+    maxUses: 100_000,
+    discountPercent: 50,
+    discountProductId: "p-medallones-1kg",
+    giftProductId: null,
+    giftQty: 1,
+    firstPurchaseOnly: false,
+    active: true,
+  };
+  await prisma.coupon.upsert({
+    where: { code: "PROMO-MEDALLONES-2DA" },
+    create: { code: "PROMO-MEDALLONES-2DA", ...promoMedallones },
+    update: promoMedallones,
+  });
+  console.log("✅ Promo automática de segunda unidad para Medallones Calisa lista.");
 }
 
 main()

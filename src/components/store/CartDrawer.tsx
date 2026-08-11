@@ -38,6 +38,7 @@ export function CartDrawer() {
   const [couponError, setCouponError] = useState("");
   const [validatingCoupon, setValidatingCoupon] = useState(false);
   const finalTotal = coupon?.total ?? subtotal;
+  const automaticPromoRequest = useRef(0);
 
   const [errorPago, setErrorPago] = useState<string | null>(null);
   const [pagando, setPagando] = useState(false);
@@ -69,6 +70,24 @@ export function CartDrawer() {
   useEffect(() => {
     setCoupon(null);
     setCouponError("");
+    if (lines.length === 0) return;
+
+    const requestId = ++automaticPromoRequest.current;
+    let cancelled = false;
+    void fetch("/api/coupons/automatic", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items: lines.map((l) => ({ productId: l.product.id, qty: l.qty })) }),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: CouponQuote | null) => {
+        if (!cancelled && requestId === automaticPromoRequest.current && data?.automatic) setCoupon(data);
+      })
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
   }, [lines]);
 
   // Si el cliente mueve el pin, tiene que volver a confirmar la ubicación.
@@ -446,6 +465,7 @@ export function CartDrawer() {
                   <input
                     value={couponCode}
                     onChange={(e) => {
+                      automaticPromoRequest.current += 1;
                       setCouponCode(e.target.value.toUpperCase());
                       setCoupon(null);
                     }}
@@ -464,7 +484,11 @@ export function CartDrawer() {
                     {validatingCoupon ? "…" : "Aplicar"}
                   </button>
                 </div>
-                {coupon && <p className="mt-2 text-xs font-semibold text-emerald-700">✓ {coupon.description}</p>}
+                {coupon && (
+                  <p className="mt-2 text-xs font-semibold text-emerald-700">
+                    ✓ {coupon.automatic ? "Promo aplicada automáticamente: " : ""}{coupon.description}
+                  </p>
+                )}
                 {couponError && <p className="mt-2 text-xs font-semibold text-brand-red">{couponError}</p>}
               </div>
 

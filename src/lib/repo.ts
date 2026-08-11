@@ -344,6 +344,8 @@ function mapCoupon(c: NonNullable<CouponRow>): Coupon {
   return {
     id: c.id,
     code: c.code,
+    kind: c.kind === "second_unit" ? "second_unit" : "coupon",
+    automatic: c.automatic,
     maxUses: c.maxUses,
     usedCount: c.usedCount,
     discountPercent: c.discountPercent,
@@ -370,6 +372,8 @@ export async function listCoupons(): Promise<Coupon[]> {
 
 export interface CouponInput {
   code: string;
+  kind: Coupon["kind"];
+  automatic: boolean;
   maxUses: number;
   discountPercent: number;
   discountProductId?: string | null;
@@ -403,6 +407,24 @@ export class CouponError extends Error {
 type QuoteLine = { productId: string; name: string; qty: number; price: number };
 const COUPON_RESERVATION_MS = 60_000;
 const PAID_ORDER_STATUSES: OrderStatus[] = ["en_preparacion", "en_camino", "entregado"];
+
+async function claimCouponUse(
+  tx: Prisma.TransactionClient,
+  couponId: string
+): Promise<void> {
+  // La comparación y el incremento ocurren en una sola operación bajo el
+  // bloqueo de la fila: un pago tardío no puede llevar usedCount por encima
+  // de maxUses aunque haya otro pago confirmado al mismo tiempo.
+  const claimed = await tx.$executeRaw`
+    UPDATE "Coupon"
+    SET "usedCount" = "usedCount" + 1
+    WHERE "id" = ${couponId}
+      AND "usedCount" < "maxUses"
+  `;
+  if (claimed !== 1) {
+    throw new CouponError("Este cupón ya agotó sus usos disponibles.");
+  }
+}
 
 async function countActiveCouponReservations(couponId: string, now = new Date()): Promise<number> {
   return prisma.order.count({
@@ -538,18 +560,33 @@ async function resolveCoupon(code: string, lines: QuoteLine[], phone?: string) {
   const eligible = coupon.discountProductId
     ? lines.filter((line) => line.productId === coupon.discountProductId)
     : lines;
-  if (coupon.discountPercent > 0 && eligible.length === 0) {
-    throw new CouponError("El cupón no aplica a los productos del carrito.");
+  let discount = 0;
+  if (coupon.kind === "second_unit") {
+    const line = eligible[0];
+    if (!line || line.qty < 2) {
+      throw new CouponError("Sumá al menos 2 unidades del producto para aplicar esta promo.");
+    }
+    // Cada par activa una vez la promo: en 2 unidades se bonifica 1; en 4,
+    // 2; y así sucesivamente. Las unidades impares restantes se cobran normal.
+    discount = Math.floor(line.qty / 2) * Math.round((line.price * coupon.discountPercent) / 100);
+  } else {
+    if (coupon.discountPercent > 0 && eligible.length === 0) {
+      throw new CouponError("El cupón no aplica a los productos del carrito.");
+    }
+    const eligibleTotal = eligible.reduce((sum, line) => sum + line.qty * line.price, 0);
+    discount = Math.round((eligibleTotal * coupon.discountPercent) / 100);
   }
-  const eligibleTotal = eligible.reduce((sum, line) => sum + line.qty * line.price, 0);
-  const discount = Math.round((eligibleTotal * coupon.discountPercent) / 100);
   const subtotal = lines.reduce((sum, line) => sum + line.qty * line.price, 0);
   const gift = coupon.giftProduct
     ? { productId: coupon.giftProduct.id, name: coupon.giftProduct.name, qty: coupon.giftQty }
     : undefined;
   const parts: string[] = [];
   if (coupon.discountPercent > 0) {
-    parts.push(`${coupon.discountPercent}% de descuento${coupon.discountProduct ? ` en ${coupon.discountProduct.name}` : ""}`);
+    parts.push(
+      coupon.kind === "second_unit"
+        ? `${coupon.discountPercent}% en la segunda unidad de ${coupon.discountProduct?.name ?? "este producto"}`
+        : `${coupon.discountPercent}% de descuento${coupon.discountProduct ? ` en ${coupon.discountProduct.name}` : ""}`
+    );
   }
   if (gift) parts.push(`${gift.qty}x ${gift.name} de regalo`);
   return {
@@ -560,9 +597,42 @@ async function resolveCoupon(code: string, lines: QuoteLine[], phone?: string) {
       discount,
       total: Math.max(0, subtotal - discount),
       description: parts.join(" + "),
+      automatic: coupon.automatic,
       gift,
     } satisfies CouponQuote,
   };
+}
+
+/** Elige la mejor promo automática aplicable al carrito. */
+export async function quoteAutomaticCoupon(
+  items: { productId: string; qty: number }[]
+): Promise<CouponQuote | null> {
+  if (!hasDatabase) return null;
+  await releaseExpiredCouponReservations();
+  const { lines } = await quoteOrder(items);
+  const rules = await prisma.coupon.findMany({
+    where: {
+      active: true,
+      automatic: true,
+      kind: "second_unit",
+      discountProductId: { not: null },
+    },
+    include: couponInclude,
+    orderBy: { createdAt: "desc" },
+  });
+
+  let best: CouponQuote | null = null;
+  for (const rule of rules) {
+    try {
+      const quote = (await resolveCoupon(rule.code, lines)).quote;
+      if (!best || quote.discount > best.discount) best = quote;
+    } catch (error) {
+      // Una regla que no aplica, está agotada o no tiene dos unidades no
+      // debe impedir que se evalúen las demás promociones automáticas.
+      if (!(error instanceof CouponError)) throw error;
+    }
+  }
+  return best;
 }
 
 export async function quoteCoupon(
@@ -1183,6 +1253,10 @@ export async function applyVerifiedMercadoPagoPayment(
       if (current.mpPaymentId && current.mpPaymentId !== payment.id) return current;
       if (current.mpPaymentId === payment.id) return current;
 
+      if (current.couponId && !current.couponUsedAt) {
+        await claimCouponUse(tx, current.couponId);
+      }
+
       const nextStatus =
         current.status === "pendiente" ||
         current.status === "no_pagado" ||
@@ -1219,12 +1293,6 @@ export async function applyVerifiedMercadoPagoPayment(
             data: { stock: { decrement: item.qty } },
           });
         }
-      }
-      if (current.couponId && !current.couponUsedAt) {
-        await tx.coupon.update({
-          where: { id: current.couponId },
-          data: { usedCount: { increment: 1 } },
-        });
       }
       statusChanged = nextStatus !== current.status;
     } else {
@@ -1821,10 +1889,7 @@ export async function dispatchDeliveries(
           });
         }
         if (original.couponId && !original.couponUsedAt) {
-          await tx.coupon.update({
-            where: { id: original.couponId },
-            data: { usedCount: { increment: 1 } },
-          });
+          await claimCouponUse(tx, original.couponId);
         }
       }
     }

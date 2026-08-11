@@ -48,6 +48,8 @@ export interface Product {
 export interface Coupon {
   id: string;
   code: string;
+  kind: "coupon" | "second_unit";
+  automatic: boolean;
   maxUses: number;
   usedCount: number;
   discountPercent: number;
@@ -67,6 +69,7 @@ export interface CouponQuote {
   discount: number;
   total: number;
   description: string;
+  automatic?: boolean;
   gift?: { productId: string; name: string; qty: number };
 }
 
