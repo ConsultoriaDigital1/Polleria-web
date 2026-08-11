@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   Clock,
-  Gift,
   Loader2,
   MapPin,
   Minus,
@@ -22,7 +21,6 @@ import {
   AVISO_DIRECCION,
   estimatedDeliveryOptions,
 } from "@/lib/entrega";
-import { CODIGO_BIENVENIDA } from "@/lib/data";
 import { MapPicker, type MapPoint } from "@/components/store/MapPicker";
 import type { CouponQuote } from "@/lib/types";
 
@@ -450,14 +448,6 @@ export function CartDrawer() {
               </div>
 
               <div className="rounded-xl border border-dashed border-brand-red/30 bg-brand-cream/60 p-3">
-                <p className="mb-2 flex items-start gap-1.5 text-xs font-semibold text-brand-ink">
-                  <Gift size={14} className="mt-0.5 shrink-0 text-brand-red" />
-                  <span>
-                    ¿Es tu primera compra? Escribí el código{" "}
-                    <span className="font-extrabold text-brand-red">{CODIGO_BIENVENIDA}</span> y te
-                    regalamos una bolsa de patitas de 1 kg.
-                  </span>
-                </p>
                 <label className="mb-1 flex items-center gap-1 text-xs font-semibold text-brand-ink/70">
                   <TicketPercent size={14} className="text-brand-red" /> Código de descuento
                 </label>
