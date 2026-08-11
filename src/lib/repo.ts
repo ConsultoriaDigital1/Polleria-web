@@ -750,6 +750,8 @@ const defaultSuperOferta: SuperOferta = {
   oldPrice: 34000,
   image: "/super-oferta-patamuslo-10kg.png",
   link: "/productos",
+  cartProductId: "p-medallones-1kg",
+  cartQuantity: 2,
   active: true,
 };
 
@@ -762,6 +764,8 @@ function mapSuperOferta(s: {
   image: string;
   video: string | null;
   link: string | null;
+  cartProductId: string;
+  cartQuantity: number;
   active: boolean;
 }): SuperOferta {
   return {
@@ -773,6 +777,8 @@ function mapSuperOferta(s: {
     image: versionImageUrl(s.image),
     video: s.video ?? undefined,
     link: s.link ?? undefined,
+    cartProductId: s.cartProductId,
+    cartQuantity: s.cartQuantity,
     active: s.active,
   };
 }
@@ -793,6 +799,8 @@ export interface SuperOfertaInput {
   image: string;
   video?: string | null;
   link?: string | null;
+  cartProductId?: string;
+  cartQuantity?: number;
   active?: boolean;
 }
 
@@ -806,6 +814,8 @@ export async function upsertSuperOferta(input: SuperOfertaInput): Promise<SuperO
     image: input.image,
     video: input.video ?? null,
     link: input.link ?? null,
+    cartProductId: input.cartProductId ?? "p-medallones-1kg",
+    cartQuantity: input.cartQuantity ?? 2,
     active: input.active ?? true,
   };
   const s = await prisma.superOferta.upsert({

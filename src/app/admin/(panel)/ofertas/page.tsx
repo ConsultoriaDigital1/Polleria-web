@@ -13,7 +13,7 @@ export default async function Page() {
   ]);
   return (
     <div className="space-y-8">
-      <SuperOfertaEditor oferta={superOferta} />
+      <SuperOfertaEditor oferta={superOferta} products={products} />
       <OfertasManager products={products} />
     </div>
   );

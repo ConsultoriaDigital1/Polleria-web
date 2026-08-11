@@ -261,6 +261,8 @@ model SuperOferta {
   image     String
   video     String?
   link      String?
+  cartProductId String   @default("p-medallones-1kg")
+  cartQuantity  Int      @default(2)
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

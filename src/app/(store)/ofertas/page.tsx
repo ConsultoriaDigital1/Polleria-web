@@ -23,7 +23,13 @@ export default async function OfertasPage() {
   return (
     <div className="space-y-6 pb-4 md:space-y-8">
       {/* 1º: la Super Oferta del día, en dorado y con todo el protagonismo */}
-      {superOferta.active && <SuperOfertaHero oferta={superOferta} tone="gold" />}
+      {superOferta.active && (
+        <SuperOfertaHero
+          oferta={superOferta}
+          cartProduct={all.find((p) => p.id === superOferta.cartProductId)}
+          tone="gold"
+        />
+      )}
 
       <div className="space-y-6 px-4 md:px-6">
         {/* 2º: las ofertas seleccionadas desde el panel */}

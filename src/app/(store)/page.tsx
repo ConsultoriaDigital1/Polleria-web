@@ -29,7 +29,14 @@ export default async function HomePage() {
     <div className="space-y-8 md:space-y-14">
       {/* Hero: banner "Super Oferta" (editable desde /admin/ofertas).
           Si se desactiva desde el panel, vuelve el hero clásico. */}
-      {superOferta.active ? <SuperOfertaHero oferta={superOferta} /> : <HeroClasico />}
+      {superOferta.active ? (
+        <SuperOfertaHero
+          oferta={superOferta}
+          cartProduct={productos.find((p) => p.id === superOferta.cartProductId)}
+        />
+      ) : (
+        <HeroClasico />
+      )}
 
       {/* Ofertas de la semana: promos comunes, sin repetir la super oferta del día */}
       {ofertasDelDia.length > 0 && (

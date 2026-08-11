@@ -98,7 +98,8 @@ export async function saveSuperOferta(
   const fileValue = formData.get("file");
   const uploadedFile = isUploadedFile(fileValue) && fileValue.size > 0 ? fileValue : null;
   const video = String(formData.get("video") ?? "").trim();
-  const link = String(formData.get("link") ?? "").trim();
+  const cartProductId = String(formData.get("cartProductId") ?? "").trim();
+  const cartQuantity = Math.round(Number(String(formData.get("cartQuantity") ?? "").trim()));
   const active = formData.get("active") === "on";
   const price = Math.round(Number(String(formData.get("price") ?? "").trim()));
   const oldPriceRaw = String(formData.get("oldPrice") ?? "").trim();
@@ -116,6 +117,10 @@ export async function saveSuperOferta(
     return { error: "El precio de oferta debe ser mayor a 0." };
   if (oldPrice !== null && (!Number.isFinite(oldPrice) || oldPrice <= price))
     return { error: "El precio anterior debe ser mayor al precio de oferta." };
+  if (!cartProductId) return { error: "Elegí el producto que agregará el botón." };
+  if (!Number.isInteger(cartQuantity) || cartQuantity < 1)
+    return { error: "La cantidad a agregar debe ser un entero mayor a 0." };
+  if (!(await getProduct(cartProductId))) return { error: "El producto seleccionado no existe." };
 
   let uploadedImage = "";
   try {
@@ -129,7 +134,8 @@ export async function saveSuperOferta(
       oldPrice,
       image,
       video: video || null,
-      link: link || null,
+      cartProductId,
+      cartQuantity,
       active,
     });
 

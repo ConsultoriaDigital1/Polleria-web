@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { Flame } from "lucide-react";
-import type { SuperOferta } from "@/lib/types";
+import type { Product, SuperOferta } from "@/lib/types";
 import { formatARS } from "@/lib/format";
+import { useCart } from "@/store/cart";
+import { useToast } from "@/store/toast";
 
 /**
  * Hero principal de la home: banner "Super Oferta" con un producto destacado.
@@ -15,17 +17,22 @@ import { formatARS } from "@/lib/format";
  */
 export function SuperOfertaHero({
   oferta,
+  cartProduct,
   tone = "red",
 }: {
   oferta: SuperOferta;
+  cartProduct?: Product;
   tone?: "red" | "gold";
 }) {
+  const add = useCart((state) => state.add);
+  const showToast = useToast((state) => state.show);
   const discount =
     oferta.oldPrice && oferta.oldPrice > oferta.price
       ? Math.round((1 - oferta.price / oferta.oldPrice) * 100)
       : null;
-  const href = oferta.link || "/productos";
   const gold = tone === "gold";
+  const unavailable =
+    !cartProduct || !cartProduct.available || cartProduct.stock < oferta.cartQuantity;
 
   return (
     <section
@@ -114,9 +121,18 @@ export function SuperOfertaHero({
         </div>
 
         <div className="so-pop so-delay-3 mt-3 flex gap-3 md:mt-5">
-          <Link href={href} className="btn-gold md:px-6 md:py-3 md:text-base">
+          <button
+            type="button"
+            disabled={unavailable}
+            onClick={() => {
+              if (!cartProduct) return;
+              add(cartProduct, oferta.cartQuantity);
+              showToast(`${oferta.cartQuantity} × ${cartProduct.name}`, { variant: "cart" });
+            }}
+            className="btn-gold disabled:cursor-not-allowed disabled:opacity-50 md:px-6 md:py-3 md:text-base"
+          >
             Pedila ahora
-          </Link>
+          </button>
           <Link
             href="/ofertas"
             className="hidden items-center justify-center rounded-lg border border-white/40 px-6 py-3 text-base font-bold text-white hover:bg-white/10 md:inline-flex"

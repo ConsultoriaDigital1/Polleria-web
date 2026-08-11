@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent } from "react";
 import { Flame, Trash2 } from "lucide-react";
-import type { SuperOferta } from "@/lib/types";
+import type { Product, SuperOferta } from "@/lib/types";
 import { formatARS } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { prepareImageFile } from "@/lib/image-client";
@@ -13,7 +13,13 @@ import { saveSuperOferta, type SaveSuperOfertaState } from "./actions";
  * Editor del banner "Super Oferta" de la home: producto destacado con precio
  * de oferta y fondo en imagen o video mp4 (para animaciones generadas).
  */
-export function SuperOfertaEditor({ oferta }: { oferta: SuperOferta }) {
+export function SuperOfertaEditor({
+  oferta,
+  products,
+}: {
+  oferta: SuperOferta;
+  products: Product[];
+}) {
   const [state, formAction, pending] = useActionState<SaveSuperOfertaState, FormData>(
     saveSuperOferta,
     {}
@@ -222,8 +228,35 @@ export function SuperOfertaEditor({ oferta }: { oferta: SuperOferta }) {
             />
           </Field>
 
-          <Field label="Enlace del botón (opcional, ej. /productos)">
-            <input name="link" defaultValue={oferta.link} className="input-admin" />
+          <Field label="Producto y cantidad del botón “Pedila ahora”">
+            <div className="grid grid-cols-[1fr,120px] gap-3">
+              <select
+                name="cartProductId"
+                defaultValue={oferta.cartProductId}
+                required
+                className="input-admin"
+              >
+                {products.length === 0 && <option value="">No hay productos</option>}
+                {products.map((product) => (
+                  <option key={product.id} value={product.id}>
+                    {product.name}
+                  </option>
+                ))}
+              </select>
+              <input
+                name="cartQuantity"
+                type="number"
+                min={1}
+                step={1}
+                defaultValue={oferta.cartQuantity}
+                required
+                className="input-admin"
+                aria-label="Cantidad a agregar"
+              />
+            </div>
+            <p className="mt-1 text-xs font-normal text-brand-ink/55">
+              Al hacer clic, agrega esta cantidad del producto al carrito.
+            </p>
           </Field>
 
           <label className="flex items-center gap-2 font-semibold text-brand-ink">

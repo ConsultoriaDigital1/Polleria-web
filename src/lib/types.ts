@@ -23,6 +23,8 @@ export interface SuperOferta {
   image: string;
   /** Video mp4 opcional: si está, se reproduce en loop como fondo del banner. */
   video?: string;
+  cartProductId: string;
+  cartQuantity: number;
   /** Enlace del botón "Pedila ahora" (default /productos). */
   link?: string;
   active: boolean;
