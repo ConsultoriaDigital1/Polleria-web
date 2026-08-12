@@ -132,6 +132,9 @@ model Order {
   // usedCount recién se incrementa cuando Mercado Pago acredita el pedido.
   couponReservedUntil DateTime?
   couponUsedAt        DateTime?
+  shippingFee         Int           @default(0)
+  shippingDistanceKm  Float?
+  shippingFreeReason  String?
   status              OrderStatus   @default(pendiente)
   payment             PaymentMethod
   // Referencias verificadas de Mercado Pago. La URL se conserva para que un
@@ -269,6 +272,16 @@ model SuperOferta {
 }
 
 // Integrante del equipo de la pollería (empleado), gestionable desde el admin.
+model DeliverySettings {
+  id              String   @id @default("main")
+  pricePerKm      Int      @default(500)
+  freeAllSlots    Boolean  @default(false)
+  freeSaturday    Boolean  @default(false)
+  fixedSucursalId String   @default("maipu")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
 model Staff {
   id           String    @id @default(cuid())
   name         String

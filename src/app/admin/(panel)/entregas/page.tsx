@@ -51,7 +51,12 @@ export default async function EntregasPage() {
     );
   const enCamino = ruta.filter((o) => o.status === "en_camino");
 
-  const sucursalOptions = sucursales.map((s) => ({ id: s.id, name: s.name }));
+  const sucursalOptions = sucursales.map((s) => ({
+    id: s.id,
+    name: s.name,
+    lat: s.lat,
+    lng: s.lng,
+  }));
 
   // Envíos pendientes con lo necesario para elegirlos y controlar el stock.
   const enviosPendientes: EnvioPendiente[] = envios.map((o) => ({
@@ -64,6 +69,8 @@ export default async function EntregasPage() {
     total: o.total,
     items: o.items.map((i) => ({ name: i.name, qty: i.qty })),
     mapUrl: o.lat != null && o.lng != null ? googleMapsPointUrl({ lat: o.lat, lng: o.lng }) : null,
+    lat: o.lat ?? null,
+    lng: o.lng ?? null,
     franjaHoraria: deliveryEstimateLabel(o.deliverySlot, o.deliveryDate),
     slotId: o.deliverySlot ?? null,
     deliveryDate: o.deliveryDate ?? null,

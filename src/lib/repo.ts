@@ -7,6 +7,7 @@ import type {
   OrderItem as DbOrderItem,
   Customer as DbCustomer,
   Staff as DbStaff,
+  DeliverySettings as DbDeliverySettings,
 } from "@prisma/client";
 import type {
   Product,
@@ -21,6 +22,8 @@ import type {
   StaffRole,
   Coupon,
   CouponQuote,
+  DeliverySettings,
+  DeliveryQuote,
 } from "./types";
 import {
   products as mockProducts,
@@ -36,6 +39,7 @@ import { eventForStatus, notifyDeliveryReassignment, notifyOrderEvent } from "./
 import { sucursales } from "./sucursales";
 import { optimizeRoute, googleMapsRouteUrl, DEFAULT_ROUTE_ORIGIN } from "./route";
 import { versionImageUrl } from "./image-url";
+import { distanceKm } from "./geo";
 
 /** Se lanza cuando una operación de escritura necesita base de datos y no hay. */
 export class NoDatabaseError extends Error {
@@ -124,6 +128,9 @@ function mapOrder(o: DbOrder & { items: DbOrderItem[] }): Order {
     mpPaymentId: o.mpPaymentId ?? undefined,
     couponReservedUntil: o.couponReservedUntil?.toISOString(),
     couponUsedAt: o.couponUsedAt?.toISOString(),
+    shippingFee: o.shippingFee,
+    shippingDistanceKm: o.shippingDistanceKm ?? undefined,
+    shippingFreeReason: o.shippingFreeReason ?? undefined,
     routeSeq: o.routeSeq ?? undefined,
     dispatchedAt: o.dispatchedAt?.toISOString(),
     routeBatchId: o.routeBatchId ?? undefined,
@@ -144,6 +151,92 @@ function mapOrder(o: DbOrder & { items: DbOrderItem[] }): Order {
     status: o.status as OrderStatus,
     payment: o.payment,
     date: o.createdAt.toISOString(),
+  };
+}
+
+const DEFAULT_DELIVERY_SETTINGS: DeliverySettings = {
+  pricePerKm: 500,
+  freeAllSlots: false,
+  freeSaturday: false,
+  fixedSucursalId: "maipu",
+};
+
+function mapDeliverySettings(settings: DbDeliverySettings): DeliverySettings {
+  return {
+    pricePerKm: settings.pricePerKm,
+    freeAllSlots: settings.freeAllSlots,
+    freeSaturday: settings.freeSaturday,
+    fixedSucursalId: settings.fixedSucursalId,
+  };
+}
+
+function isSaturdayDelivery(date?: string): boolean {
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+  const [year, month, day] = date.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day, 12)).getUTCDay() === 6;
+}
+
+function deliveryOrigin(settings: DeliverySettings) {
+  return (
+    sucursales.find((s) => s.id === settings.fixedSucursalId) ??
+    sucursales.find((s) => s.id === DEFAULT_DELIVERY_SETTINGS.fixedSucursalId) ??
+    sucursales[0]
+  );
+}
+
+export async function getDeliverySettings(): Promise<DeliverySettings> {
+  if (!hasDatabase) return DEFAULT_DELIVERY_SETTINGS;
+  const settings = await prisma.deliverySettings.upsert({
+    where: { id: "main" },
+    update: {},
+    create: DEFAULT_DELIVERY_SETTINGS,
+  });
+  return mapDeliverySettings(settings);
+}
+
+export async function saveDeliverySettings(input: {
+  pricePerKm: number;
+  freeAllSlots: boolean;
+  freeSaturday: boolean;
+}): Promise<DeliverySettings> {
+  ensureDb();
+  const pricePerKm = Math.max(0, Math.round(input.pricePerKm));
+  const settings = await prisma.deliverySettings.upsert({
+    where: { id: "main" },
+    update: {
+      pricePerKm,
+      freeAllSlots: input.freeAllSlots,
+      freeSaturday: input.freeSaturday,
+    },
+    create: {
+      ...DEFAULT_DELIVERY_SETTINGS,
+      pricePerKm,
+      freeAllSlots: input.freeAllSlots,
+      freeSaturday: input.freeSaturday,
+    },
+  });
+  return mapDeliverySettings(settings);
+}
+
+export async function quoteDelivery(input: {
+  lat: number;
+  lng: number;
+  deliveryDate?: string;
+}): Promise<DeliveryQuote> {
+  const settings = await getDeliverySettings();
+  const origin = deliveryOrigin(settings);
+  const distance = distanceKm({ lat: origin.lat, lng: origin.lng }, { lat: input.lat, lng: input.lng });
+  let freeReason: string | undefined;
+  if (settings.freeAllSlots) freeReason = "Envio gratis configurado";
+  else if (settings.freeSaturday && isSaturdayDelivery(input.deliveryDate)) {
+    freeReason = "Envio gratis por entrega de sabado";
+  }
+  return {
+    distanceKm: Number(distance.toFixed(2)),
+    fee: freeReason ? 0 : Math.round(distance * settings.pricePerKm),
+    freeReason,
+    originSucursalId: origin.id,
+    originName: origin.name,
   };
 }
 
@@ -981,7 +1074,12 @@ async function createOrderMem(input: CreateOrderInput): Promise<Order> {
     const existing = [...runtimeOrders.values()].find((o) => o.checkoutId === input.checkoutId);
     if (existing) return existing;
   }
-  const { lines, total } = await quoteOrderMem(input.items);
+  const { lines, total: subtotal } = await quoteOrderMem(input.items);
+  const deliveryQuote =
+    input.entrega === "envio" && input.lat != null && input.lng != null
+      ? await quoteDelivery({ lat: input.lat, lng: input.lng, deliveryDate: input.deliveryDate })
+      : null;
+  const total = subtotal + (deliveryQuote?.fee ?? 0);
   runtimeSeq.n += 1;
   const internalId = `mem-${runtimeSeq.n}`;
   const order: Order = {
@@ -1000,6 +1098,9 @@ async function createOrderMem(input: CreateOrderInput): Promise<Order> {
     notes: input.notes,
     items: lines,
     total,
+    shippingFee: deliveryQuote?.fee ?? 0,
+    shippingDistanceKm: deliveryQuote?.distanceKm,
+    shippingFreeReason: deliveryQuote?.freeReason,
     status: "pendiente",
     payment: input.payment,
     date: new Date().toISOString(),
@@ -1062,7 +1163,11 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
     ? await resolveCoupon(input.couponCode, lines, customerPhone)
     : null;
   const discount = couponResult?.quote.discount ?? 0;
-  const total = Math.max(0, subtotal - discount);
+  const deliveryQuote =
+    input.entrega === "envio" && input.lat != null && input.lng != null
+      ? await quoteDelivery({ lat: input.lat, lng: input.lng, deliveryDate: input.deliveryDate })
+      : null;
+  const total = Math.max(0, subtotal - discount) + (deliveryQuote?.fee ?? 0);
   const orderLines = couponResult?.quote.gift
     ? [...lines, { ...couponResult.quote.gift, price: 0 }]
     : lines;
@@ -1088,6 +1193,9 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
       deliveryCode: generateDeliveryCode(),
       total,
       discount,
+      shippingFee: deliveryQuote?.fee ?? 0,
+      shippingDistanceKm: deliveryQuote?.distanceKm ?? null,
+      shippingFreeReason: deliveryQuote?.freeReason ?? null,
       couponId: couponResult?.coupon.id ?? null,
       couponCode: couponResult?.coupon.code ?? null,
       couponReservedUntil,

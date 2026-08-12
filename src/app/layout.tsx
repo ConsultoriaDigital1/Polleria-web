@@ -20,7 +20,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es-AR">
+    <html lang="es-AR" suppressHydrationWarning>
       <body className="font-sans antialiased">
         <script dangerouslySetInnerHTML={{ __html: buildAccentScript() }} />
         {children}

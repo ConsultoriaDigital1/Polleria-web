@@ -21,6 +21,8 @@ next-env.d.ts
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+*.log
 
 # entornos locales
 .env*.local
@@ -28,3 +30,14 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
+
+# caches locales / herramientas
+.turbo/
+.vercel/
+.swc/
+coverage/
+
+# sistema operativo / editor
+Thumbs.db
+desktop.ini
+.vscode/

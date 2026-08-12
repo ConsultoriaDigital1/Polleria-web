@@ -1,12 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, ArrowUpDown, Search, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, MapPin, Search, X } from "lucide-react";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { deliveryEstimateLabel } from "@/lib/entrega";
 import { formatARS, formatDateTime } from "@/lib/format";
 import type { Order, OrderStatus } from "@/lib/types";
 import { cn } from "@/lib/cn";
+import { OrdersHeatMap } from "./OrdersHeatMap";
 
 type Filter =
   | "todos"
@@ -146,6 +147,7 @@ function compareOrders(a: Order, b: Order, key: SortKey, direction: SortDirectio
 export function OrdersManager({ orders }: { orders: Order[] }) {
   const [filter, setFilter] = useState<Filter>("todos");
   const [query, setQuery] = useState("");
+  const [selectedMapOrderId, setSelectedMapOrderId] = useState<string | null>(null);
   const [sort, setSort] = useState<{ key: SortKey; direction: SortDirection }>({
     key: "created",
     direction: "desc",
@@ -165,6 +167,15 @@ export function OrdersManager({ orders }: { orders: Order[] }) {
       key,
       direction: current.key === key && current.direction === "asc" ? "desc" : "asc",
     }));
+  }
+
+  function focusOrderOnMap(order: Order) {
+    if (order.lat == null || order.lng == null) return;
+    setSelectedMapOrderId(order.id);
+    document.getElementById("orders-heat-map")?.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+    });
   }
 
   const counts = useMemo(
@@ -242,7 +253,78 @@ export function OrdersManager({ orders }: { orders: Order[] }) {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-2xl bg-white shadow-soft">
+      <OrdersHeatMap orders={visibleOrders} selectedOrderId={selectedMapOrderId} />
+
+      <div className="space-y-3 md:hidden">
+        {visibleOrders.map((order) => {
+          const payment = paymentState(order);
+          const canFocusMap = order.lat != null && order.lng != null;
+          return (
+            <article
+              key={order.id}
+              onClick={() => focusOrderOnMap(order)}
+              className={cn(
+                "rounded-2xl bg-white p-4 shadow-soft",
+                canFocusMap ? "cursor-pointer active:bg-brand-cream/70" : ""
+              )}
+            >
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-extrabold text-brand-ink">{order.id}</p>
+                  <p className="mt-0.5 text-sm font-semibold text-brand-ink/80">
+                    {order.customer}
+                  </p>
+                  {order.phone && (
+                    <a
+                      href={`tel:${order.phone}`}
+                      onClick={(event) => event.stopPropagation()}
+                      className="mt-1 block text-xs font-bold text-brand-red"
+                    >
+                      {order.phone}
+                    </a>
+                  )}
+                </div>
+                <div className="flex flex-col items-end gap-1">
+                  {isReassigned(order) ? (
+                    <span className="chip bg-amber-100 text-amber-700">Reasignado</span>
+                  ) : (
+                    <StatusBadge status={order.status} />
+                  )}
+                  {canFocusMap && (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-brand-red">
+                      <MapPin size={12} /> Ver mapa
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-2 text-sm">
+                <div className="rounded-xl bg-brand-cream/70 px-3 py-2 text-brand-ink/70">
+                  {order.items.map((item) => `${item.qty}x ${item.name}`).join(", ")}
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <Info label="Entrega" value={deliveryEstimateLabel(order.deliverySlot, order.deliveryDate) ?? "-"} />
+                  <Info label="Creado" value={formatDateTime(order.date)} />
+                  <Info label="Pago" value={`${paymentLabels[order.payment]} · ${payment.label}`} />
+                  <Info label="Total" value={formatARS(order.total)} strong />
+                </div>
+                {(order.shippingFee ?? 0) > 0 && (
+                  <p className="text-xs font-semibold text-brand-ink/50">
+                    Envio incluido: {formatARS(order.shippingFee ?? 0)}
+                  </p>
+                )}
+              </div>
+            </article>
+          );
+        })}
+        {visibleOrders.length === 0 && (
+          <div className="rounded-2xl bg-white px-4 py-10 text-center text-sm text-brand-ink/50 shadow-soft">
+            No hay pedidos que coincidan con la busqueda y el filtro.
+          </div>
+        )}
+      </div>
+
+      <div className="hidden overflow-hidden rounded-2xl bg-white shadow-soft md:block">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-brand-cream text-left text-xs uppercase tracking-wide text-brand-ink/50">
@@ -263,7 +345,28 @@ export function OrdersManager({ orders }: { orders: Order[] }) {
               {visibleOrders.map((order) => {
                 const payment = paymentState(order);
                 return (
-                  <tr key={order.id} className="border-t border-black/5 hover:bg-brand-cream/50">
+                  <tr
+                    key={order.id}
+                    onClick={() => focusOrderOnMap(order)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        focusOrderOnMap(order);
+                      }
+                    }}
+                    tabIndex={order.lat != null && order.lng != null ? 0 : undefined}
+                    title={
+                      order.lat != null && order.lng != null
+                        ? "Ver este pedido en el mapa"
+                        : undefined
+                    }
+                    className={cn(
+                      "border-t border-black/5 hover:bg-brand-cream/50",
+                      order.lat != null && order.lng != null
+                        ? "cursor-pointer focus:bg-brand-cream/70 focus:outline-none"
+                        : ""
+                    )}
+                  >
                     <td className="px-4 py-3 font-semibold text-brand-ink">{order.id}</td>
                     <td className="px-4 py-3 text-brand-ink/80">
                       <p>{order.customer}</p>
@@ -312,7 +415,15 @@ export function OrdersManager({ orders }: { orders: Order[] }) {
                       {order.cancelledAt ? formatDateTime(order.cancelledAt) : "—"}
                     </td>
                     <td className="px-4 py-3 font-medium text-brand-ink">
-                      {formatARS(order.total)}
+                      <p>{formatARS(order.total)}</p>
+                      {(order.shippingFee ?? 0) > 0 && (
+                        <p className="text-xs font-semibold text-brand-ink/45">
+                          Envio {formatARS(order.shippingFee ?? 0)}
+                        </p>
+                      )}
+                      {order.shippingFreeReason && (
+                        <p className="text-xs font-semibold text-emerald-700">Envio gratis</p>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       {isReassigned(order) ? (
@@ -366,5 +477,16 @@ function SortHeader({
         <Icon size={13} aria-hidden="true" className={active ? "text-brand-red" : "opacity-45"} />
       </button>
     </th>
+  );
+}
+
+function Info({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
+  return (
+    <div className="rounded-xl border border-black/5 bg-white px-3 py-2">
+      <p className="text-[10px] font-bold uppercase tracking-wide text-brand-ink/40">{label}</p>
+      <p className={cn("mt-0.5 break-words", strong ? "font-extrabold text-brand-ink" : "font-semibold text-brand-ink/70")}>
+        {value}
+      </p>
+    </div>
   );
 }

@@ -133,6 +133,9 @@ export interface Order {
   /** Momento en que el uso del cupón quedó confirmado por el pago. */
   couponUsedAt?: string;
   /** Posición del pedido en la ruta optimizada del reparto (1..N). */
+  shippingFee?: number;
+  shippingDistanceKm?: number;
+  shippingFreeReason?: string;
   routeSeq?: number;
   /** Momento en que el pedido salió de la sucursal (ISO), al cerrar el lote. */
   dispatchedAt?: string;
@@ -184,4 +187,19 @@ export interface Staff {
   permissions: string[];
   active: boolean;
   createdAt: string;
+}
+
+export interface DeliverySettings {
+  pricePerKm: number;
+  freeAllSlots: boolean;
+  freeSaturday: boolean;
+  fixedSucursalId: string;
+}
+
+export interface DeliveryQuote {
+  distanceKm: number;
+  fee: number;
+  freeReason?: string;
+  originSucursalId: string;
+  originName: string;
 }

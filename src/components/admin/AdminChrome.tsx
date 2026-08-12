@@ -5,8 +5,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
-  ShoppingCart,
   Truck,
+  Route,
   Package,
   Users,
   UserCog,
@@ -29,8 +29,8 @@ import { hasPermission } from "@/lib/auth/perm-modules";
 // para cualquier sesión de panel (ej. Dashboard).
 const nav = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/admin/pedidos", label: "Pedidos", icon: ShoppingCart, perm: "pedidos" },
   { href: "/admin/entregas", label: "Entregas", icon: Truck, perm: "entregas" },
+  { href: "/admin/envios", label: "Envios", icon: Route, perm: "envios" },
   { href: "/admin/productos", label: "Productos", icon: Package, perm: "productos" },
   { href: "/admin/clientes", label: "Clientes", icon: Users, perm: "clientes" },
   { href: "/admin/equipo", label: "Equipo", icon: UserCog, perm: "equipo" },
@@ -103,7 +103,7 @@ export function AdminChrome({
       </aside>
 
       {/* Drawer móvil + backdrop */}
-      <div className={cn("fixed inset-0 z-40 md:hidden", open ? "" : "pointer-events-none")}>
+      <div className={cn("fixed inset-0 z-[70] md:hidden", open ? "" : "pointer-events-none")}>
         <div
           onClick={() => setOpen(false)}
           className={cn(
@@ -130,7 +130,7 @@ export function AdminChrome({
 
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Topbar */}
-        <header className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b border-black/5 bg-white px-4 py-3 md:px-6">
+        <header className="sticky top-0 z-[60] flex items-center justify-between gap-4 border-b border-black/5 bg-white px-4 py-3 md:px-6">
           <div className="flex min-w-0 flex-1 items-center gap-2 md:flex-none">
             <button
               onClick={() => setOpen(true)}

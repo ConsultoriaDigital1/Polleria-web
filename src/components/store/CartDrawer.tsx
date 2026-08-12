@@ -22,7 +22,7 @@ import {
   estimatedDeliveryOptions,
 } from "@/lib/entrega";
 import { MapPicker, type MapPoint } from "@/components/store/MapPicker";
-import type { CouponQuote } from "@/lib/types";
+import type { CouponQuote, DeliveryQuote } from "@/lib/types";
 
 const CHECKOUT_ATTEMPT_KEY = "entrerios-checkout-attempt";
 
@@ -35,7 +35,11 @@ export function CartDrawer() {
   const [coupon, setCoupon] = useState<CouponQuote | null>(null);
   const [couponError, setCouponError] = useState("");
   const [validatingCoupon, setValidatingCoupon] = useState(false);
-  const finalTotal = coupon?.total ?? subtotal;
+  const [deliveryQuote, setDeliveryQuote] = useState<DeliveryQuote | null>(null);
+  const [deliveryQuoteError, setDeliveryQuoteError] = useState("");
+  const [quotingDelivery, setQuotingDelivery] = useState(false);
+  const productsTotal = coupon?.total ?? subtotal;
+  const finalTotal = productsTotal + (deliveryQuote?.fee ?? 0);
   const automaticPromoRequest = useRef(0);
 
   const [errorPago, setErrorPago] = useState<string | null>(null);
@@ -129,6 +133,40 @@ export function CartDrawer() {
   const alcanzaMinimo = subtotal >= MIN_ENVIO_TOTAL;
   const faltaParaMinimo = Math.max(0, MIN_ENVIO_TOTAL - subtotal);
 
+  useEffect(() => {
+    setDeliveryQuote(null);
+    setDeliveryQuoteError("");
+    if (!puntoConfirmado || !punto || !opcionEntregaSeleccionada || !dentroDeZona) return;
+
+    const controller = new AbortController();
+    setQuotingDelivery(true);
+    void fetch("/api/checkout/delivery-quote", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        lat: punto.lat,
+        lng: punto.lng,
+        fechaEntrega: opcionEntregaSeleccionada.date,
+      }),
+    })
+      .then(async (res) => {
+        const data = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(data?.error || "No pudimos calcular el envio.");
+        setDeliveryQuote(data);
+      })
+      .catch((e) => {
+        if (!controller.signal.aborted) {
+          setDeliveryQuoteError(e instanceof Error ? e.message : "No pudimos calcular el envio.");
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setQuotingDelivery(false);
+      });
+
+    return () => controller.abort();
+  }, [dentroDeZona, opcionEntregaSeleccionada, punto, puntoConfirmado]);
+
   const listoParaPagar =
     nombreValido &&
     telefonoValido &&
@@ -137,6 +175,7 @@ export function CartDrawer() {
     punto !== null &&
     dentroDeZona &&
     puntoConfirmado &&
+    deliveryQuote !== null &&
     opcionEntregaSeleccionada !== null;
 
   const textoBoton = pagando
@@ -153,11 +192,15 @@ export function CartDrawer() {
               ? "Confirmá la ubicación del mapa"
               : opcionEntregaSeleccionada === null
                 ? "Elegí el horario de entrega"
-                : "Pagar con Mercado Pago";
+                : quotingDelivery
+                  ? "Calculando costo de envio"
+                  : deliveryQuote === null
+                    ? "Calcula el costo de envio"
+                    : "Pagar con Mercado Pago";
 
   // Inicia el pago: crea el pedido + preferencia en el backend y redirige a MP.
   const pagarConMercadoPago = async () => {
-    if (!listoParaPagar || pagando || !opcionEntregaSeleccionada) return;
+    if (!listoParaPagar || pagando || !opcionEntregaSeleccionada || !deliveryQuote) return;
     setErrorPago(null);
     setPagando(true);
     try {
@@ -187,6 +230,7 @@ export function CartDrawer() {
         nombre: nombre.trim(),
         telefono: telefono.trim(),
         couponCode: coupon?.code,
+        shippingFee: deliveryQuote.fee,
       };
       const fingerprint = JSON.stringify(payload);
       if (!checkoutAttempt.current || checkoutAttempt.current.fingerprint !== fingerprint) {
@@ -342,6 +386,20 @@ export function CartDrawer() {
                   </span>
                 </div>
               )}
+              {deliveryQuote && (
+                <div className="flex justify-between text-brand-ink/70">
+                  <span>Costo de envio</span>
+                  <span className={deliveryQuote.fee === 0 ? "font-semibold text-emerald-700" : ""}>
+                    {deliveryQuote.fee === 0 ? "Gratis" : formatARS(deliveryQuote.fee)}
+                  </span>
+                </div>
+              )}
+              {quotingDelivery && (
+                <div className="flex justify-between text-brand-ink/50">
+                  <span>Costo de envio</span>
+                  <span>Calculando...</span>
+                </div>
+              )}
               <div className="flex justify-between pt-1 text-base font-bold text-brand-ink">
                 <span>Total</span>
                 <span>{formatARS(finalTotal)}</span>
@@ -353,6 +411,12 @@ export function CartDrawer() {
                 <p className="rounded-lg bg-brand-gold/20 px-3 py-2 text-xs font-bold text-brand-ink">
                   La compra mínima es de {formatARS(MIN_ENVIO_TOTAL)}. Te faltan{" "}
                   {formatARS(faltaParaMinimo)}.
+                </p>
+              )}
+
+              {deliveryQuoteError && (
+                <p className="rounded-lg bg-brand-red/10 px-3 py-2 text-xs font-semibold text-brand-red">
+                  {deliveryQuoteError}
                 </p>
               )}
 

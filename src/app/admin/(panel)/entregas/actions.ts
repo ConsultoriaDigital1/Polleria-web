@@ -54,6 +54,7 @@ export async function cerrarPedidosEnvio(
       return { error: "No hay envíos pagados listos para despachar." };
     }
     revalidatePath("/admin/entregas");
+    revalidatePath("/admin/envios");
     revalidatePath("/admin/pedidos");
     return { ok: true, count: result.count, mapsUrl: result.mapsUrl };
   } catch (e) {
@@ -95,6 +96,7 @@ export async function confirmarEntrega(code: string): Promise<ConfirmarEntregaSt
 
   if (result.ok) {
     revalidatePath("/admin/entregas");
+    revalidatePath("/admin/envios");
     revalidatePath("/admin/pedidos");
     return { ok: true, customer: result.order.customer, pedido: result.order.id };
   }
@@ -124,6 +126,7 @@ export async function reasignarEntrega(orderId: string): Promise<ReasignarEntreg
     const result = await cancelDelivery(orderId);
     if (result.ok) {
       revalidatePath("/admin/entregas");
+      revalidatePath("/admin/envios");
       revalidatePath("/admin/pedidos");
       revalidatePath("/reparto");
       return { ok: true, pedido: result.order.id };

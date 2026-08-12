@@ -12,12 +12,15 @@ import {
   Loader2,
   MapPin,
   Printer,
+  Route,
   Square,
   Truck,
   X,
 } from "lucide-react";
 import { formatARS, formatDateTime } from "@/lib/format";
 import { cerrarPedidosEnvio, type CerrarPedidosState } from "./actions";
+import { distanceKm } from "@/lib/geo";
+import { googleMapsRouteUrl, optimizeRoute } from "@/lib/route";
 
 /** Envío pagado listo para despachar, con lo necesario para elegirlo y controlar stock. */
 export interface EnvioPendiente {
@@ -32,6 +35,8 @@ export interface EnvioPendiente {
   total: number;
   items: { name: string; qty: number }[];
   mapUrl: string | null;
+  lat: number | null;
+  lng: number | null;
   /** Rango horario que eligió el cliente ("08:00 a 12:00"), si lo hay. */
   franjaHoraria: string | null;
   /** Id del rango horario ("08-12"), para agrupar la lista por franja. */
@@ -43,7 +48,7 @@ export interface EnvioPendiente {
 }
 
 interface Props {
-  sucursales: { id: string; name: string }[];
+  sucursales: { id: string; name: string; lat: number; lng: number }[];
   /** Repartidores activos del equipo, para asignarle el reparto a uno. */
   repartidores: { id: string; name: string }[];
   envios: EnvioPendiente[];
@@ -72,6 +77,32 @@ export function EntregasClient({ sucursales, repartidores, envios, enCurso = 0 }
 
   const seleccionados = envios.filter((e) => seleccion.has(e.id));
   const todosMarcados = envios.length > 0 && seleccionados.length === envios.length;
+  const previewRoute = useMemo(() => {
+    const sucursal = sucursales.find((s) => s.id === sucursalId);
+    if (!sucursal) return null;
+    const origin = { lat: sucursal.lat, lng: sucursal.lng };
+    const stops = seleccionados
+      .filter((e) => e.lat != null && e.lng != null)
+      .map((e) => ({ ...e, lat: e.lat as number, lng: e.lng as number }));
+    const ordered = optimizeRoute(origin, stops);
+    let km = 0;
+    let current = origin;
+    for (const stop of ordered) {
+      km += distanceKm(current, stop);
+      current = stop;
+    }
+    return {
+      ordered,
+      missing: seleccionados.length - ordered.length,
+      km,
+      mapsUrl: ordered.length
+        ? googleMapsRouteUrl(
+            origin,
+            ordered.map((s) => ({ lat: s.lat, lng: s.lng }))
+          )
+        : "",
+    };
+  }, [seleccionados, sucursalId, sucursales]);
 
   // El orden ya viene definido por fecha y franja desde el servidor. El Map lo
   // conserva y evita mezclar, por ejemplo, sabado y lunes a la manana.
@@ -311,6 +342,53 @@ export function EntregasClient({ sucursales, repartidores, envios, enCurso = 0 }
             <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">
               Hay pedidos sin fecha o franja horaria asignada; revisalos antes de cerrar el reparto.
             </p>
+          )}
+
+          {previewRoute && seleccionados.length > 0 && (
+            <div className="mt-3 rounded-xl border border-black/10 bg-brand-cream/50 p-3">
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <Route size={16} className="text-brand-red" />
+                <h3 className="text-sm font-bold text-brand-ink">Previsualizacion de ruta</h3>
+                <span className="rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-brand-ink/60">
+                  {previewRoute.ordered.length} paradas · {previewRoute.km.toFixed(1)} km aprox.
+                </span>
+                {previewRoute.mapsUrl && (
+                  <a
+                    href={previewRoute.mapsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="ml-auto inline-flex items-center gap-1 rounded-lg border border-black/10 bg-white px-2.5 py-1.5 text-xs font-bold text-brand-red hover:bg-black/5"
+                  >
+                    <ExternalLink size={13} /> Abrir en Maps
+                  </a>
+                )}
+              </div>
+              {previewRoute.missing > 0 && (
+                <p className="mb-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">
+                  {previewRoute.missing} pedido(s) seleccionado(s) no tienen punto de mapa y no entran en la previsualizacion.
+                </p>
+              )}
+              <ol className="grid gap-2 md:grid-cols-2">
+                {previewRoute.ordered.slice(0, 8).map((stop, i) => (
+                  <li
+                    key={stop.id}
+                    className="flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-xs text-brand-ink/70"
+                  >
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-red text-[11px] font-bold text-white">
+                      {i + 1}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate">
+                      <b className="text-brand-ink">{stop.code}</b> · {stop.customer}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+              {previewRoute.ordered.length > 8 && (
+                <p className="mt-2 text-xs font-medium text-brand-ink/45">
+                  Se muestran las primeras 8 paradas; Maps abre la ruta completa.
+                </p>
+              )}
+            </div>
           )}
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
