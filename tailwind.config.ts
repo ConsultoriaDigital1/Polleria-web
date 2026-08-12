@@ -11,10 +11,10 @@ const config: Config = {
           // Se resuelve vía variables CSS con soporte de opacidad de Tailwind.
           red: "rgb(var(--brand-red) / <alpha-value>)",
           dark: "rgb(var(--brand-dark) / <alpha-value>)",
-          gold: "#F6B40A",
-          amber: "#F59E0B",
-          cream: "#FFF8EE",
-          ink: "#1F1A17",
+          gold: "#C5ED1B",
+          amber: "#E4F78A",
+          cream: "#F5F7F0",
+          ink: "#0C1015",
         },
       },
       fontFamily: {
@@ -22,8 +22,8 @@ const config: Config = {
         display: ["var(--font-display)", "Georgia", "serif"],
       },
       boxShadow: {
-        card: "0 8px 24px -10px rgba(31, 26, 23, 0.18)",
-        soft: "0 2px 12px -4px rgba(31, 26, 23, 0.12)",
+        card: "0 8px 24px -10px rgba(12, 16, 21, 0.18)",
+        soft: "0 2px 12px -4px rgba(12, 16, 21, 0.12)",
       },
       borderRadius: {
         xl2: "1.25rem",

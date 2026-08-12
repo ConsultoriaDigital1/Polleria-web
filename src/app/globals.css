@@ -8,8 +8,8 @@
 
   /* Acento de marca configurable (canales RGB). Default: Rojo Entre Ríos.
      Se sobrescribe desde el panel · ver src/lib/theme.ts */
-  --brand-red: 200 16 46;
-  --brand-dark: 155 12 34;
+  --brand-red: 197 237 27;
+  --brand-dark: 168 204 18;
 }
 
 html,
@@ -19,7 +19,7 @@ body {
 }
 
 body {
-  background-color: #f1f0ee;
+  background-color: #f5f7f0;
   color: theme("colors.brand.ink");
   -webkit-font-smoothing: antialiased;
 }
@@ -123,10 +123,10 @@ body {
 @keyframes so-badge-pulse {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(246, 180, 10, 0.55);
+    box-shadow: 0 0 0 0 rgba(197, 237, 27, 0.55);
   }
   70% {
-    box-shadow: 0 0 0 12px rgba(246, 180, 10, 0);
+    box-shadow: 0 0 0 12px rgba(197, 237, 27, 0);
   }
 }
 .so-badge {
