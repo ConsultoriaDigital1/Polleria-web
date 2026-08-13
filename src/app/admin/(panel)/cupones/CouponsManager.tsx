@@ -38,6 +38,7 @@ export function CouponsManager({ coupons, products }: { coupons: Coupon[]; produ
             {c.kind === "coupon" && c.discountPercent > 0 && <div>{c.discountPercent}% {c.discountProductName ? `en ${c.discountProductName}` : "en todo el carrito"}</div>}
             {c.giftProductName && <div>{c.giftQty}x {c.giftProductName} de regalo</div>}
             {c.firstPurchaseOnly && <div className="text-xs font-semibold text-brand-red">Solo 1ª compra (por teléfono)</div>}
+            {c.oncePerPhone && <div className="text-xs font-semibold text-brand-red">Un uso por teléfono</div>}
           </td>
           <td className="px-4 py-3"><span className={`chip ${c.active && c.usedCount < c.maxUses ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>{c.active && c.usedCount < c.maxUses ? "Activo" : "Inactivo"}</span></td>
           <td className="px-4 py-3 text-right"><div className="inline-flex gap-2">
@@ -82,6 +83,7 @@ function CouponModal({ coupon, products, onClose }: { coupon?: Coupon; products:
               <Field label="Cantidad"><input name="giftQty" type="number" min="1" defaultValue={coupon?.giftQty ?? 1} className="input-admin" /></Field>
             </div>
             <label className="flex items-start gap-2 font-semibold"><input name="firstPurchaseOnly" type="checkbox" defaultChecked={coupon?.firstPurchaseOnly ?? false} className="mt-0.5 h-4 w-4 accent-brand-red" /> <span>Solo para la primera compra<span className="block text-xs font-normal text-brand-ink/55">Se puede usar una única vez por número de teléfono.</span></span></label>
+            <label className="flex items-start gap-2 font-semibold"><input name="oncePerPhone" type="checkbox" defaultChecked={coupon?.oncePerPhone ?? false} className="mt-0.5 h-4 w-4 accent-brand-red" /> <span>Un uso por teléfono</span></label>
           </>
         ) : kind === "three_for_two" ? (
           <>
@@ -94,6 +96,7 @@ function CouponModal({ coupon, products, onClose }: { coupon?: Coupon; products:
               </select>
             </Field>
             <Field label="Usos máximos"><input name="maxUses" type="number" min="1" defaultValue={coupon?.maxUses ?? 100000} required className="input-admin" /></Field>
+            <label className="flex items-start gap-2 font-semibold"><input name="oncePerPhone" type="checkbox" defaultChecked={coupon?.oncePerPhone ?? true} className="mt-0.5 h-4 w-4 accent-brand-red" /> <span>Un uso por teléfono</span></label>
             <p className="rounded-lg bg-brand-gold/20 px-3 py-2 text-xs text-brand-ink/70">Cada 3 unidades del producto, el cupón descuenta 1 unidad completa.</p>
           </>
         ) : (

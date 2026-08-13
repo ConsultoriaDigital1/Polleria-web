@@ -448,6 +448,7 @@ function mapCoupon(c: NonNullable<CouponRow>): Coupon {
     giftProductName: c.giftProduct?.name,
     giftQty: c.giftQty,
     firstPurchaseOnly: c.firstPurchaseOnly,
+    oncePerPhone: c.oncePerPhone,
     active: c.active,
   };
 }
@@ -473,6 +474,7 @@ export interface CouponInput {
   giftProductId?: string | null;
   giftQty: number;
   firstPurchaseOnly: boolean;
+  oncePerPhone: boolean;
   active: boolean;
 }
 
@@ -578,6 +580,29 @@ async function reserveCouponSlot(
       throw new CouponError("El código de bienvenida es solo para tu primera compra.");
     }
   }
+
+  if (coupon.oncePerPhone) {
+    if (!phone) {
+      throw new CouponError("Completá tu WhatsApp para usar este cupón.");
+    }
+    const previousOrReserved = await tx.order.count({
+      where: {
+        phone,
+        couponId,
+        OR: [
+          { couponUsedAt: { not: null } },
+          {
+            status: "pendiente",
+            couponUsedAt: null,
+            couponReservedUntil: { gt: now },
+          },
+        ],
+      },
+    });
+    if (previousOrReserved > 0) {
+      throw new CouponError("Este cupón se puede usar una sola vez por número de teléfono.");
+    }
+  }
 }
 
 async function releaseExpiredCouponReservations(): Promise<void> {
@@ -647,6 +672,18 @@ async function resolveCoupon(code: string, lines: QuoteLine[], phone?: string) {
     });
     if (previas > 0) {
       throw new CouponError("El código de bienvenida es solo para tu primera compra.");
+    }
+  }
+
+  if (coupon.oncePerPhone) {
+    if (!phone) {
+      throw new CouponError("Completá tu WhatsApp para usar este cupón.");
+    }
+    const previousUse = await prisma.order.count({
+      where: { phone, couponId: coupon.id, couponUsedAt: { not: null } },
+    });
+    if (previousUse > 0) {
+      throw new CouponError("Este cupón se puede usar una sola vez por número de teléfono.");
     }
   }
 

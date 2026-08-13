@@ -38,6 +38,7 @@ async function main() {
     giftProductId: REGALO_BIENVENIDA_PRODUCT_ID,
     giftQty: 1,
     firstPurchaseOnly: true,
+    oncePerPhone: false,
     active: true,
   };
   await prisma.coupon.upsert({
@@ -58,6 +59,7 @@ async function main() {
     giftProductId: null,
     giftQty: 1,
     firstPurchaseOnly: false,
+    oncePerPhone: false,
     active: true,
   };
   await prisma.coupon.upsert({
@@ -76,6 +78,7 @@ async function main() {
     giftProductId: null,
     giftQty: 1,
     firstPurchaseOnly: false,
+    oncePerPhone: true,
     active: true,
   };
   await prisma.coupon.upsert({

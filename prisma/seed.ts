@@ -43,6 +43,7 @@ async function main() {
       giftProductId: REGALO_BIENVENIDA_PRODUCT_ID,
       giftQty: 1,
       firstPurchaseOnly: true,
+      oncePerPhone: false,
       active: true,
     },
   });

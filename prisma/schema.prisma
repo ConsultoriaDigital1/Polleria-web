@@ -190,6 +190,7 @@ model Coupon {
   giftQty           Int      @default(1)
   // Regalo de bienvenida: solo vale en la primera compra de cada teléfono.
   firstPurchaseOnly Boolean  @default(false)
+  oncePerPhone      Boolean  @default(false)
   active            Boolean  @default(true)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt

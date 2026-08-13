@@ -54,6 +54,7 @@ export async function saveCouponAction(
       giftProductId,
       giftQty,
       firstPurchaseOnly: kind === "coupon" && formData.get("firstPurchaseOnly") === "on",
+      oncePerPhone: kind !== "second_unit" && formData.get("oncePerPhone") === "on",
       active: formData.get("active") === "on",
     });
   } catch (e) {

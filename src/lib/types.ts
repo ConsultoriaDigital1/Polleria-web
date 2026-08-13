@@ -62,6 +62,8 @@ export interface Coupon {
   giftQty: number;
   /** Regalo de bienvenida: solo vale en la primera compra de cada teléfono. */
   firstPurchaseOnly: boolean;
+  /** Permite usar este cupón una sola vez por número de teléfono. */
+  oncePerPhone: boolean;
   active: boolean;
 }
 
