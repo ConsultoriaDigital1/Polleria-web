@@ -3,17 +3,17 @@ import "./globals.css";
 import { buildAccentScript } from "@/lib/theme";
 
 export const metadata: Metadata = {
-  title: "Tienda GestorIA - Polleria Entre Rios",
+  title: "Pollería Entre Ríos — El mejor pollo de Corrientes",
   description:
-    "Tienda online administrada con GestorIA. Compra productos frescos y recibilos a domicilio.",
+    "Pollería Entre Ríos, Corrientes: pollo fresco todos los días. Comprá online y recibilo a domicilio. Consultas por WhatsApp al 3794 525617.",
   icons: {
-    icon: "/gestoria-favicon.png",
-    apple: "/gestoria-favicon.png",
+    icon: "/logo.jpg",
+    apple: "/logo.jpg",
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0C1015",
+  themeColor: "#C8102E",
   width: "device-width",
   initialScale: 1,
 };

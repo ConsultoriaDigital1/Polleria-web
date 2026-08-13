@@ -37,7 +37,7 @@ export function SuperOfertaHero({
   return (
     <section
       className={`relative mx-4 mt-3 overflow-hidden rounded-2xl shadow-card md:mx-6 md:mt-6 md:rounded-3xl ${
-        gold ? "bg-[#243600] ring-2 ring-brand-gold/70" : "bg-brand-ink"
+        gold ? "bg-[#4a3400] ring-2 ring-brand-gold/70" : "bg-[#620912]"
       }`}
     >
       <div className="absolute inset-0">
@@ -69,14 +69,14 @@ export function SuperOfertaHero({
 
       {gold ? (
         <>
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_12%_12%,rgba(197,237,27,0.4),transparent_32%),linear-gradient(180deg,rgba(12,16,21,0.15),rgba(12,16,21,0.78))]" />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0c1015]/95 via-[#243600]/70 to-transparent md:bg-gradient-to-r md:from-[#0c1015]/95 md:via-[#426000]/65 md:to-transparent" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_12%_12%,rgba(246,180,10,0.45),transparent_32%),linear-gradient(180deg,rgba(40,26,0,0.15),rgba(40,26,0,0.78))]" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#3a2800]/95 via-[#8f6400]/60 to-transparent md:bg-gradient-to-r md:from-[#3a2800]/95 md:via-[#a97b00]/65 md:to-transparent" />
           <div className="so-sweep absolute -left-32 top-10 h-16 w-[42rem] rotate-[-12deg] bg-brand-gold/40 blur-sm" />
         </>
       ) : (
         <>
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_12%_12%,rgba(197,237,27,0.28),transparent_28%),linear-gradient(180deg,rgba(12,16,21,0.12),rgba(12,16,21,0.72))]" />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0c1015]/95 via-[#1c2b00]/70 to-transparent md:bg-gradient-to-r md:from-[#0c1015]/95 md:via-[#243600]/75 md:to-transparent" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_12%_12%,rgba(246,180,10,0.28),transparent_28%),linear-gradient(180deg,rgba(24,6,4,0.12),rgba(24,6,4,0.72))]" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#3b0509]/95 via-[#7a0a12]/65 to-transparent md:bg-gradient-to-r md:from-[#420609]/95 md:via-[#9c111b]/70 md:to-transparent" />
           <div className="so-sweep absolute -left-32 top-10 h-16 w-[42rem] rotate-[-12deg] bg-brand-gold/25 blur-sm" />
         </>
       )}
