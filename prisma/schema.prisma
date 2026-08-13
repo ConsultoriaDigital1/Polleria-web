@@ -177,7 +177,7 @@ model OrderItem {
 model Coupon {
   id                String   @id @default(cuid())
   code              String   @unique
-  // "coupon" requiere un código; "second_unit" se aplica automáticamente.
+  // "coupon" y "three_for_two" requieren código; "second_unit" se aplica automáticamente.
   kind              String   @default("coupon")
   automatic         Boolean  @default(false)
   maxUses           Int

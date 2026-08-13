@@ -14,7 +14,8 @@ export async function saveCouponAction(
   if (denied) return { error: denied };
 
   const id = String(formData.get("id") ?? "").trim() || undefined;
-  const kind = String(formData.get("kind") ?? "coupon") === "second_unit" ? "second_unit" : "coupon";
+  const rawKind = String(formData.get("kind") ?? "coupon");
+  const kind = rawKind === "second_unit" || rawKind === "three_for_two" ? rawKind : "coupon";
   const maxUses = Number(formData.get("maxUses"));
   const discountPercent = Number(formData.get("discountPercent"));
   const discountProductId = String(formData.get("discountProductId") ?? "").trim() || null;
@@ -29,13 +30,16 @@ export async function saveCouponAction(
       return { error: "El descuento debe estar entre 0% y 99%." };
     }
     if (discountPercent === 0 && !giftProductId) return { error: "Configurá un descuento o un producto de regalo." };
-  } else {
+  } else if (kind === "second_unit") {
     if (!discountProductId) return { error: "Elegí el producto de la promoción." };
     if (!Number.isInteger(discountPercent) || discountPercent < 1 || discountPercent > 99) {
       return { error: "El descuento de la segunda unidad debe estar entre 1% y 99%." };
     }
     // El código es interno: la promo se aplica sin que el cliente lo escriba.
     if (!code) code = `PROMO-${discountProductId}-${crypto.randomUUID().slice(0, 6)}`.toUpperCase();
+  } else {
+    if (!/^[A-Z0-9_-]{3,30}$/.test(code)) return { error: "Usá entre 3 y 30 letras, números, guion o guion bajo." };
+    if (!discountProductId) return { error: "Elegí el producto de la promoción." };
   }
   if (!Number.isInteger(giftQty) || giftQty < 1) return { error: "La cantidad de regalo debe ser mayor a 0." };
 

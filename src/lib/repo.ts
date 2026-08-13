@@ -437,7 +437,7 @@ function mapCoupon(c: NonNullable<CouponRow>): Coupon {
   return {
     id: c.id,
     code: c.code,
-    kind: c.kind === "second_unit" ? "second_unit" : "coupon",
+    kind: c.kind === "second_unit" || c.kind === "three_for_two" ? c.kind : "coupon",
     automatic: c.automatic,
     maxUses: c.maxUses,
     usedCount: c.usedCount,
@@ -662,6 +662,12 @@ async function resolveCoupon(code: string, lines: QuoteLine[], phone?: string) {
     // Cada par activa una vez la promo: en 2 unidades se bonifica 1; en 4,
     // 2; y así sucesivamente. Las unidades impares restantes se cobran normal.
     discount = Math.floor(line.qty / 2) * Math.round((line.price * coupon.discountPercent) / 100);
+  } else if (coupon.kind === "three_for_two") {
+    const line = eligible[0];
+    if (!line || line.qty < 3) {
+      throw new CouponError("Sumá al menos 3 unidades del producto para aplicar este cupón.");
+    }
+    discount = Math.floor(line.qty / 3) * line.price;
   } else {
     if (coupon.discountPercent > 0 && eligible.length === 0) {
       throw new CouponError("El cupón no aplica a los productos del carrito.");
@@ -674,7 +680,9 @@ async function resolveCoupon(code: string, lines: QuoteLine[], phone?: string) {
     ? { productId: coupon.giftProduct.id, name: coupon.giftProduct.name, qty: coupon.giftQty }
     : undefined;
   const parts: string[] = [];
-  if (coupon.discountPercent > 0) {
+  if (coupon.kind === "three_for_two") {
+    parts.push(`3x2 en ${coupon.discountProduct?.name ?? "este producto"}`);
+  } else if (coupon.discountPercent > 0) {
     parts.push(
       coupon.kind === "second_unit"
         ? `${coupon.discountPercent}% en la segunda unidad de ${coupon.discountProduct?.name ?? "este producto"}`

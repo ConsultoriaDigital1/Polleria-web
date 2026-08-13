@@ -66,6 +66,24 @@ async function main() {
     update: promoMedallones,
   });
   console.log("✅ Promo automática de segunda unidad para Medallones Calisa lista.");
+
+  const cuponTresPorDos = {
+    kind: "three_for_two",
+    automatic: false,
+    maxUses: 100_000,
+    discountPercent: 0,
+    discountProductId: "p-cuartos-traseros-3kg",
+    giftProductId: null,
+    giftQty: 1,
+    firstPurchaseOnly: false,
+    active: true,
+  };
+  await prisma.coupon.upsert({
+    where: { code: "3X2" },
+    create: { code: "3X2", ...cuponTresPorDos },
+    update: cuponTresPorDos,
+  });
+  console.log("✅ Cupón 3X2 para pata muslo de 3 kg listo.");
 }
 
 main()

@@ -50,7 +50,7 @@ export interface Product {
 export interface Coupon {
   id: string;
   code: string;
-  kind: "coupon" | "second_unit";
+  kind: "coupon" | "second_unit" | "three_for_two";
   automatic: boolean;
   maxUses: number;
   usedCount: number;
