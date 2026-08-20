@@ -177,14 +177,22 @@ model OrderItem {
 model Coupon {
   id                String   @id @default(cuid())
   code              String   @unique
+  // "precio" descuenta productos; "envio" bonifica el costo de envio.
+  couponType        String   @default("precio")
   // "coupon" y "three_for_two" requieren código; "second_unit" se aplica automáticamente.
   kind              String   @default("coupon")
   automatic         Boolean  @default(false)
   maxUses           Int
   usedCount         Int      @default(0)
+  // Dias habilitados, 0=domingo ... 6=sabado. Vacio = todos los dias.
+  availableDays     Int[]    @default([])
+  startsAt          DateTime? @db.Date
+  endsAt            DateTime? @db.Date
   discountPercent   Int      @default(0)
+  shippingDiscountPercent Int @default(0)
   discountProduct   Product? @relation("CouponDiscountProduct", fields: [discountProductId], references: [id])
   discountProductId String?
+  discountProductIds String[] @default([])
   giftProduct       Product? @relation("CouponGiftProduct", fields: [giftProductId], references: [id])
   giftProductId     String?
   giftQty           Int      @default(1)
@@ -198,6 +206,7 @@ model Coupon {
   orders Order[]
 
   @@index([active, code])
+  @@index([active, couponType])
 }
 
 // Código OTP de un solo uso para el login por teléfono (WhatsApp vía n8n).

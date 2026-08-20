@@ -50,12 +50,20 @@ export interface Product {
 export interface Coupon {
   id: string;
   code: string;
+  couponType: "envio" | "precio" | "precio_envio";
   kind: "coupon" | "second_unit" | "three_for_two";
   automatic: boolean;
   maxUses: number;
   usedCount: number;
+  activeReservations: number;
+  remainingUses: number;
+  availableDays: number[];
+  startsAt?: string;
+  endsAt?: string;
   discountPercent: number;
+  shippingDiscountPercent: number;
   discountProductId?: string;
+  discountProductIds: string[];
   discountProductName?: string;
   giftProductId?: string;
   giftProductName?: string;
@@ -69,8 +77,10 @@ export interface Coupon {
 
 export interface CouponQuote {
   code: string;
+  couponType: "envio" | "precio" | "precio_envio";
   subtotal: number;
   discount: number;
+  shippingDiscountPercent: number;
   total: number;
   description: string;
   automatic?: boolean;

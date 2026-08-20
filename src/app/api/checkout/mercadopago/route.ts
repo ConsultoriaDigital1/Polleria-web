@@ -55,7 +55,7 @@ const bodySchema = z.object({
     // El teléfono identifica al cliente: si es inválido, la compra no se puede
     // asociar. Se valida sobre el número normalizado (sin 0, 15, +54…).
     .refine(isValidPhone, "Revisá el número de WhatsApp."),
-  couponCode: z.string().trim().min(3).optional(),
+  couponCode: z.string().trim().min(3).max(30).regex(/^[A-Za-z0-9_-]+$/).optional(),
 });
 
 /**

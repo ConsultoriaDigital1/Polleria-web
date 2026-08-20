@@ -38,8 +38,13 @@ export function CartDrawer() {
   const [deliveryQuote, setDeliveryQuote] = useState<DeliveryQuote | null>(null);
   const [deliveryQuoteError, setDeliveryQuoteError] = useState("");
   const [quotingDelivery, setQuotingDelivery] = useState(false);
-  const productsTotal = coupon?.total ?? subtotal;
-  const finalTotal = productsTotal + (deliveryQuote?.fee ?? 0);
+  const productsTotal =
+    coupon?.couponType === "precio" || coupon?.couponType === "precio_envio" ? coupon.total : subtotal;
+  const shippingDiscount = deliveryQuote && coupon?.shippingDiscountPercent
+    ? Math.round((deliveryQuote.fee * coupon.shippingDiscountPercent) / 100)
+    : 0;
+  const effectiveShippingFee = Math.max(0, (deliveryQuote?.fee ?? 0) - shippingDiscount);
+  const finalTotal = productsTotal + effectiveShippingFee;
   const automaticPromoRequest = useRef(0);
 
   const [errorPago, setErrorPago] = useState<string | null>(null);
@@ -111,6 +116,7 @@ export function CartDrawer() {
           // El código de bienvenida vale una vez por número: sin el teléfono
           // el servidor no puede validarlo.
           telefono: telefono.trim() || undefined,
+          fechaEntrega: opcionEntregaSeleccionada?.date,
         }),
       });
       const data = await res.json();
@@ -387,12 +393,20 @@ export function CartDrawer() {
                 </div>
               )}
               {deliveryQuote && (
-                <div className="flex justify-between text-brand-ink/70">
-                  <span>Costo de envio</span>
-                  <span className={deliveryQuote.fee === 0 ? "font-semibold text-emerald-700" : ""}>
-                    {deliveryQuote.fee === 0 ? "Gratis" : formatARS(deliveryQuote.fee)}
-                  </span>
-                </div>
+                <>
+                  <div className="flex justify-between text-brand-ink/70">
+                    <span>Costo de envio</span>
+                    <span className={effectiveShippingFee === 0 ? "font-semibold text-emerald-700" : ""}>
+                      {effectiveShippingFee === 0 ? "Gratis" : formatARS(effectiveShippingFee)}
+                    </span>
+                  </div>
+                  {shippingDiscount > 0 && (
+                    <div className="flex justify-between text-xs font-semibold text-emerald-700">
+                      <span>Descuento envio</span>
+                      <span>-{formatARS(shippingDiscount)}</span>
+                    </div>
+                  )}
+                </>
               )}
               {quotingDelivery && (
                 <div className="flex justify-between text-brand-ink/50">
