@@ -1,11 +1,10 @@
 import Link from "next/link";
 import { ShieldCheck, Bird, Truck, MapPin, Flame } from "lucide-react";
-import { listProducts, getSuperOferta } from "@/lib/repo";
+import { listProducts, getSuperOferta, listSucursales } from "@/lib/repo";
 import { PromoCarousel } from "@/components/store/PromoCarousel";
 import { ProductCatalog } from "@/components/store/ProductCatalog";
 import { SuperOfertaHero } from "@/components/store/SuperOfertaHero";
 import { AvisoTurnos } from "@/components/store/AvisoTurnos";
-import { sucursales } from "@/lib/sucursales";
 import { versionImageUrl } from "@/lib/image-url";
 import {
   WHATSAPP_SOPORTE_TEXTO,
@@ -18,8 +17,11 @@ export const dynamic = "force-dynamic";
 const SUPER_OFERTA_PRODUCT_ID = "p-pata-muslo-10kg";
 
 export default async function HomePage() {
-  const productos = await listProducts();
-  const superOferta = await getSuperOferta();
+  const [productos, superOferta, sucursales] = await Promise.all([
+    listProducts(),
+    getSuperOferta(),
+    listSucursales(),
+  ]);
 
   const ofertasDelDia = productos.filter(
     (p) => p.id !== SUPER_OFERTA_PRODUCT_ID && p.dailyOffer
@@ -85,8 +87,8 @@ export default async function HomePage() {
             <span className="absolute bottom-0 left-0 h-0.5 w-12 rounded bg-brand-red md:h-1 md:w-16" />
           </h2>
           <p className="mt-2 text-xs text-brand-ink/60 md:text-sm">
-            8 sucursales en Corrientes. Todos los pedidos se hacen desde la web y se entregan a
-            domicilio.
+            {sucursales.length} {sucursales.length === 1 ? "sucursal" : "sucursales"} disponibles. Comprá desde la web y elegí envío a domicilio o retiro
+            en sucursal.
           </p>
         </div>
         <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-4">
@@ -116,7 +118,7 @@ export default async function HomePage() {
             </h3>
             <p className="mt-1 text-xs text-brand-ink/70 md:mt-2 md:text-base">
               📱 {WHATSAPP_VISIBLE} · Estamos para ayudarte con tu pedido. Las compras se hacen
-              desde la web, con envío a domicilio.
+              desde la web, con envío a domicilio o retiro en sucursal.
             </p>
           </div>
           <span className="text-4xl md:text-6xl" aria-hidden>

@@ -95,11 +95,8 @@ export type OrderStatus =
   | "entregado"
   | "cancelado";
 
-/**
- * Forma de entrega del pedido: siempre envío a domicilio.
- * El retiro por sucursal ya no existe.
- */
-export type DeliveryType = "envio";
+/** Forma de entrega elegida en el checkout. */
+export type DeliveryType = "envio" | "retiro";
 
 export interface OrderItem {
   productId: string;

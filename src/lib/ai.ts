@@ -1,6 +1,5 @@
 import "server-only";
-import { getSuperOferta, listCoupons, listCustomers, listOrders, listProducts } from "./repo";
-import { sucursales } from "./sucursales";
+import { getSuperOferta, listCoupons, listCustomers, listOrders, listProducts, listSucursales } from "./repo";
 import { formatARS } from "./format";
 import { MIN_ENVIO_TOTAL } from "./geo";
 import { getAnalyticsSummary } from "./analytics";
@@ -34,7 +33,7 @@ export function aiHabilitado(): boolean {
  * no invente precios viejos cuando el admin los cambia.
  */
 async function buildSystemPrompt(): Promise<string> {
-  const products = await listProducts({});
+  const [products, sucursales] = await Promise.all([listProducts({}), listSucursales()]);
   const catalogo = products
     .map(
       (p) =>
@@ -60,12 +59,14 @@ REGLAS:
 - Respuestas cortas: 3 o 4 oraciones como máximo, salvo que te pidan detalle.
 - No pidas datos personales (documento, tarjeta, dirección). El pedido se cierra en el checkout de la web.
 
-ENVÍOS:
-- Todos los pedidos son con envío a domicilio, solo dentro de la ciudad de Corrientes. NO existe el retiro por sucursal.
+ENTREGA Y RETIRO:
+- El cliente puede elegir envío a domicilio o retiro en una sucursal activa.
+- Los envíos llegan a Corrientes Capital, San Luis del Palmar y Paso de la Patria según los días habilitados en el checkout.
 - La compra mínima es de ${formatARS(MIN_ENVIO_TOTAL)}.
 - Al comprar se elige un rango horario de entrega: 08:00 a 12:00 o 17:00 a 20:00.
 - Las compras hechas a la mañana se reciben a la tarde; las hechas a la tarde, a la mañana del día siguiente.
 - La dirección se carga con calle y altura solamente (sin piso, depto ni barrio).
+- El retiro en sucursal no tiene costo de envío.
 - El pago online es con Mercado Pago desde el carrito. NO se toman pedidos por WhatsApp: ese canal es solo para consultas o problemas.
 
 SUCURSALES:

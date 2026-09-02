@@ -31,6 +31,7 @@ const nav = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/entregas", label: "Entregas", icon: Truck, perm: "entregas" },
   { href: "/admin/envios", label: "Envios", icon: Route, perm: "envios" },
+  { href: "/admin/sucursales", label: "Sucursales", icon: Store, perm: "sucursales" },
   { href: "/admin/productos", label: "Productos", icon: Package, perm: "productos" },
   { href: "/admin/clientes", label: "Clientes", icon: Users, perm: "clientes" },
   { href: "/admin/equipo", label: "Equipo", icon: UserCog, perm: "equipo" },

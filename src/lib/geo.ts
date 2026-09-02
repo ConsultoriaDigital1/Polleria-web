@@ -4,8 +4,47 @@
  * marcar el punto) y de nuevo en el servidor (no se confía en el navegador).
  */
 
-/** Centro aproximado de la ciudad de Corrientes. */
-export const CORRIENTES_CENTER = { lat: -27.4692, lng: -58.8306 };
+export const DELIVERY_LOCALITIES = [
+  {
+    id: "corrientes",
+    name: "Corrientes",
+    searchName: "Corrientes Capital, Corrientes",
+    center: { lat: -27.4692, lng: -58.8306 },
+    radiusKm: 14,
+    zoom: 13,
+  },
+  {
+    id: "san-luis-del-palmar",
+    name: "San Luis del Palmar",
+    searchName: "San Luis del Palmar, Corrientes",
+    center: { lat: -27.50810784, lng: -58.55547442 },
+    radiusKm: 7,
+    zoom: 14,
+  },
+  {
+    id: "paso-de-la-patria",
+    name: "Paso de la Patria",
+    searchName: "Paso de la Patria, Corrientes",
+    center: { lat: -27.31500601, lng: -58.5720143 },
+    radiusKm: 7,
+    zoom: 14,
+  },
+] as const;
+
+export type DeliveryLocalityId = (typeof DELIVERY_LOCALITIES)[number]["id"];
+
+export const DEFAULT_DELIVERY_LOCALITY_ID: DeliveryLocalityId = "corrientes";
+
+export function isDeliveryLocality(value: unknown): value is DeliveryLocalityId {
+  return DELIVERY_LOCALITIES.some((locality) => locality.id === value);
+}
+
+export function getDeliveryLocality(id: DeliveryLocalityId) {
+  return DELIVERY_LOCALITIES.find((locality) => locality.id === id)!;
+}
+
+/** Centro aproximado de la ciudad de Corrientes (compatibilidad con mapas internos). */
+export const CORRIENTES_CENTER = getDeliveryLocality("corrientes").center;
 
 /** Monto mínimo de compra para poder cerrar el pedido. */
 export const MIN_ENVIO_TOTAL = 50_000;
@@ -47,4 +86,16 @@ export function isInsideCorrientes(lat: number, lng: number): boolean {
   if (lat < CORRIENTES_BOUNDS.latMin || lat > CORRIENTES_BOUNDS.latMax) return false;
   if (lng < CORRIENTES_BOUNDS.lngMin || lng > CORRIENTES_BOUNDS.lngMax) return false;
   return distanceKm({ lat, lng }, CORRIENTES_CENTER) <= MAX_KM;
+}
+
+/** Valida que el punto pertenezca a la localidad elegida en el checkout. */
+export function isInsideDeliveryLocality(
+  localityId: DeliveryLocalityId,
+  lat: number,
+  lng: number
+): boolean {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
+  if (localityId === "corrientes") return isInsideCorrientes(lat, lng);
+  const locality = getDeliveryLocality(localityId);
+  return distanceKm({ lat, lng }, locality.center) <= locality.radiusKm;
 }

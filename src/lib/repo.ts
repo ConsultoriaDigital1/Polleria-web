@@ -8,6 +8,7 @@ import type {
   Customer as DbCustomer,
   Staff as DbStaff,
   DeliverySettings as DbDeliverySettings,
+  Sucursal as DbSucursal,
 } from "@prisma/client";
 import type {
   Product,
@@ -36,7 +37,7 @@ import { OTP_RESEND_MS, OTP_MAX_ATTEMPTS, isAdminPhone } from "./auth/otp";
 import type { Role } from "./auth/session";
 import { hashPassword, verifyPassword } from "./auth/password";
 import { eventForStatus, notifyDeliveryReassignment, notifyOrderEvent } from "./n8n";
-import { sucursales } from "./sucursales";
+import { sucursales as defaultSucursales, type Sucursal } from "./sucursales";
 import { optimizeRoute, googleMapsRouteUrl, DEFAULT_ROUTE_ORIGIN } from "./route";
 import { versionImageUrl } from "./image-url";
 import { distanceKm } from "./geo";
@@ -176,11 +177,89 @@ function isSaturdayDelivery(date?: string): boolean {
   return new Date(Date.UTC(year, month - 1, day, 12)).getUTCDay() === 6;
 }
 
-function deliveryOrigin(settings: DeliverySettings) {
+function googleMapsUrl(lat: number, lng: number): string {
+  return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+}
+
+function mapSucursal(row: DbSucursal): Sucursal {
+  const address = `${row.street} ${row.number}, ${row.region}`;
+  return {
+    id: row.id,
+    name: row.name,
+    street: row.street,
+    number: row.number,
+    region: row.region,
+    address,
+    mapsQuery: `${address}, Argentina`,
+    mapsUrl: row.mapsUrl ?? googleMapsUrl(row.lat, row.lng),
+    lat: row.lat,
+    lng: row.lng,
+    active: row.active,
+  };
+}
+
+export async function listSucursales(options: { includeInactive?: boolean } = {}): Promise<Sucursal[]> {
+  if (!hasDatabase) {
+    return defaultSucursales
+      .filter((branch) => options.includeInactive || branch.active)
+      .map((branch) => ({
+        ...branch,
+        mapsUrl: branch.mapsUrl ?? googleMapsUrl(branch.lat, branch.lng),
+      }));
+  }
+  const rows = await prisma.sucursal.findMany({
+    where: options.includeInactive ? undefined : { active: true },
+    orderBy: [{ region: "asc" }, { name: "asc" }],
+  });
+  return rows.map(mapSucursal);
+}
+
+export async function saveSucursal(input: {
+  id: string;
+  name: string;
+  street: string;
+  number: string;
+  region: string;
+  mapsUrl?: string | null;
+  lat: number;
+  lng: number;
+  active: boolean;
+}): Promise<Sucursal> {
+  ensureDb();
+  const row = await prisma.sucursal.upsert({
+    where: { id: input.id },
+    update: {
+      name: input.name,
+      street: input.street,
+      number: input.number,
+      region: input.region,
+      mapsUrl: input.mapsUrl || null,
+      lat: input.lat,
+      lng: input.lng,
+      active: input.active,
+    },
+    create: {
+      id: input.id,
+      name: input.name,
+      street: input.street,
+      number: input.number,
+      region: input.region,
+      mapsUrl: input.mapsUrl || null,
+      lat: input.lat,
+      lng: input.lng,
+      active: input.active,
+    },
+  });
+  return mapSucursal(row);
+}
+
+async function deliveryOrigin(settings: DeliverySettings) {
+  const branches = await listSucursales();
   return (
-    sucursales.find((s) => s.id === settings.fixedSucursalId) ??
-    sucursales.find((s) => s.id === DEFAULT_DELIVERY_SETTINGS.fixedSucursalId) ??
-    sucursales[0]
+    branches.find((s) => s.id === settings.fixedSucursalId) ??
+    branches.find((s) => s.id === DEFAULT_DELIVERY_SETTINGS.fixedSucursalId) ??
+    branches[0] ??
+    defaultSucursales[0]
   );
 }
 
@@ -224,7 +303,7 @@ export async function quoteDelivery(input: {
   deliveryDate?: string;
 }): Promise<DeliveryQuote> {
   const settings = await getDeliverySettings();
-  const origin = deliveryOrigin(settings);
+  const origin = await deliveryOrigin(settings);
   const distance = distanceKm({ lat: origin.lat, lng: origin.lng }, { lat: input.lat, lng: input.lng });
   let freeReason: string | undefined;
   if (settings.freeAllSlots) freeReason = "Envio gratis configurado";
@@ -1159,6 +1238,8 @@ export interface CreateOrderInput {
   address?: string;
   notes?: string;
   entrega?: Order["entrega"];
+  /** Sucursal elegida para retiro o asignada como origen del reparto. */
+  originSucursalId?: string;
   /** Rango horario de entrega ("08-12" o "17-20"). */
   deliverySlot?: string;
   /** Fecha calendario estimada de entrega en Argentina (YYYY-MM-DD). */
@@ -1248,6 +1329,7 @@ async function createOrderMem(input: CreateOrderInput): Promise<Order> {
     lng: input.lng,
     deliveryCode: generateDeliveryCode(),
     notes: input.notes,
+    originSucursalId: input.originSucursalId,
     items: lines,
     total,
     shippingFee: deliveryQuote?.fee ?? 0,
@@ -1340,6 +1422,7 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
       address: input.address,
       notes: input.notes,
       entrega: input.entrega ?? null,
+      originSucursalId: input.originSucursalId ?? null,
       deliverySlot: input.deliverySlot ?? null,
       deliveryDate: input.deliveryDate
         ? new Date(`${input.deliveryDate}T00:00:00.000Z`)
@@ -2056,7 +2139,9 @@ export async function dispatchDeliveries(
   orderIds?: string[],
   repartidorId?: string
 ): Promise<DispatchResult> {
-  const sucursal = sucursales.find((s) => s.id === sucursalId);
+  const sucursal = (await listSucursales({ includeInactive: true })).find(
+    (branch) => branch.id === sucursalId
+  );
   const origin = sucursal ? { lat: sucursal.lat, lng: sucursal.lng } : DEFAULT_ROUTE_ORIGIN;
   const idSet = orderIds && orderIds.length > 0 ? new Set(orderIds) : null;
   const routeBatchId = crypto.randomUUID();

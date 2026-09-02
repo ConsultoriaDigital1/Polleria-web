@@ -21,6 +21,8 @@ const PERIODS: { value: DashboardPeriod; label: string }[] = [
   { value: "today", label: "Hoy" },
   { value: "7d", label: "Últimos 7 días" },
   { value: "14d", label: "Últimos 14 días" },
+  { value: "30d", label: "Últimos 30 días" },
+  { value: "60d", label: "Últimos 60 días" },
 ];
 
 const PERIOD_LABELS: Record<DashboardPeriod, string> = {
@@ -28,10 +30,12 @@ const PERIOD_LABELS: Record<DashboardPeriod, string> = {
   today: "hoy",
   "7d": "últimos 7 días",
   "14d": "últimos 14 días",
+  "30d": "últimos 30 días",
+  "60d": "últimos 60 días",
 };
 
 function resolvePeriod(value?: string): DashboardPeriod {
-  return PERIODS.some((period) => period.value === value) ? (value as DashboardPeriod) : "today";
+  return PERIODS.some((period) => period.value === value) ? (value as DashboardPeriod) : "30d";
 }
 
 function changeLabel(change: number | null, period: DashboardPeriod): string {

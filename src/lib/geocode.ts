@@ -2,10 +2,14 @@
  * Geocodificación de direcciones con Nominatim (OpenStreetMap, sin API key,
  * igual que las tiles del mapa). Se usa en el checkout para pre-ubicar el pin
  * según la dirección que escribe el cliente. Las búsquedas quedan acotadas a
- * la caja de Corrientes capital: una dirección de otra ciudad no devuelve nada.
+ * la localidad elegida: una dirección de otra ciudad no devuelve nada.
  */
 
-import { CORRIENTES_BOUNDS } from "@/lib/geo";
+import {
+  CORRIENTES_BOUNDS,
+  getDeliveryLocality,
+  type DeliveryLocalityId,
+} from "@/lib/geo";
 
 export interface GeocodeResult {
   lat: number;
@@ -17,22 +21,36 @@ export interface GeocodeResult {
 const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
 
 /** Formato viewbox de Nominatim: lng-izq, lat-arriba, lng-der, lat-abajo. */
-const VIEWBOX = [
-  CORRIENTES_BOUNDS.lngMin,
-  CORRIENTES_BOUNDS.latMax,
-  CORRIENTES_BOUNDS.lngMax,
-  CORRIENTES_BOUNDS.latMin,
-].join(",");
+function viewbox(localityId: DeliveryLocalityId): string {
+  if (localityId === "corrientes") {
+    return [
+      CORRIENTES_BOUNDS.lngMin,
+      CORRIENTES_BOUNDS.latMax,
+      CORRIENTES_BOUNDS.lngMax,
+      CORRIENTES_BOUNDS.latMin,
+    ].join(",");
+  }
+  const { center, radiusKm } = getDeliveryLocality(localityId);
+  const latDelta = radiusKm / 111;
+  const lngDelta = radiusKm / (111 * Math.cos((center.lat * Math.PI) / 180));
+  return [
+    center.lng - lngDelta,
+    center.lat + latDelta,
+    center.lng + lngDelta,
+    center.lat - latDelta,
+  ].join(",");
+}
 
 async function buscar(
   params: Record<string, string>,
+  localityId: DeliveryLocalityId,
   signal?: AbortSignal
 ): Promise<GeocodeResult | null> {
   const qs = new URLSearchParams({
     format: "jsonv2",
     limit: "1",
     countrycodes: "ar",
-    viewbox: VIEWBOX,
+    viewbox: viewbox(localityId),
     bounded: "1",
     ...params,
   });
@@ -51,11 +69,12 @@ async function buscar(
 }
 
 /**
- * Busca una dirección escrita libre ("Blas Parera 1749") dentro de Corrientes
- * capital. Devuelve null si no hay resultado dentro de la zona de reparto.
+ * Busca una dirección escrita libre ("Blas Parera 1749") dentro de la localidad
+ * seleccionada. Devuelve null si no hay resultado dentro de la zona de reparto.
  */
 export async function geocodeDireccion(
   direccion: string,
+  localityId: DeliveryLocalityId = "corrientes",
   signal?: AbortSignal
 ): Promise<GeocodeResult | null> {
   // Lo que viene después de una coma suele ser piso/depto y confunde al
@@ -64,10 +83,15 @@ export async function geocodeDireccion(
   if (!q) return null;
 
   // Primer intento: búsqueda libre con la ciudad como contexto.
-  const libre = await buscar({ q: `${q}, Corrientes, Argentina` }, signal);
+  const locality = getDeliveryLocality(localityId);
+  const libre = await buscar({ q: `${q}, ${locality.searchName}, Argentina` }, localityId, signal);
   if (libre) return libre;
 
   // Segundo intento: búsqueda estructurada por calle, que suele resolver
   // mejor el patrón "calle + altura" cuando la libre falla.
-  return buscar({ street: q, city: "Corrientes", country: "Argentina" }, signal);
+  return buscar(
+    { street: q, city: locality.name, state: "Corrientes", country: "Argentina" },
+    localityId,
+    signal
+  );
 }

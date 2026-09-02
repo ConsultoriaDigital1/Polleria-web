@@ -1,6 +1,5 @@
 import { requirePerm } from "@/lib/auth/permissions";
-import { getDeliverySettings, listOrders } from "@/lib/repo";
-import { sucursales } from "@/lib/sucursales";
+import { getDeliverySettings, listOrders, listSucursales } from "@/lib/repo";
 import { EnviosSettingsForm } from "./EnviosSettingsForm";
 import { OrdersManager } from "../pedidos/OrdersManager";
 
@@ -8,9 +7,10 @@ export const dynamic = "force-dynamic";
 
 export default async function EnviosPage() {
   await requirePerm("envios");
-  const [settings, orders] = await Promise.all([
+  const [settings, orders, sucursales] = await Promise.all([
     getDeliverySettings(),
     listOrders({ statusNot: "pendiente" }),
+    listSucursales(),
   ]);
   const origin =
     sucursales.find((s) => s.id === settings.fixedSucursalId) ??

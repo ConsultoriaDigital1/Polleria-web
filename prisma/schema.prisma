@@ -98,7 +98,7 @@ model Order {
   customerName        String
   phone               String?
   address             String?
-  // Entrega: siempre "envio" a domicilio (no hay retiro por sucursal).
+  // Modalidad elegida en checkout: "envio" a domicilio o "retiro" por sucursal.
   entrega             String?
   // Rango horario de entrega elegido por el cliente ("08-12" o "17-20").
   deliverySlot        String?
@@ -290,6 +290,23 @@ model DeliverySettings {
   fixedSucursalId String   @default("maipu")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+}
+
+// Sucursales disponibles para retiro y como referencia operativa del reparto.
+model Sucursal {
+  id        String   @id
+  name      String
+  street    String
+  number    String
+  region    String
+  mapsUrl   String?
+  lat       Float
+  lng       Float
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([region, active])
 }
 
 model Staff {
