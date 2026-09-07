@@ -18,6 +18,7 @@ import {
 import { useCart } from "@/store/cart";
 import { useUI } from "@/store/ui";
 import { formatARS } from "@/lib/format";
+import { randomId } from "@/lib/random-id";
 import {
   DEFAULT_DELIVERY_LOCALITY_ID,
   getDeliveryLocality,
@@ -312,7 +313,7 @@ export function CartDrawer() {
         checkoutAttempt.current =
           stored?.fingerprint === fingerprint && /^[0-9a-f-]{36}$/i.test(stored.id)
             ? stored
-            : { fingerprint, id: crypto.randomUUID() };
+            : { fingerprint, id: randomId() };
         sessionStorage.setItem(CHECKOUT_ATTEMPT_KEY, JSON.stringify(checkoutAttempt.current));
       }
       const res = await fetch("/api/checkout/mercadopago", {

@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { track } from "@/lib/track";
+import { randomId } from "@/lib/random-id";
 
 /**
  * Registra una visita por sesión de navegador y por día.
@@ -13,14 +14,14 @@ export function VisitTracker() {
     const sessionKey = "er-presence-session";
     let sessionId = "";
     try {
-      sessionId = localStorage.getItem(sessionKey) ?? crypto.randomUUID();
+      sessionId = localStorage.getItem(sessionKey) ?? randomId();
       localStorage.setItem(sessionKey, sessionId);
       if (!sessionStorage.getItem(visitKey)) {
         sessionStorage.setItem(visitKey, "1");
         track("visit", { path: window.location.pathname });
       }
     } catch {
-      sessionId = crypto.randomUUID();
+      sessionId = randomId();
       track("visit", { path: window.location.pathname });
     }
 
