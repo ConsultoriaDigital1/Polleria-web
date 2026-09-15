@@ -255,6 +255,10 @@ model Novedad {
   image     String
   link      String?
   active    Boolean  @default(true)
+  deliveryEnabled Boolean @default(true)
+  deliveryRadiusKm Float @default(14)
+  deliverySlots String[] @default(["08-12", "17-20"])
+  freeShippingDays Int[] @default([])
   position  Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -277,6 +281,10 @@ model SuperOferta {
   cartProductId String   @default("p-medallones-1kg")
   cartQuantity  Int      @default(2)
   active    Boolean  @default(true)
+  deliveryEnabled Boolean @default(true)
+  deliveryRadiusKm Float @default(14)
+  deliverySlots String[] @default(["08-12", "17-20"])
+  freeShippingDays Int[] @default([])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -286,6 +294,10 @@ model DeliverySettings {
   id              String   @id @default("main")
   pricePerKm      Int      @default(500)
   freeAllSlots    Boolean  @default(false)
+  // Días con envío gratis, 0=domingo ... 6=sábado. Vacío = desactivado.
+  freeShippingDays Int[]   @default([])
+  // Campo legado: se conserva para que la migración de instalaciones existentes
+  // no pierda la configuración previa de sábados.
   freeSaturday    Boolean  @default(false)
   fixedSucursalId String   @default("maipu")
   createdAt       DateTime @default(now())
@@ -303,6 +315,10 @@ model Sucursal {
   lat       Float
   lng       Float
   active    Boolean  @default(true)
+  deliveryEnabled Boolean @default(true)
+  deliveryRadiusKm Float @default(14)
+  deliverySlots String[] @default(["08-12", "17-20"])
+  freeShippingDays Int[] @default([])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

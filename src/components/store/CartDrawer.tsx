@@ -470,6 +470,9 @@ export function CartDrawer() {
                       {effectiveShippingFee === 0 ? "Gratis" : formatARS(effectiveShippingFee)}
                     </span>
                   </div>
+                  {deliveryQuote.freeReason && (
+                    <p className="text-xs font-semibold text-emerald-700">{deliveryQuote.freeReason}</p>
+                  )}
                   {shippingDiscount > 0 && (
                     <div className="flex justify-between text-xs font-semibold text-emerald-700">
                       <span>Descuento envio</span>

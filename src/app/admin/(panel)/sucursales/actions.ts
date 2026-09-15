@@ -24,6 +24,9 @@ export async function saveSucursalAction(
   const mapsUrl = String(formData.get("mapsUrl") ?? "").trim();
   const lat = Number(formData.get("lat"));
   const lng = Number(formData.get("lng"));
+  const deliveryRadiusKm = Number(formData.get("deliveryRadiusKm"));
+  const deliverySlots = formData.getAll("deliverySlots").map(String);
+  const freeShippingDays = formData.getAll("freeShippingDays").map(Number).filter((day) => Number.isInteger(day) && day >= 0 && day <= 6);
 
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id)) {
     return { error: "El ID solo puede contener letras minúsculas, números y guiones." };
@@ -31,6 +34,7 @@ export async function saveSucursalAction(
   if (!name || !street || !number || !region) {
     return { error: "Completá nombre, calle, altura y región." };
   }
+  if (!Number.isFinite(deliveryRadiusKm) || deliveryRadiusKm <= 0 || deliveryRadiusKm > 100) return { error: "Ingresá un radio de envío entre 0,1 y 100 km." };
   if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180) {
     return { error: "Elegí una ubicación válida en el mapa." };
   }
@@ -49,6 +53,10 @@ export async function saveSucursalAction(
       lat,
       lng,
       active: formData.get("active") === "on",
+      deliveryEnabled: formData.get("deliveryEnabled") === "on",
+      deliveryRadiusKm,
+      deliverySlots,
+      freeShippingDays,
     });
     revalidatePath("/admin/sucursales");
     revalidatePath("/api/sucursales");

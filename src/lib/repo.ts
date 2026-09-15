@@ -158,7 +158,7 @@ function mapOrder(o: DbOrder & { items: DbOrderItem[] }): Order {
 const DEFAULT_DELIVERY_SETTINGS: DeliverySettings = {
   pricePerKm: 500,
   freeAllSlots: false,
-  freeSaturday: false,
+  freeShippingDays: [],
   fixedSucursalId: "maipu",
 };
 
@@ -166,15 +166,30 @@ function mapDeliverySettings(settings: DbDeliverySettings): DeliverySettings {
   return {
     pricePerKm: settings.pricePerKm,
     freeAllSlots: settings.freeAllSlots,
-    freeSaturday: settings.freeSaturday,
+    // El fallback evita perder una bonificación de sábado mientras se aplica
+    // la migración en una instalación existente.
+    freeShippingDays:
+      settings.freeShippingDays.length > 0
+        ? settings.freeShippingDays
+        : settings.freeSaturday
+          ? [6]
+          : [],
     fixedSucursalId: settings.fixedSucursalId,
   };
 }
 
-function isSaturdayDelivery(date?: string): boolean {
-  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+function weekdayForDeliveryDate(date?: string): number | undefined {
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return undefined;
   const [year, month, day] = date.split("-").map(Number);
-  return new Date(Date.UTC(year, month - 1, day, 12)).getUTCDay() === 6;
+  return new Date(Date.UTC(year, month - 1, day, 12)).getUTCDay();
+}
+
+function currentArgentinaWeekday(now = new Date()): number {
+  const weekday = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Argentina/Buenos_Aires",
+    weekday: "short",
+  }).format(now);
+  return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(weekday);
 }
 
 function googleMapsUrl(lat: number, lng: number): string {
@@ -195,6 +210,10 @@ function mapSucursal(row: DbSucursal): Sucursal {
     lat: row.lat,
     lng: row.lng,
     active: row.active,
+    deliveryEnabled: row.deliveryEnabled,
+    deliveryRadiusKm: row.deliveryRadiusKm,
+    deliverySlots: row.deliverySlots,
+    freeShippingDays: row.freeShippingDays,
   };
 }
 
@@ -237,6 +256,10 @@ export async function saveSucursal(input: {
       lat: input.lat,
       lng: input.lng,
       active: input.active,
+      deliveryEnabled: input.deliveryEnabled,
+      deliveryRadiusKm: input.deliveryRadiusKm,
+      deliverySlots: input.deliverySlots,
+      freeShippingDays: input.freeShippingDays,
     },
     create: {
       id: input.id,
@@ -248,21 +271,22 @@ export async function saveSucursal(input: {
       lat: input.lat,
       lng: input.lng,
       active: input.active,
+      deliveryEnabled: input.deliveryEnabled,
+      deliveryRadiusKm: input.deliveryRadiusKm,
+      deliverySlots: input.deliverySlots,
+      freeShippingDays: input.freeShippingDays,
     },
   });
   return mapSucursal(row);
 }
 
-async function deliveryOrigin(settings: DeliverySettings) {
-  const branches = await listSucursales();
-  return (
-    branches.find((s) => s.id === settings.fixedSucursalId) ??
-    branches.find((s) => s.id === DEFAULT_DELIVERY_SETTINGS.fixedSucursalId) ??
-    branches[0] ??
-    defaultSucursales[0]
-  );
+function deliveryOriginForPoint(branches: Sucursal[], lat: number, lng: number, slot?: string) {
+  return branches
+    .filter((branch) => branch.active && branch.deliveryEnabled)
+    .map((branch) => ({ branch, distance: distanceKm({ lat: branch.lat, lng: branch.lng }, { lat, lng }) }))
+    .filter(({ branch, distance }) => distance <= branch.deliveryRadiusKm && (!slot || branch.deliverySlots.includes(slot)))
+    .sort((a, b) => a.distance - b.distance)[0];
 }
-
 export async function getDeliverySettings(): Promise<DeliverySettings> {
   if (!hasDatabase) return DEFAULT_DELIVERY_SETTINGS;
   const settings = await prisma.deliverySettings.upsert({
@@ -276,22 +300,25 @@ export async function getDeliverySettings(): Promise<DeliverySettings> {
 export async function saveDeliverySettings(input: {
   pricePerKm: number;
   freeAllSlots: boolean;
-  freeSaturday: boolean;
+  freeShippingDays: number[];
 }): Promise<DeliverySettings> {
   ensureDb();
   const pricePerKm = Math.max(0, Math.round(input.pricePerKm));
+  const freeShippingDays = [...new Set(input.freeShippingDays)].filter(
+    (day) => Number.isInteger(day) && day >= 0 && day <= 6
+  );
   const settings = await prisma.deliverySettings.upsert({
     where: { id: "main" },
     update: {
       pricePerKm,
       freeAllSlots: input.freeAllSlots,
-      freeSaturday: input.freeSaturday,
+      freeShippingDays,
     },
     create: {
       ...DEFAULT_DELIVERY_SETTINGS,
       pricePerKm,
       freeAllSlots: input.freeAllSlots,
-      freeSaturday: input.freeSaturday,
+      freeShippingDays,
     },
   });
   return mapDeliverySettings(settings);
@@ -307,8 +334,20 @@ export async function quoteDelivery(input: {
   const distance = distanceKm({ lat: origin.lat, lng: origin.lng }, { lat: input.lat, lng: input.lng });
   let freeReason: string | undefined;
   if (settings.freeAllSlots) freeReason = "Envio gratis configurado";
-  else if (settings.freeSaturday && isSaturdayDelivery(input.deliveryDate)) {
-    freeReason = "Envio gratis por entrega de sabado";
+  else {
+    const freeDays = [...new Set([...settings.freeShippingDays, ...origin.freeShippingDays])];
+    const purchaseDay = currentArgentinaWeekday();
+    const deliveryDay = weekdayForDeliveryDate(input.deliveryDate);
+    const freeForPurchase = freeDays.includes(purchaseDay);
+    const freeForDelivery = deliveryDay !== undefined && freeDays.includes(deliveryDay);
+
+    if (freeForPurchase && freeForDelivery) {
+      freeReason = "Envio gratis por día de compra y de entrega configurados";
+    } else if (freeForPurchase) {
+      freeReason = "Envio gratis por día de compra configurado";
+    } else if (freeForDelivery) {
+      freeReason = "Envio gratis por día de entrega configurado";
+    }
   }
   return {
     distanceKm: Number(distance.toFixed(2)),
@@ -1044,6 +1083,10 @@ export async function updateNovedad(
       image: input.image,
       link: input.link === undefined ? undefined : input.link,
       active: input.active,
+      deliveryEnabled: input.deliveryEnabled,
+      deliveryRadiusKm: input.deliveryRadiusKm,
+      deliverySlots: input.deliverySlots,
+      freeShippingDays: input.freeShippingDays,
       position: input.position,
     },
   });
@@ -1310,7 +1353,7 @@ async function createOrderMem(input: CreateOrderInput): Promise<Order> {
   const { lines, total: subtotal } = await quoteOrderMem(input.items);
   const deliveryQuote =
     input.entrega === "envio" && input.lat != null && input.lng != null
-      ? await quoteDelivery({ lat: input.lat, lng: input.lng, deliveryDate: input.deliveryDate })
+      ? await quoteDelivery({ lat: input.lat, lng: input.lng, deliveryDate: input.deliveryDate, deliverySlot: input.deliverySlot })
       : null;
   const total = subtotal + (deliveryQuote?.fee ?? 0);
   runtimeSeq.n += 1;
@@ -1398,7 +1441,7 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
     : null;
   const deliveryQuote =
     input.entrega === "envio" && input.lat != null && input.lng != null
-      ? await quoteDelivery({ lat: input.lat, lng: input.lng, deliveryDate: input.deliveryDate })
+      ? await quoteDelivery({ lat: input.lat, lng: input.lng, deliveryDate: input.deliveryDate, deliverySlot: input.deliverySlot })
       : null;
   const productDiscount = couponResult?.quote.discount ?? 0;
   const shippingDiscount =
@@ -2574,6 +2617,10 @@ export async function updateStaff(
         passwordHash: input.password ? hashPassword(input.password) : undefined,
         permissions: input.permissions === undefined ? undefined : input.permissions,
         active: input.active,
+      deliveryEnabled: input.deliveryEnabled,
+      deliveryRadiusKm: input.deliveryRadiusKm,
+      deliverySlots: input.deliverySlots,
+      freeShippingDays: input.freeShippingDays,
       },
     });
     return mapStaff(s);

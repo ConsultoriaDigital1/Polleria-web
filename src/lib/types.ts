@@ -201,7 +201,8 @@ export interface Staff {
 export interface DeliverySettings {
   pricePerKm: number;
   freeAllSlots: boolean;
-  freeSaturday: boolean;
+  /** Días con envío gratis: 0=domingo … 6=sábado. */
+  freeShippingDays: number[];
   fixedSucursalId: string;
 }
 

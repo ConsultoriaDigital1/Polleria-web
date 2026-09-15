@@ -10,6 +10,10 @@ export interface Sucursal {
   phone?: string;
   mapsUrl?: string;
   active: boolean;
+  deliveryEnabled: boolean;
+  deliveryRadiusKm: number;
+  deliverySlots: string[];
+  freeShippingDays: number[];
   /**
    * Coordenadas del local; son el origen de la ruta de reparto, por lo que
    * deben coincidir con el pin que muestra /sucursales (Google resuelve el
@@ -30,6 +34,10 @@ export const sucursales: Sucursal[] = [
     mapsQuery: "Junín 2198, Corrientes, Argentina",
     phone: "3794 525617",
     active: true,
+    deliveryEnabled: true,
+    deliveryRadiusKm: 14,
+    deliverySlots: ["08-12", "17-20"],
+    freeShippingDays: [],
     lat: -27.4689014,
     lng: -58.8228427,
   },
@@ -43,6 +51,10 @@ export const sucursales: Sucursal[] = [
     mapsQuery: "Sarmiento y La Pampa, Corrientes, Argentina",
     phone: "3794 525617",
     active: true,
+    deliveryEnabled: true,
+    deliveryRadiusKm: 14,
+    deliverySlots: ["08-12", "17-20"],
+    freeShippingDays: [],
     lat: -27.486098,
     lng: -58.831291,
   },
@@ -55,6 +67,10 @@ export const sucursales: Sucursal[] = [
     address: "Av. Cazadores Correntinos 3038, Corrientes",
     mapsQuery: "Av. Cazadores Correntinos 3038, Corrientes, Argentina",
     active: true,
+    deliveryEnabled: true,
+    deliveryRadiusKm: 14,
+    deliverySlots: ["08-12", "17-20"],
+    freeShippingDays: [],
     lat: -27.4871312,
     lng: -58.815603,
   },
@@ -67,6 +83,10 @@ export const sucursales: Sucursal[] = [
     address: "Av. Independencia 5328, Corrientes",
     mapsQuery: "Av. Independencia 5328, Corrientes, Argentina",
     active: true,
+    deliveryEnabled: true,
+    deliveryRadiusKm: 14,
+    deliverySlots: ["08-12", "17-20"],
+    freeShippingDays: [],
     lat: -27.4844077,
     lng: -58.7864115,
   },
@@ -79,6 +99,10 @@ export const sucursales: Sucursal[] = [
     address: "Av. Independencia 3540, Corrientes",
     mapsQuery: "Av. Independencia 3540, Corrientes, Argentina",
     active: true,
+    deliveryEnabled: true,
+    deliveryRadiusKm: 14,
+    deliverySlots: ["08-12", "17-20"],
+    freeShippingDays: [],
     lat: -27.4796606,
     lng: -58.8081457,
   },
@@ -91,6 +115,10 @@ export const sucursales: Sucursal[] = [
     address: "Gutemberg 1670, Corrientes",
     mapsQuery: "Gutemberg 1670, Corrientes, Argentina",
     active: true,
+    deliveryEnabled: true,
+    deliveryRadiusKm: 14,
+    deliverySlots: ["08-12", "17-20"],
+    freeShippingDays: [],
     lat: -27.477126,
     lng: -58.8316569,
   },
@@ -103,6 +131,10 @@ export const sucursales: Sucursal[] = [
     address: "Av. Libertad 5279, Corrientes",
     mapsQuery: "Av. Libertad 5279, Corrientes, Argentina",
     active: true,
+    deliveryEnabled: true,
+    deliveryRadiusKm: 14,
+    deliverySlots: ["08-12", "17-20"],
+    freeShippingDays: [],
     lat: -27.4653257,
     lng: -58.7855411,
   },
@@ -115,6 +147,10 @@ export const sucursales: Sucursal[] = [
     address: "Av. Maipú 7185, Corrientes",
     mapsQuery: "Av. Maipú 7185, Corrientes, Argentina",
     active: true,
+    deliveryEnabled: true,
+    deliveryRadiusKm: 14,
+    deliverySlots: ["08-12", "17-20"],
+    freeShippingDays: [],
     lat: -27.5265807,
     lng: -58.7955942,
   },

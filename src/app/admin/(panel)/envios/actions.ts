@@ -21,11 +21,15 @@ export async function saveEnvios(
     return { error: "Ingresá un precio por kilometro valido." };
   }
 
+  const freeShippingDays = formData
+    .getAll("freeShippingDays")
+    .map((value) => Number(value))
+    .filter((day) => Number.isInteger(day) && day >= 0 && day <= 6);
   try {
     await saveDeliverySettings({
       pricePerKm,
       freeAllSlots: formData.get("freeAllSlots") === "on",
-      freeSaturday: formData.get("freeSaturday") === "on",
+      freeShippingDays: formData.get("freeShippingDaysEnabled") === "on" ? freeShippingDays : [],
     });
     revalidatePath("/admin/envios");
     return { ok: true };
