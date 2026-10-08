@@ -29,6 +29,8 @@ export interface RutaStop {
   phone: string | null;
   address: string | null;
   deliveryCode: string | null;
+  codeMessageStatus: string | null;
+  codeMessageError: string | null;
   status: string;
   mapUrl: string | null;
   deliveredAt: string | null;
@@ -364,6 +366,19 @@ export function RutaEnCursoClient({
                     </a>
                   )}
                 </div>
+                {!entregado && s.codeMessageStatus === "fallido" && (
+                  <p role="alert" className="mt-2 rounded-lg bg-red-50 px-2.5 py-2 text-xs font-semibold text-red-700">
+                    No se envió el código por WhatsApp. {s.codeMessageError} Contactá al cliente.
+                  </p>
+                )}
+                {!entregado && s.codeMessageStatus === "sin_verificar" && (
+                  <p role="alert" className="mt-2 rounded-lg bg-amber-50 px-2.5 py-2 text-xs font-semibold text-amber-800">
+                    No se pudo verificar la entrega del código por WhatsApp. Confirmalo con el cliente.
+                  </p>
+                )}
+                {!entregado && s.codeMessageStatus === "pendiente" && (
+                  <p className="mt-2 text-xs text-amber-800">Aviso en proceso; esperando confirmación de WaSenderAPI.</p>
+                )}
               </div>
 
               {!entregado && (

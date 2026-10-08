@@ -1,5 +1,17 @@
 # Seguimiento de pedidos por WhatsApp con n8n
 
+## WaSenderAPI
+
+Con `WASENDER_API_KEY` configurada en `.env`, los avisos de pedidos salen
+directamente desde la web por WaSenderAPI. Docker Compose pasa esa variable al
+contenedor. Sin clave, se conserva el flujo n8n actual.
+
+Al levantar el contenedor nuevo, `docker-entrypoint.sh` aplica la migración.
+El panel Entregas muestra fallos y avisos sin
+confirmación; consulta el estado de WaSenderAPI cada vez que se actualiza.
+Una respuesta exitosa al enviar indica que el mensaje quedó en proceso,
+no que llegó al teléfono del cliente.
+
 La web avisa a n8n cada vez que un pedido cambia de estado. Con esos eventos
 armás el flujo de mensajes al cliente y la ruta optimizada del repartidor.
 

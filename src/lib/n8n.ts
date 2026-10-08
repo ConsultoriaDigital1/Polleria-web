@@ -1,5 +1,7 @@
 import type { Order, OrderStatus } from "./types";
 import { deliveryEstimateLabel } from "./entrega";
+import { hasDatabase, prisma } from "./prisma";
+import { sendWasenderMessage, type WasenderStatus } from "./wasender";
 
 /**
  * Avisos de pedidos hacia n8n. Cada vez que un pedido cambia de estado se
@@ -44,6 +46,33 @@ export function eventForStatus(status: OrderStatus): OrderEvent | null {
   }
 }
 
+async function saveCodeMessageStatus(
+  order: Order,
+  status: WasenderStatus,
+  messageId?: string,
+  error?: string
+): Promise<void> {
+  const attemptedAt = status === "pendiente" && !messageId ? new Date() : undefined;
+  order.codeMessageStatus = status;
+  order.codeMessageId = messageId;
+  order.codeMessageError = error;
+  if (attemptedAt) order.codeMessageAt = attemptedAt.toISOString();
+  if (!hasDatabase || !order.internalId) return;
+  try {
+    await prisma.order.update({
+      where: { id: order.internalId },
+      data: {
+        codeMessageStatus: status,
+        codeMessageId: messageId ?? null,
+        codeMessageError: error ?? null,
+        ...(attemptedAt ? { codeMessageAt: attemptedAt } : {}),
+      },
+    });
+  } catch (cause) {
+    console.error(`[pedidos] no se pudo guardar el estado del aviso ${order.id}:`, cause);
+  }
+}
+
 function messageForOrderEvent(event: OrderEvent, order: Order): string {
   switch (event) {
     case "pedido_confirmado":
@@ -68,6 +97,15 @@ function messageForOrderEvent(event: OrderEvent, order: Order): string {
  * loguea y la operación original (cambio de estado, alta) sigue adelante.
  */
 export async function notifyOrderEvent(event: OrderEvent, order: Order): Promise<void> {
+  const codeMessage = event === "pedido_en_camino" && Boolean(order.deliveryCode);
+  const message = messageForOrderEvent(event, order);
+  if (process.env.WASENDER_API_KEY?.trim()) {
+    if (codeMessage) await saveCodeMessageStatus(order, "pendiente");
+    const result = await sendWasenderMessage(order.phone ?? "", message);
+    if (codeMessage) await saveCodeMessageStatus(order, result.status, result.messageId, result.error);
+    return;
+  }
+
   const url =
     event === "pedido_en_camino"
       ? process.env.N8N_ORDER_DISPATCH_WEBHOOK_URL?.trim() ||
@@ -76,12 +114,15 @@ export async function notifyOrderEvent(event: OrderEvent, order: Order): Promise
         ? process.env.N8N_ORDER_DELIVERED_WEBHOOK_URL?.trim() ||
           ORDER_DELIVERED_WEBHOOK_URL
       : process.env.N8N_ORDER_WEBHOOK_URL?.trim();
-  if (!url) return;
+  if (!url) {
+    if (codeMessage) await saveCodeMessageStatus(order, "fallido", undefined, "No hay un canal de WhatsApp configurado.");
+    return;
+  }
 
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   const secret = process.env.N8N_ORDER_WEBHOOK_SECRET?.trim();
   if (secret) headers.Authorization = `Bearer ${secret}`;
-  const message = messageForOrderEvent(event, order);
+  if (codeMessage) await saveCodeMessageStatus(order, "sin_verificar", undefined, "n8n no informa si WhatsApp entregó el código.");
 
   try {
     const res = await fetch(url, {
@@ -99,10 +140,12 @@ export async function notifyOrderEvent(event: OrderEvent, order: Order): Promise
     });
     const responseBody = await res.text().catch(() => "");
     if (!res.ok) {
+      if (codeMessage) await saveCodeMessageStatus(order, "fallido", undefined, `n8n respondió HTTP ${res.status}.`);
       console.error(`[n8n] respuesta para ${event} ${order.id}: ${responseBody.slice(0, 300)}`);
       console.error(`[n8n] webhook de pedidos respondió ${res.status} para ${event} ${order.id}`);
     }
   } catch (e) {
+    if (codeMessage) await saveCodeMessageStatus(order, "sin_verificar", undefined, "No se pudo confirmar la recepción del aviso en n8n.");
     console.error(`[n8n] no se pudo notificar ${event} de ${order.id}:`, e);
   }
 }

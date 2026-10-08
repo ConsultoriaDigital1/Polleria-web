@@ -7,6 +7,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "test": "tsx --conditions=react-server scripts/test-wasender.mjs",
     "lint": "next lint",
     "postinstall": "prisma generate",
     "db:push": "prisma db push",

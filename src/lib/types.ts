@@ -127,6 +127,11 @@ export interface Order {
   lng?: number;
   /** Código que el cliente le da al repartidor al recibir el pedido. */
   deliveryCode?: string;
+  /** Estado del WhatsApp que contiene el código de entrega. */
+  codeMessageStatus?: "pendiente" | "enviado" | "entregado" | "fallido" | "sin_verificar";
+  codeMessageId?: string;
+  codeMessageError?: string;
+  codeMessageAt?: string;
   /** Momento exacto en que se confirmó la entrega. */
   deliveredAt?: string;
   /** Momento exacto en que Mercado Pago confirmó el cobro. */

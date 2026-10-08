@@ -110,6 +110,10 @@ model Order {
   // Código que el cliente le da al repartidor al recibir el pedido; al
   // validarlo se marca como entregado y n8n recibe el aviso de confirmación.
   deliveryCode        String?
+  codeMessageStatus   String?
+  codeMessageId       String?
+  codeMessageError    String?
+  codeMessageAt       DateTime?
   // Momento exacto en que el repartidor confirmó la entrega.
   deliveredAt         DateTime?
   // Reparto: al "cerrar pedidos" se arma una ruta optimizada y cada envío

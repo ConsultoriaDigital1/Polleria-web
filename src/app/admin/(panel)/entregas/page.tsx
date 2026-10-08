@@ -1,4 +1,4 @@
-import { listOrders, listActiveRoute, listRouteHistory, listStaff } from "@/lib/repo";
+import { listOrders, listActiveRoute, listRouteHistory, listStaff, refreshCodeMessageStatuses } from "@/lib/repo";
 import { requirePerm } from "@/lib/auth/permissions";
 import { sucursales } from "@/lib/sucursales";
 import { googleMapsPointUrl, googleMapsRouteUrl, DEFAULT_ROUTE_ORIGIN } from "@/lib/route";
@@ -30,6 +30,7 @@ export default async function EntregasPage() {
     listRouteHistory(),
     listStaff(),
   ]);
+  await refreshCodeMessageStatuses(ruta);
   const repartidores = equipo
     .filter((s) => s.role === "repartidor" && s.active)
     .map((s) => ({ id: s.id, name: s.name }));
@@ -96,6 +97,8 @@ export default async function EntregasPage() {
       phone: o.phone ?? null,
       address: o.address ?? null,
       deliveryCode: o.deliveryCode ?? null,
+      codeMessageStatus: o.codeMessageStatus ?? null,
+      codeMessageError: o.codeMessageError ?? null,
       status: o.status,
       mapUrl:
         o.lat != null && o.lng != null ? googleMapsPointUrl({ lat: o.lat, lng: o.lng }) : null,

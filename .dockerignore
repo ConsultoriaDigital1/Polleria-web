@@ -12,3 +12,6 @@ npm-debug.log
 docs
 .claude
 tsconfig.tsbuildinfo
+*.dump
+*.tar.gz
+*.log

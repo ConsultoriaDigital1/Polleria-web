@@ -36,6 +36,7 @@ import { OTP_RESEND_MS, OTP_MAX_ATTEMPTS, isAdminPhone } from "./auth/otp";
 import type { Role } from "./auth/session";
 import { hashPassword, verifyPassword } from "./auth/password";
 import { eventForStatus, notifyDeliveryReassignment, notifyOrderEvent } from "./n8n";
+import { getWasenderMessageStatus } from "./wasender";
 import { sucursales } from "./sucursales";
 import { optimizeRoute, googleMapsRouteUrl, DEFAULT_ROUTE_ORIGIN } from "./route";
 import { versionImageUrl } from "./image-url";
@@ -119,6 +120,10 @@ function mapOrder(o: DbOrder & { items: DbOrderItem[] }): Order {
     lat: o.lat ?? undefined,
     lng: o.lng ?? undefined,
     deliveryCode: o.deliveryCode ?? undefined,
+    codeMessageStatus: (o.codeMessageStatus as Order["codeMessageStatus"]) ?? undefined,
+    codeMessageId: o.codeMessageId ?? undefined,
+    codeMessageError: o.codeMessageError ?? undefined,
+    codeMessageAt: o.codeMessageAt?.toISOString(),
     deliveredAt: o.deliveredAt?.toISOString(),
     paidAt: o.paidAt?.toISOString(),
     cancelledAt: o.cancelledAt?.toISOString(),
@@ -1078,6 +1083,37 @@ export interface OrderFilter {
   statusNot?: OrderStatus;
   customerId?: string;
   limit?: number;
+}
+
+/** Refresca los avisos de código de los pedidos en ruta al abrir el panel. */
+export async function refreshCodeMessageStatuses(orders: Order[]): Promise<Order[]> {
+  if (!process.env.WASENDER_API_KEY?.trim()) return orders;
+  await Promise.all(orders.map(async (order) => {
+    if (!order.codeMessageId || !["pendiente", "enviado", "sin_verificar"].includes(order.codeMessageStatus ?? "")) return;
+    const providerStatus = await getWasenderMessageStatus(order.codeMessageId);
+    const expired = order.codeMessageAt && Date.now() - new Date(order.codeMessageAt).getTime() > 15 * 60_000;
+    const status = providerStatus === "fallido" || providerStatus === "entregado"
+      ? providerStatus
+      : expired ? "sin_verificar" : providerStatus;
+    if (!status || status === order.codeMessageStatus) return;
+    const previousStatus = order.codeMessageStatus;
+    const error = status === "fallido"
+      ? "WaSenderAPI informó que el mensaje falló."
+      : status === "sin_verificar" ? "No se confirmó la entrega del código después de 15 minutos." : undefined;
+    if (hasDatabase && order.internalId) {
+      const updated = await prisma.order.updateMany({
+        where: { id: order.internalId, codeMessageId: order.codeMessageId, codeMessageStatus: previousStatus },
+        data: { codeMessageStatus: status, codeMessageError: error ?? null },
+      }).catch((cause) => {
+        console.error(`[pedidos] no se pudo actualizar el aviso ${order.id}:`, cause);
+        return null;
+      });
+      if (!updated?.count) return;
+    }
+    order.codeMessageStatus = status;
+    order.codeMessageError = error;
+  }));
+  return orders;
 }
 
 export async function listOrders(f: OrderFilter = {}): Promise<Order[]> {
